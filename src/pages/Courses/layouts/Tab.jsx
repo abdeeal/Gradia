@@ -7,10 +7,12 @@ import { DayTab } from "../components/DayTab";
 import { Drawer } from "../components/Drawer";
 
 export const Tab = () => {
-  const [drawer, setDrawer] = useState(true)
+  const [drawer, setDrawer] = useState(false)
+
+
   return (
     <div className="flex flex-col gap-8">
-      {drawer && <Drawer drawer={drawer} setDrawer={setDrawer} />}
+      <Drawer drawer={drawer} setDrawer={setDrawer} />
       <Navbar />
       <div className="flex justify-between items-center">
         <div className="flex flex-col gap-2">
@@ -34,7 +36,7 @@ export const Tab = () => {
         {/* monday */}
         <div className="flex gap-3 h-[160px]">
           <DayTab day={"Mon"} count={2} />
-          <CourseCard
+          <CourseCard setDrawer={setDrawer}
             start={"06.30"}
             end={"09.30"}
             title={"Manajemen Proyek TIK"}
@@ -49,7 +51,7 @@ export const Tab = () => {
         <div className="flex gap-3 h-[160px]">
           <DayTab day={"Tue"} count={1} />
 
-          <CourseCard
+          <CourseCard setDrawer={setDrawer}
             start={"06.30"}
             end={"09.30"}
             title={"Manajemen Proyek TIK"}
@@ -64,7 +66,7 @@ export const Tab = () => {
         <div className="flex gap-3 h-[160px]">
           <DayTab day={"Wed"} count={1} />
 
-          <CourseCard
+          <CourseCard setDrawer={setDrawer}
             start={"06.30"}
             end={"09.30"}
             title={"Manajemen Proyek TIK"}
@@ -79,7 +81,7 @@ export const Tab = () => {
         <div className="flex gap-3 h-[160px]">
           <DayTab day={"Thu"} count={1} />
 
-          <CourseCard
+          <CourseCard setDrawer={setDrawer}
             start={"06.30"}
             end={"09.30"}
             title={"Manajemen Proyek TIK"}
@@ -94,7 +96,7 @@ export const Tab = () => {
         <div className="flex gap-3 h-[160px]">
           <DayTab day={"Fri"} count={1} />
 
-          <CourseCard
+          <CourseCard setDrawer={setDrawer}
             start={"06.30"}
             end={"09.30"}
             title={"Manajemen Proyek TIK"}
