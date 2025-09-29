@@ -8,7 +8,7 @@ import { Drawer } from "../components/Drawer";
 
 export const Tab = () => {
   const [drawer, setDrawer] = useState(false)
-
+  const [variantDrawer, setVariantDrawer] = useState(null)
 
   return (
     <div className="flex flex-col gap-8">
