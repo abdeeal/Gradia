@@ -1,5 +1,6 @@
 import { useRef, useLayoutEffect } from "react";
 import gsap from "gsap";
+import GridDrawer from "./GridDrawer";
 
 export const Drawer = ({ drawer, setDrawer }) => {
   const drawerRef = useRef(null);
@@ -60,10 +61,49 @@ export const Drawer = ({ drawer, setDrawer }) => {
           <textarea
             type="text"
             defaultValue={"Manajemen Projek TIK"}
-            className="font-bold text-[48px]"
+            className="font-bold text-[48px] focus:ring-0 focus:outline-none focus:border-none"
             rows={2}
           />
         </div>
+
+        <div className="grid px-12 grid-cols-2 grid-rows-9 w-full gap-6">
+          <GridDrawer icon={"ri-hashtag"} title={"Alias"}>
+            <input type="text" defaultValue={"Mapro"} className="focus:ring-0 focus:outline-none focus:border-none" />
+          </GridDrawer>
+
+          <GridDrawer icon={"ri-graduation-cap-line"} title={"Lecturer"}>
+            <input type="text" defaultValue={"Mapro"} className="focus:ring-0 focus:outline-none focus:border-none" />
+          </GridDrawer>
+
+          <GridDrawer icon={"ri-phone-line"} title={"Phone"}>
+            <input type="text" defaultValue={"Mapro"} className="focus:ring-0 focus:outline-none focus:border-none" />
+          </GridDrawer>
+
+          <GridDrawer icon={"ri-calendar-event-line"} title={"Day"}>
+            <input type="text" defaultValue={"Mapro"} className="focus:ring-0 focus:outline-none focus:border-none" />
+          </GridDrawer>
+
+          <GridDrawer icon={"ri-time-line"} title={"Start / End"}>
+            <input type="text" defaultValue={"Mapro"} className="focus:ring-0 focus:outline-none focus:border-none" />
+          </GridDrawer>
+
+          <GridDrawer icon={"ri-graduation-cap-line"} title={"Room"}>
+            <input type="text" defaultValue={"Mapro"} className="focus:ring-0 focus:outline-none focus:border-none" />
+          </GridDrawer>
+
+          <GridDrawer icon={"ri-graduation-cap-line"} title={"SKS"}>
+            <input type="text" defaultValue={"Mapro"} className="focus:ring-0 focus:outline-none focus:border-none" />
+          </GridDrawer>
+
+          <GridDrawer icon={"ri-graduation-cap-line"} title={"Link"}>
+            <input type="text" defaultValue={"Mapro"} className="focus:ring-0 focus:outline-none focus:border-none" />
+          </GridDrawer>
+
+          <GridDrawer icon={"ri-graduation-cap-line"} title={"Presence / absent"}>
+            <input type="text" defaultValue={"Mapro"} className="focus:ring-0 focus:outline-none focus:border-none" />
+          </GridDrawer>
+        </div>
+
       </div>
     </div>
   );
