@@ -1,4 +1,4 @@
-import { Tab } from './layouts/tab';
+import { Tab } from './layouts/tab_temp';
 import { useMediaQuery } from "react-responsive";
 
 export const Courses = () => {
