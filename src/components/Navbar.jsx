@@ -26,6 +26,9 @@ export const Navbar = () => {
     }
 
     if (drawer) {
+      document.getElementById("drawer").classList.add("inline");
+      document.getElementById("drawer").classList.remove("hidden");
+
       gsap.fromTo(
         drawerRef.current,
         { height: 0, filter: "blur(16px)" },
@@ -37,6 +40,11 @@ export const Navbar = () => {
         }
       );
     } else {
+      document.getElementById("drawer").classList.remove("inline");
+      setTimeout(() => {
+        document.getElementById("drawer").classList.add("hidden");
+      }, 500);
+
       gsap.to(drawerRef.current, {
         height: 0,
         filter: "blur(8px)",
@@ -53,9 +61,9 @@ export const Navbar = () => {
           {/* drawer */}
           <div
             ref={drawerRef}
-            id="drawer"    
+            id="drawer"
             className={`absolute bg-gradient-to-b from-[#141414] via-[#000000] to-[#141414] w-[396px]  right-[-8px] top-0 px-3 rounded-[16px] overflow-hidden border border-border/20`}
-            style={{height: 0}}
+            style={{ height: 0 }}
           >
             <p className="font-semibold text-[20px] py-4 border-b border-border/50">
               Menu
