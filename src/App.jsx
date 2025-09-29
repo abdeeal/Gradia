@@ -1,35 +1,19 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useMatch } from "react-router-dom";
+import AppRoutes from "./routes";
+import { Container } from "./components/Container";
 
 function App() {
-  const [count, setCount] = useState(0)
-
+  const match = useMatch("/");
+  const msg =
+    "Jangan otak atik file ini, kalau mau edit file course ada di /Pages/courses/ buat ngakses halamannya ada di /courses";
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR test
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      {match ? msg : ""}
+      <Container>
+        <AppRoutes />
+      </Container>
     </>
-  )
+  );
 }
 
-export default App
+export default App;

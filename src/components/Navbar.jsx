@@ -1,0 +1,121 @@
+import { useEffect, useRef, useState } from "react";
+import { useMediaQuery } from "react-responsive";
+import { Link, useLocation } from "react-router-dom";
+import { navItemsMain, navItemsSide, navItemsSUm } from "../constants/data";
+import gsap from "gsap";
+
+export const Navbar = () => {
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
+  const [drawer, setDrawer] = useState(false);
+  const drawerRef = useRef(null);
+  const mounted = useRef(false);
+  const location = useLocation();
+
+  const toggleDrawer = () => {
+    if (drawer) {
+      setDrawer(false);
+    } else {
+      setDrawer(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+
+    if (drawer) {
+      gsap.fromTo(
+        drawerRef.current,
+        { height: 0, filter: "blur(16px)" },
+        {
+          height: 633,
+          filter: "blur(0px)",
+          duration: 1,
+          ease: "power2.out",
+        }
+      );
+    } else {
+      gsap.to(drawerRef.current, {
+        height: 0,
+        filter: "blur(8px)",
+        duration: 0.4,
+        ease: "power2.in",
+      });
+    }
+  }, [drawer]);
+
+  return (
+    <nav>
+      {isTablet && (
+        <div className="flex justify-between items-center relative ">
+          {/* drawer */}
+          <div
+            ref={drawerRef}
+            id="drawer"    
+            className={`absolute bg-gradient-to-b from-[#141414] via-[#000000] to-[#141414] w-[396px]  right-[-8px] top-0 px-3 rounded-[16px] overflow-hidden border border-border/20`}
+            style={{height: 0}}
+          >
+            <p className="font-semibold text-[20px] py-4 border-b border-border/50">
+              Menu
+            </p>
+
+            {/* navitem */}
+            <div
+              className={`flex flex-col pb-4 border-b border-border/50 font-inter font-semibold text-[32px] px-4 pt-12 gap-5 `}
+            >
+              {navItemsSUm.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`flex gap-4 items-center ${
+                    location.pathname == item.href
+                      ? "text-foreground"
+                      : "text-foreground/20"
+                  }`}
+                >
+                  <div className="w-2 h-2 bg-current rounded-full" />
+                  <Link to={item.href}>{item.name}</Link>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col pb-4 border-b border-border/50 font-inter font-semibold text-[32px] px-4 pt-5 gap-5">
+              {navItemsMain.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`flex gap-4 items-center ${
+                    location.pathname == item.href
+                      ? "text-foreground"
+                      : "text-foreground/20"
+                  }`}
+                >
+                  <div className="w-2 h-2 bg-current rounded-full" />
+                  <Link to={item.href}>{item.name}</Link>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col pb-4 font-inter font-semibold text-[32px] px-4 pt-5 pb-8 gap-5">
+              {navItemsSide.map((item, idx) => (
+                <div key={idx} className={`flex gap-4 items-center`}>
+                  <div className="w-2 h-2 bg-current rounded-full" />
+                  <Link to={item.href}>{item.name}</Link>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Link to={"/"}>
+            <p className="font-genos font-bold text-[36px]">
+              <span className="text-logo">GRA</span>DIA
+            </p>
+          </Link>
+          <button type="button" className="z-[100]" onClick={toggleDrawer}>
+            <i className="ri-menu-line text-[24px]"></i>
+          </button>
+        </div>
+      )}
+    </nav>
+  );
+};
