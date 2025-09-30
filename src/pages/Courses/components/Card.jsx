@@ -12,7 +12,7 @@ export const CourseCard = ({ start, end, title, alias, room, lecturer, sks, setD
         <div className={`w-3 h-3 rounded-full ${dotColor}`}></div>
         <p className="text-foreground-secondary">{start} - {end}</p>
       </div>
-      <p className="font-semibold ">{title}({alias})</p>
+      <p className="font-semibold text-start">{title}({alias})</p>
       <div className="flex flex-col gap-1 text-foreground-secondary">
         <div className="flex gap-[10px]">
           <i className="ri-door-closed-line text-icon"></i>

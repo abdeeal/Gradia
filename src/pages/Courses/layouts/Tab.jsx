@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Navbar } from "../../../components/Navbar";
 import { Search } from "../../../components/Search";
 import { Button } from "../../../components/Button";
@@ -9,6 +9,22 @@ import { Drawer } from "../components/Drawer";
 export const Tab = () => {
   const [drawer, setDrawer] = useState(false)
   const [variantDrawer, setVariantDrawer] = useState(null)
+
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/courses")
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Failed to fetch courses");
+        }
+        return res.json();
+      })
+      .then((data) => setCourses(data))
+      .catch((error) => console.error("Error fetching courses:", error))
+      .finally(() => setLoading(false));
+  }, [])
 
   return (
     <div className="flex flex-col gap-8">

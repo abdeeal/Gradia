@@ -1,6 +1,7 @@
 import { useMatch } from "react-router-dom";
 import AppRoutes from "./routes";
 import { Container } from "./components/Container";
+import "./App.css";
 
 function App() {
   const match = useMatch("/");
