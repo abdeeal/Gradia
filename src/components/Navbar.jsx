@@ -6,6 +6,7 @@ import gsap from "gsap";
 
 export const Navbar = () => {
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
+  const isMobile = useMediaQuery({ maxWidth: 767 });
   const [drawer, setDrawer] = useState(false);
   const drawerRef = useRef(null);
   const mounted = useRef(false);
@@ -56,7 +57,7 @@ export const Navbar = () => {
 
   return (
     <nav>
-      {isTablet && (
+      {(isTablet || isMobile) &&  (
         <div className="flex justify-between items-center relative ">
           {/* drawer */}
           <div

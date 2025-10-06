@@ -9,6 +9,7 @@ export const Courses = () => {
   return (
     <div>
       {isTablet && (<Tab />)}
+      {isMobile && (<Tab />)}
       {isDesktop && (
         <div>Tampilan courses desktop taro sini</div>
       )}
