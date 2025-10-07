@@ -55,9 +55,23 @@ export const Navbar = () => {
     }
   }, [drawer]);
 
+  useEffect(() => {
+    if (drawer) {
+      document.body.style.overflow = "hidden";
+      document.body.style.touchAction = "none";
+    } else {
+      document.body.style.overflow = "auto";
+      document.body.style.touchAction = "auto";
+    }
+
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, [drawer]);
+
   return (
-    <nav className="sticky top-0 bg-black py-[22px]">
-      {(isTablet || isMobile) &&  (
+    <nav className="sticky top-0 bg-black py-[22px] z-[90]">
+      {(isTablet || isMobile) && (
         <div className="flex justify-between items-center relative  w-full">
           {/* drawer */}
           <div
@@ -85,7 +99,14 @@ export const Navbar = () => {
                   }`}
                 >
                   <div className="w-2 h-2 bg-current rounded-full" />
-                  <Link to={item.href}>{item.name}</Link>
+                  <Link
+                    onClick={() => {
+                      setDrawer(false);
+                    }}
+                    to={item.href}
+                  >
+                    {item.name}
+                  </Link>
                 </div>
               ))}
             </div>
@@ -101,7 +122,14 @@ export const Navbar = () => {
                   }`}
                 >
                   <div className="w-2 h-2 bg-current rounded-full" />
-                  <Link to={item.href}>{item.name}</Link>
+                  <Link
+                    onClick={() => {
+                      setDrawer(false);
+                    }}
+                    to={item.href}
+                  >
+                    {item.name}
+                  </Link>
                 </div>
               ))}
             </div>
@@ -110,13 +138,26 @@ export const Navbar = () => {
               {navItemsSide.map((item, idx) => (
                 <div key={idx} className={`flex gap-4 items-center`}>
                   <div className="w-2 h-2 bg-current rounded-full" />
-                  <Link to={item.href}>{item.name}</Link>
+                  <Link
+                    onClick={() => {
+                      setDrawer(false);
+                    }}
+                    to={item.href}
+                  >
+                    {item.name}
+                  </Link>
                 </div>
               ))}
             </div>
           </div>
 
-          <Link to={"/"} className=" z-[100]">
+          <Link
+            onClick={() => {
+              setDrawer(false);
+            }}
+            to={"/"}
+            className=" z-[100]"
+          >
             <p className="font-genos font-bold text-[36px]">
               <span className="text-logo">GRA</span>DIA
             </p>

@@ -56,7 +56,7 @@ export const Tab = () => {
         </div>
       </div>
 
-      <div className="flex flex-col bg-background-secondary p-2 font-montserrat gap-2">
+      <div className="flex flex-col bg-background-secondary p-2 font-montserrat gap-2 rounded-[12px] mb-6">
         {isMobile && (
           <>
             <DayMob day={"Monday"} count={2} />
