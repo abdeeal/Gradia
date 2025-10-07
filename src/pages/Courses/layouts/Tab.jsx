@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from "react";
-import { Navbar } from "../../../components/Navbar";
+import { useEffect, useState } from "react";
 import { Search } from "../../../components/Search";
 import { Button } from "../../../components/Button";
 import { CourseCard } from "../components/Card";
@@ -7,6 +6,7 @@ import { DayTab } from "../components/DayTab";
 import { Drawer } from "../components/Drawer";
 import { useMediaQuery } from "react-responsive";
 import DayMob from "../components/DayMob";
+import { useSearchParams } from "react-router-dom";
 
 export const Tab = () => {
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
@@ -14,8 +14,35 @@ export const Tab = () => {
   const [drawer, setDrawer] = useState(false);
   const [emptyDrawer, setEmptyDrawer] = useState(false);
 
+  const [searchParams] = useSearchParams();
+  const [courseId, setCourseId] = useState(null);
+
   const [courses, setCourses] = useState([]);
+  const [groupedCourses, setGroupedCourses] = useState({});
   const [loading, setLoading] = useState(true);
+
+  const [data, setData] = useState({});
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const dayOrder = ["Senin", "Selasa", "Rabu", "Kamis", "Jum'at"];
+  const dayMobile = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const dayTab = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+
+  const filteredCourses = courses.filter(
+    (course) =>
+      course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.alias.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.lecturer.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  useEffect(() => {
+    const id = Number(searchParams.get("c"));
+    if (!id || courses.length === 0) return;
+
+    const course = courses.find((item) => item.id_courses === id);
+    setCourseId(id);
+    setData(course || {});
+  }, [searchParams, courses]);
 
   useEffect(() => {
     fetch("/api/courses")
@@ -30,9 +57,26 @@ export const Tab = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const grouped = filteredCourses.reduce((acc, course) => {
+      const day = course.day.trim();
+      if (!acc[day]) acc[day] = [];
+      acc[day].push(course);
+      return acc;
+    }, {});
+    setGroupedCourses(grouped);
+  }, [filteredCourses]);
+
   return (
     <div className="flex flex-col gap-8">
-      <Drawer drawer={drawer} setDrawer={setDrawer} />
+      {data && Object.keys(data).length > 0 && (
+        <Drawer
+          key={courseId}
+          drawer={drawer}
+          setDrawer={setDrawer}
+          data={data}
+        />
+      )}
       <Drawer drawer={emptyDrawer} setDrawer={setEmptyDrawer} empty />
       <div className="flex flex-col gap-4 md:gap-0 md:items-center md:flex-row md:justify-between">
         <div className="flex flex-col gap-2">
@@ -41,7 +85,7 @@ export const Tab = () => {
             Keep track of your courses all in one place.
           </p>
         </div>
-        <Search className={"w-full md:w-fit"} />
+        <Search className={"w-full md:w-fit"} value={searchTerm} onChange={setSearchTerm} />
       </div>
 
       <div className="flex justify-between items-center pb-4 border-b border-border/50">
@@ -56,147 +100,67 @@ export const Tab = () => {
         </div>
       </div>
 
-      <div className="flex flex-col bg-background-secondary p-2 font-montserrat gap-2 rounded-[12px] mb-6">
+      <div className="flex flex-col bg-background-secondary p-2 font-montserrat gap-2 rounded-[12px] mb-6 md:overflow-x-hidden">
         {isMobile && (
-          <>
-            <DayMob day={"Monday"} count={2} />
-            <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-            <DayMob day={"Tuesday"} count={2} />
-            <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-            <DayMob day={"Wednesday"} count={2} />
-            <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-            <DayMob day={"Thursday"} count={2} />
-            <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-            <DayMob day={"Friday"} count={2} />
-            <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-          </>
+          <div>
+            {dayOrder.map((day, idx) => {
+              const items = groupedCourses[day] || [];
+              return (
+                <div className="w-full flex flex-col gap-2 pt-2" key={day}>
+                  <DayMob day={dayMobile[idx]} count={items.length} />
+
+                  {items.map((course) => (
+                    <CourseCard
+                      key={course.id_courses}
+                      idCourse={course.id_courses}
+                      setDrawer={setDrawer}
+                      start={course.start.slice(0, 5)}
+                      jam:menit
+                      aja
+                      end={course.end.slice(0, 5)}
+                      title={course.name}
+                      alias={course.alias}
+                      lecturer={course.lecturer}
+                      room={course.room}
+                      sks={course.sks}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
         )}
+
         {isTablet && (
-          <>
-            {/* monday */}
-            <div className="flex gap-3 h-[160px]">
-              <DayTab day={"Mon"} count={2} />
-              <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-            </div>
-
-            {/* Tuesday */}
-            <div className="flex gap-3 h-[160px]">
-              <DayTab day={"Tue"} count={1} />
-
-              <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-            </div>
-
-            {/* Wed */}
-            <div className="flex gap-3 h-[160px]">
-              <DayTab day={"Wed"} count={1} />
-
-              <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-            </div>
-
-            {/* Thu */}
-            <div className="flex gap-3 h-[160px]">
-              <DayTab day={"Thu"} count={1} />
-
-              <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-            </div>
-
-            {/* Fri */}
-            <div className="flex gap-3 h-[160px]">
-              <DayTab day={"Fri"} count={1} />
-
-              <CourseCard
-                setDrawer={setDrawer}
-                start={"06.30"}
-                end={"09.30"}
-                title={"Manajemen Proyek TIK"}
-                alias={"Mapro"}
-                lecturer={"Susilo Widoyono"}
-                room={"REK - 203"}
-                sks={3}
-              />
-            </div>
-          </>
+          <div className="">
+            {dayOrder.map((day, idx) => (
+              <div
+                key={day}
+                className="flex h-[160px] mb-4 overflow-x-auto relative"
+              >
+                <DayTab
+                  day={dayTab[idx]}
+                  count={groupedCourses[day]?.length || 0}
+                />
+                <div className="flex gap-3">
+                  {groupedCourses[day]?.map((course, idx) => (
+                    <CourseCard
+                      key={idx}
+                      idCourse={course.id_courses}
+                      setDrawer={setDrawer}
+                      start={course.start}
+                      end={course.end}
+                      title={course.name}
+                      alias={course.alias}
+                      lecturer={course.lecturer}
+                      room={course.room}
+                      sks={course.sks}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
