@@ -41,3 +41,13 @@ npm install
 
 # 4️⃣ Jalankan proyek di mode pengembangan
 npm run dev
+
+## Dokumentasi tambahan
+
+📋 Trello (Task Management Board): https://trello.com/invite/b/68d208e1625af5e34abedf2b/ATTI34d33434fb1088ca264cfed492e75e581F9F40E2/gradia
+
+🧩 DFD (Data Flow Diagram): https://drive.google.com/file/d/1U2ZuqMYzc8cX8WK3452YKQt9UzFVRgAo/view?usp=sharing
+
+🏗️ ERD (Entity Relationship Diagram): 
+
+📘 Figma : https://www.figma.com/design/nqdF5QSR9OasS3VgTg28uY/Gradia-IPPL?node-id=0-1&t=RjNPmtLwsknfT310-1 
