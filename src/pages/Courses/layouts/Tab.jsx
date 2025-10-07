@@ -28,13 +28,6 @@ export const Tab = () => {
   const dayMobile = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const dayTab = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
-  const filteredCourses = courses.filter(
-    (course) =>
-      course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      course.alias.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      course.lecturer.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   useEffect(() => {
     const id = Number(searchParams.get("c"));
     if (!id || courses.length === 0) return;
@@ -58,14 +51,22 @@ export const Tab = () => {
   }, []);
 
   useEffect(() => {
-    const grouped = filteredCourses.reduce((acc, course) => {
+    const filtered = courses.filter(
+      (course) =>
+        course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        course.alias.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        course.lecturer.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const grouped = filtered.reduce((acc, course) => {
       const day = course.day.trim();
       if (!acc[day]) acc[day] = [];
       acc[day].push(course);
       return acc;
     }, {});
+
     setGroupedCourses(grouped);
-  }, [filteredCourses]);
+  }, [courses, searchTerm]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -85,7 +86,11 @@ export const Tab = () => {
             Keep track of your courses all in one place.
           </p>
         </div>
-        <Search className={"w-full md:w-fit"} value={searchTerm} onChange={setSearchTerm} />
+        <Search
+          className={"w-full md:w-fit"}
+          value={searchTerm}
+          onChange={setSearchTerm}
+        />
       </div>
 
       <div className="flex justify-between items-center pb-4 border-b border-border/50">
