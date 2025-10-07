@@ -34,7 +34,6 @@ export const Tab = () => {
     <div className="flex flex-col gap-8">
       <Drawer drawer={drawer} setDrawer={setDrawer} />
       <Drawer drawer={emptyDrawer} setDrawer={setEmptyDrawer} empty />
-      <Navbar />
       <div className="flex flex-col gap-4 md:gap-0 md:items-center md:flex-row md:justify-between">
         <div className="flex flex-col gap-2">
           <p className="font-montserrat text-[20px] font-semibold">Courses</p>
