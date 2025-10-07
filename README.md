@@ -1,16 +1,43 @@
-# React + Vite
+# 🧠 Gradia
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Gradia adalah aplikasi website untuk **manajemen kursus, tugas, presensi, dan dashboard akademik** yang dirancang untuk membantu mahasiswa dan pengajar dalam mengelola kegiatan belajar-mengajar secara efisien.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🎯 Tujuan Proyek
 
-## React Compiler
+Membangun platform terintegrasi yang memudahkan pengguna untuk:
+- Mengelola dan memantau jadwal **course**.
+- Melihat dan mengatur **tugas** berdasarkan prioritas, deadline, dan status penyelesaian.
+- Mencatat dan memeriksa **presensi kursus** serta riwayat kehadiran.
+- Menyediakan **dashboard ringkas** untuk menampilkan rangkuman tugas dan kursus pada hari tersebut.
 
-The React Compiler is not enabled on this template. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## ⚙️ Tech Stack yang Digunakan
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+| Teknologi | Deskripsi |
+|------------|------------|
+| **React.js** | Frontend framework untuk membangun antarmuka dinamis. |
+| **Supabase** | Backend-as-a-Service untuk autentikasi, database, dan API. |
+| **Node.js** | Runtime server-side untuk komunikasi dengan database. |
+| **Tailwind CSS** | Framework CSS untuk styling modern dan responsif. |
+
+---
+
+## 🚀 Cara Menjalankan Proyek di Lokal
+
+Pastikan kamu sudah menginstal **Node.js** dan **npm** di perangkatmu.
+
+```bash
+# 1️⃣ Clone repository
+git clone https://github.com/username/gradia.git
+
+# 2️⃣ Masuk ke folder proyek
+cd gradia
+
+# 3️⃣ Install dependensi
+npm install
+
+# 4️⃣ Jalankan proyek di mode pengembangan
+npm run dev
