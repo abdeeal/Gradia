@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { Link, useLocation } from "react-router-dom";
 import { navItemsMain, navItemsSide, navItemsSUm } from "../constants/data";
@@ -12,60 +12,72 @@ export const Navbar = () => {
   const mounted = useRef(false);
   const location = useLocation();
 
-  const toggleDrawer = () => {
-    if (drawer) {
-      setDrawer(false);
-    } else {
-      setDrawer(true);
-    }
-  };
+  const toggleDrawer = () => setDrawer((prev) => !prev);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!mounted.current) {
       mounted.current = true;
       return;
     }
 
-    if (drawer) {
-      drawerRef.current.classList.add("inline");
-      drawerRef.current.classList.remove("hidden");
+    const el = drawerRef.current;
+    if (!el) return;
 
-      gsap.fromTo(
-        drawerRef.current,
-        { height: 0, filter: "blur(16px)" },
+    const tl = gsap.timeline({ defaults: { ease: "power2.inOut" } });
+
+    if (drawer) {
+      gsap.set(el, { visibility: "visible", pointerEvents: "auto" });
+      tl.fromTo(
+        el,
+        { height: 0, opacity: 0, filter: "blur(16px)" },
         {
           height: 633,
+          opacity: 1,
           filter: "blur(0px)",
-          duration: 1,
-          ease: "power2.out",
+          duration: 0.6,
         }
       );
     } else {
-      drawerRef.current.classList.remove("inline");
-      setTimeout(() => {
-        drawerRef.current.classList.add("hidden");
-      }, 500);
-
-      gsap.to(drawerRef.current, {
+      tl.to(el, {
         height: 0,
+        opacity: 0,
         filter: "blur(8px)",
         duration: 0.4,
-        ease: "power2.in",
+        onComplete: () => {
+          gsap.set(el, { visibility: "hidden", pointerEvents: "none" });
+        },
       });
-    }
-  }, [drawer]);
-
-  useEffect(() => {
-    if (drawer) {
-      document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
-    } else {
-      document.body.style.overflow = "auto";
-      document.body.style.touchAction = "auto";
     }
 
     return () => {
+      tl.kill();
+    };
+  }, [drawer]);
+
+  useLayoutEffect(() => {
+    document.body.style.overflow = drawer ? "hidden" : "auto";
+    document.body.style.touchAction = drawer ? "none" : "auto";
+    return () => {
       document.body.style.overflow = "auto";
+      document.body.style.touchAction = "auto";
+    };
+  }, [drawer]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (
+        drawer &&
+        drawerRef.current &&
+        !drawerRef.current.contains(e.target)
+      ) {
+        setTimeout(() => setDrawer(false), 100);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [drawer]);
 
