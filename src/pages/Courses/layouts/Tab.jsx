@@ -24,7 +24,7 @@ export const Tab = () => {
   const [data, setData] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
 
-  const dayOrder = ["Senin", "Selasa", "Rabu", "Kamis", "Jum'at"];
+  const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const dayMobile = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const dayTab = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
@@ -67,6 +67,8 @@ export const Tab = () => {
 
     setGroupedCourses(grouped);
   }, [courses, searchTerm]);
+
+  
 
   return (
     <div className="flex flex-col gap-8">

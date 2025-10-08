@@ -4,30 +4,50 @@ import GridDrawer from "./GridDrawer";
 import { Button } from "../../../components/Button";
 import { useMediaQuery } from "react-responsive";
 import { Link } from "react-router-dom";
+import SelectUi from "@/components/Select";
+import { SelectItem, SelectLabel } from "@/components/ui/select";
 
 export const Drawer = ({ drawer, setDrawer, empty, data }) => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const drawerRef = useRef(null);
   const overlayRef = useRef(null);
 
+  const safePhone = data?.phone ? String(data.phone).trim() : null;
+  const safeLink = data?.link ? String(data.link).trim() : null;
+
+  const safeUrl = (str, prefix = "") => {
+    try {
+      if (!str) return "#";
+      return new URL(str.startsWith("http") ? str : prefix + str).href;
+    } catch {
+      return "#";
+    }
+  };
+
+  const waLink = safeUrl(safePhone, "https://wa.me/");
+  const externalLink = safeUrl(safeLink);
+
+  const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
   const closeDrawer = () => {
     setDrawer(false);
   };
 
   useEffect(() => {
-  const handleError = (event) => {
-    if (
-      event.message.includes("Failed to execute 'removeChild' on 'Node'") ||
-      event.message.includes("The node to be removed is not a child of this node")
-    ) {
-      event.preventDefault(); 
-    }
-  };
+    const handleError = (event) => {
+      if (
+        event.message.includes("Failed to execute 'removeChild' on 'Node'") ||
+        event.message.includes(
+          "The node to be removed is not a child of this node"
+        )
+      ) {
+        event.preventDefault();
+      }
+    };
 
-  window.addEventListener("error", handleError);
-  return () => window.removeEventListener("error", handleError);
-}, []);
-
+    window.addEventListener("error", handleError);
+    return () => window.removeEventListener("error", handleError);
+  }, []);
 
   useLayoutEffect(() => {
     const drawerEl = drawerRef.current;
@@ -62,7 +82,6 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
         )
         .set(overlayEl, { pointerEvents: "none" });
     }
-
 
     return () => {
       if (tl && tl.kill) {
@@ -112,11 +131,10 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
             <textarea
               type="text"
               name="name"
-              defaultValue={`${
-                empty ? "Course title" : data?.name || "Not set"
-              }`}
+              defaultValue={`${empty ? "" : data?.name || "Not set"}`}
               className="font-bold text-[48px] focus:ring-0 focus:outline-none focus:border-none max-w-full w-full"
               rows={2}
+              placeholder="Enter your course title"
             />
           </div>
 
@@ -125,8 +143,9 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
               <input
                 type="text"
                 name="alias"
-                defaultValue={`${empty ? "Not set" : data?.alias || "Not set"}`}
-                className="focus:ring-0 focus:outline-none focus:border-none  max-w-full w-full"
+                defaultValue={`${empty ? "" : data?.alias || "Not set"}`}
+                className="focus:ring-0 focus:outline-none focus:border-none  max-w-full w-full h-full"
+                placeholder="Not set"
               />
             </GridDrawer>
 
@@ -134,30 +153,44 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
               <input
                 type="text"
                 name="lecturer"
-                defaultValue={`${empty ? "Not set" : data?.lecturer || "Not set"}`}
+                defaultValue={`${empty ? "" : data?.lecturer || "Not set"}`}
                 className="focus:ring-0 focus:outline-none focus:border-none max-w-full w-full"
+                placeholder="Not set"
               />
             </GridDrawer>
 
             <GridDrawer icon={"ri-phone-line"} title={"Phone"}>
-              <Link to={`https://wa.me/${data?.phone}` || "#"} className="absolute right-0 p-1 pl-4 rounded-[4px] -translate-y-[50%] top-[50%]">
-                <i className="ri-whatsapp-line " />
-              </Link>
+              {safePhone ? (
+                <a
+                  href={waLink}
+                  className="absolute right-0 p-1 pl-4 rounded-[4px] -translate-y-[50%] top-[50%]"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <i className="ri-whatsapp-line" />
+                </a>
+              ) : null}
               <input
-                type="number"
+                type="text"
                 name="phone"
-                defaultValue={`${empty ? "Not set" : data?.phone || "Not set"}`}
+                defaultValue={`${empty ? "" : data?.phone || "08000000"}`}
                 className="focus:ring-0 focus:outline-none focus:border-none max-w-full w-full"
+                placeholder="Not set"
               />
             </GridDrawer>
 
             <GridDrawer icon={"ri-calendar-event-line"} title={"Day"}>
-              <input
-                type="text"
-                name="day"
-                defaultValue={`${empty ? "Not set" : data?.day || "Not set"}`}
-                className="focus:ring-0 focus:outline-none focus:border-none max-w-full w-full"
-              />
+              <SelectUi
+                placeholder={"Select a day"}
+                defaultValue={`${empty ? "" : data?.day || ""}`}
+              >
+                <SelectLabel>Day</SelectLabel>
+                {dayOrder.map((item, idx) => (
+                  <SelectItem key={idx} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectUi>
             </GridDrawer>
 
             <GridDrawer
@@ -195,7 +228,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
                   type="time"
                   name="end"
                   id="time"
-                  defaultValue={`${empty ? "00:30" :  data?.end || "Not set"}`}
+                  defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
                   className="bg-[#15171A] rounded-[4px] px-1  focus:ring-0 focus:border-none focus:outline-none max-w-full "
                 />
               </div>
@@ -205,37 +238,54 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
               <input
                 type="text"
                 name="room"
-                defaultValue={`${empty ? "Not set" :  data?.room || "Not set"}`}
+                defaultValue={`${empty ? "" : data?.room || ""}`}
+                placeholder="Not set"
                 className="focus:ring-0 focus:outline-none focus:border-none max-w-full w-full"
               />
             </GridDrawer>
 
             <GridDrawer icon={"ri-weight-line"} title={"SKS"}>
-              <input
-                type="text"
-                name="sks"
-                defaultValue={`${empty ? "1" :  data?.sks || "Not set"}`}
-                className="focus:ring-0 focus:outline-none focus:border-none bg-drop-red text-red px-2 w-7 rounded-s max-w-full"
-              />
+              <SelectUi
+                placeholder="1"
+                defaultValue={empty ? 1 : data?.sks || ""}
+                valueClassFn={(val) => {
+                  if (val === 2) return "bg-drop-yellow text-yellow px-3";
+                  if (val === 1) return "bg-drop-cyan text-cyan px-3";
+                  return "bg-drop-red text-red px-3"; 
+                }}
+              >
+                <SelectLabel>SKS</SelectLabel>
+                {[1, 2, 3].map((sks) => (
+                  <SelectItem key={sks} value={sks}>
+                    {sks}
+                  </SelectItem>
+                ))}
+              </SelectUi>
             </GridDrawer>
 
             <GridDrawer icon={"ri-link"} title={"Link"}>
-              <Link to={data?.link || "#"} target="_blank" rel="noopener noreferrer" className="absolute right-0 bg-black p-1 pl-4 rounded-[4px] -translate-y-[50%] top-[50%] shadow-md">
-                <i className="ri-share-forward-line" />
-              </Link>
+              {safeLink ? (
+                <a
+                  href={externalLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute right-0 bg-black p-1 pl-4 rounded-[4px] -translate-y-[50%] top-[50%] shadow-md"
+                >
+                  <i className="ri-share-forward-line" />
+                </a>
+              ) : null}
               <input
                 type="text"
                 name="link"
-                defaultValue={`${
-                  empty ? "Not set" : data?.link || "Not set"
-                }`}
+                defaultValue={`${empty ? "" : data?.link || ""}`}
+                placeholder="Not set"
                 className="focus:ring-0 focus:outline-none focus:border-none underline text-blue-500 max-w-full w-full"
               />
             </GridDrawer>
           </div>
         </div>
 
-        <div className="md:px-12 py-12 pt-20 md:pt-12 px-1  w-full flex justify-end gap-4 cursor-none">
+        <div className="md:px-12 py-6 pt-20 md:pt-12 px-1  w-full flex justify-end gap-4 cursor-none">
           {empty ? (
             ""
           ) : (
