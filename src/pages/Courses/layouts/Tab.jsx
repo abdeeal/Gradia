@@ -17,16 +17,18 @@ export const Tab = () => {
   const [searchParams] = useSearchParams();
   const [courseId, setCourseId] = useState(null);
 
+  //database
   const [courses, setCourses] = useState([]);
   const [groupedCourses, setGroupedCourses] = useState({});
   const [loading, setLoading] = useState(true);
-
+  
   const [data, setData] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
 
   const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const dayMobile = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const dayTab = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  //end
 
   useEffect(() => {
     const id = Number(searchParams.get("c"));
@@ -37,6 +39,7 @@ export const Tab = () => {
     setData(course || {});
   }, [searchParams, courses]);
 
+  //database
   useEffect(() => {
     fetch("/api/courses")
       .then((res) => {
@@ -68,7 +71,7 @@ export const Tab = () => {
     setGroupedCourses(grouped);
   }, [courses, searchTerm]);
 
-  
+  //end database
 
   return (
     <div className="flex flex-col gap-8">
