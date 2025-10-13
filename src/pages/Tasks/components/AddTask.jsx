@@ -37,7 +37,7 @@ const AddTask = ({ onClose, onSubmit }) => {
     "Keamanan Siber",
   ];
 
-  // Animasi buka/tutup drawer
+  // Animasi buka/tutup drawer (mirroring TaskDetail)
   useEffect(() => {
     if (!panelRef.current) return;
     gsap.fromTo(panelRef.current, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
@@ -62,10 +62,7 @@ const AddTask = ({ onClose, onSubmit }) => {
       });
       return;
     }
-
-    if (typeof onSubmit === "function") {
-      onSubmit(formData);
-    }
+    if (typeof onSubmit === "function") onSubmit(formData);
 
     Swal.fire({
       icon: "success",
@@ -83,16 +80,10 @@ const AddTask = ({ onClose, onSubmit }) => {
   return (
     <div
       ref={panelRef}
-      className="
-        fixed top-0 right-0
-        w-[624px] h-full
-        mb-[20px] mr-[20px]
-        rounded-2xl z-[300]
-        drawer-panel
-      "
+      className="fixed top-0 right-0 h-full z-[300] w-full md:w-[624px] lg:w-[624px]"
     >
-      {/* body drawer sama layout dengan CourseDetail */}
-      <div className="h-full overflow-y-auto pt-20 pr-6 pb-6 pl-[31px] text-white relative border border-[#464646]/50 rounded-2xl bg-[#0a0a0a]">
+      {/* Inner panel sama pola TaskDetail */}
+      <div className="h-full overflow-y-auto pt-20 pr-6 pb-6 pl-[31px] text-white relative border border-[#464646]/50 rounded-2xl bg-[#0a0a0a] font-[Inter]">
         {/* tombol back */}
         <button
           onClick={onClose}
@@ -102,134 +93,129 @@ const AddTask = ({ onClose, onSubmit }) => {
           <i className="ri-arrow-right-double-line text-2xl" />
         </button>
 
-        {/* Judul = Title input besar */}
+        {/* Title input besar */}
         <div className="ml-12 mr-12">
           <input
             name="title"
             value={formData.title}
             onChange={handleChange}
-            className="w-full bg-transparent text-[40px] font-bold leading-tight mb-10 outline-none placeholder:text-zinc-600 focus:ring-0"
+            className="w-full bg-transparent text-[40px] font-bold leading-tight mb-10 outline-none placeholder:text-zinc-600"
             placeholder="Add New Task (Title)"
             aria-label="Task title"
           />
         </div>
 
         {/* Konten utama */}
-        <div className="ml-12 mr-12 max-w-[473px] flex flex-col min-h-[calc(100vh-240px)] font-inter text-[14px] space-y-3">
-          {/* Description (subtitle) */}
-          <Field icon="ri-sticky-note-line" label="Description">
-            <input
-              name="subtitle"
-              value={formData.subtitle}
-              onChange={handleChange}
-              className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200 focus:ring-1 focus:ring-purple-600"
-              placeholder="Enter description"
-            />
-          </Field>
-
-          {/* Deadline + Time */}
-          <Field icon="ri-calendar-2-line" label="Deadline">
-            <div className="flex gap-2 w-full">
+        <div className="ml-12 mr-12 max-w-[473px] flex flex-col min-h-[calc(100vh-240px)] text-[14px]">
+          {/* spacing konsisten antar section */}
+          <div className="space-y-6">
+            {/* Description */}
+            <Field icon="ri-sticky-note-line" label="Description">
               <input
-                type="date"
-                name="deadline"
-                value={formData.deadline}
+                name="subtitle"
+                value={formData.subtitle}
                 onChange={handleChange}
-                className="bg-zinc-900 px-3 py-1.5 rounded w-[65%] outline-none text-gray-200 focus:ring-1 focus:ring-purple-600"
+                className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200"
+                placeholder="Enter description"
               />
-              <input
-                type="time"
-                name="time"
-                value={formData.time}
-                onChange={handleChange}
-                className="bg-zinc-900 px-3 py-1.5 rounded w-[35%] outline-none text-gray-200 focus:ring-1 focus:ring-purple-600"
-              />
-            </div>
-          </Field>
+            </Field>
 
-          {/* Related Course */}
-          <Field icon="ri-links-line" label="Related Course">
-            <div className="relative w-full">
-              <select
-                name="relatedCourse"
-                value={formData.relatedCourse || ""}
-                onChange={handleChange}
-                className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200 focus:ring-1 focus:ring-purple-600 appearance-none cursor-pointer"
-              >
-                <option
-                  value=""
-                  disabled
-                  style={{
-                    color: "#9ca3af",
-                    backgroundColor: "#0a0a0a",
-                    fontFamily: "Inter",
-                  }}
+            {/* Deadline + Time */}
+            <Field icon="ri-calendar-2-line" label="Deadline">
+              <div className="flex gap-2 w-full">
+                <input
+                  type="date"
+                  name="deadline"
+                  value={formData.deadline}
+                  onChange={handleChange}
+                  className="bg-zinc-900 px-3 py-1.5 rounded w-[65%] outline-none text-gray-200"
+                />
+                <input
+                  type="time"
+                  name="time"
+                  value={formData.time}
+                  onChange={handleChange}
+                  className="bg-zinc-900 px-3 py-1.5 rounded w-[35%] outline-none text-gray-200"
+                />
+              </div>
+            </Field>
+
+            {/* Related Course */}
+            <Field icon="ri-links-line" label="Related Course">
+              <div className="relative w-full">
+                <select
+                  name="relatedCourse"
+                  value={formData.relatedCourse || ""}
+                  onChange={handleChange}
+                  className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200 appearance-none cursor-pointer"
                 >
-                  Select Course
-                </option>
-                {courses.map((c, i) => (
                   <option
-                    key={i}
-                    value={c}
-                    style={{ backgroundColor: "#0a0a0a", color: "#e5e7eb" }}
+                    value=""
+                    disabled
+                    style={{ color: "#9ca3af", backgroundColor: "#0a0a0a", fontFamily: "Inter" }}
                   >
-                    {c}
+                    Select Course
                   </option>
-                ))}
-              </select>
-              <i className="ri-arrow-down-s-fill text-gray-500 text-[16px] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-            </div>
-          </Field>
+                  {courses.map((c, i) => (
+                    <option key={i} value={c} style={{ backgroundColor: "#0a0a0a", color: "#e5e7eb" }}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <i className="ri-arrow-down-s-fill text-gray-500 text-[16px] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+              </div>
+            </Field>
 
-          {/* Priority */}
-          <Field icon="ri-fire-line" label="Priority">
-            <input
-              name="priority"
-              value={formData.priority}
-              onChange={handleChange}
-              className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200 focus:ring-1 focus:ring-purple-600"
-              placeholder="Enter priority"
-            />
-          </Field>
+            {/* Priority */}
+            <Field icon="ri-fire-line" label="Priority">
+              <input
+                name="priority"
+                value={formData.priority}
+                onChange={handleChange}
+                className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200"
+                placeholder="Enter priority"
+              />
+            </Field>
 
-          {/* Status */}
-          <Field icon="ri-loader-line" label="Status">
-            <input
-              name="status"
-              value={formData.status}
-              onChange={handleChange}
-              className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200 focus:ring-1 focus:ring-purple-600"
-              placeholder="Enter status"
-            />
-          </Field>
+            {/* Status */}
+            <Field icon="ri-loader-line" label="Status">
+              <input
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200"
+                placeholder="Enter status"
+              />
+            </Field>
 
-          {/* Score */}
-          <Field icon="ri-trophy-line" label="Score">
-            <input
-              name="score"
-              value={formData.score}
-              onChange={handleChange}
-              className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200 focus:ring-1 focus:ring-purple-600"
-              placeholder="Enter score"
-            />
-          </Field>
+            {/* Score */}
+            <Field icon="ri-trophy-line" label="Score">
+              <input
+                name="score"
+                value={formData.score}
+                onChange={handleChange}
+                className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200"
+                placeholder="Enter score"
+              />
+            </Field>
 
-          {/* Link */}
-          <Field icon="ri-share-box-line" label="Link">
-            <input
-              name="link"
-              value={formData.link}
-              onChange={handleChange}
-              className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200 focus:ring-1 focus:ring-purple-600"
-              placeholder="Paste link"
-            />
-          </Field>
+            {/* Link */}
+            <Field icon="ri-share-box-line" label="Link">
+              <input
+                name="link"
+                value={formData.link}
+                onChange={handleChange}
+                className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200"
+                placeholder="Paste link"
+              />
+            </Field>
+          </div>
 
           {/* Footer kanan bawah */}
           <div className="mt-auto flex justify-end items-center gap-3 pt-8">
             <button
               onClick={handleAddTask}
-              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] shadow-md shadow-purple-900/40 hover:brightness-110 transition-all"
+              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#222222] transition-all"
             >
               <i className="ri-add-line text-white text-[18px]" />
               <span className="text-[15px] font-medium">Add Task</span>

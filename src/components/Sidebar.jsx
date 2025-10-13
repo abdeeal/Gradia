@@ -41,12 +41,12 @@ const Sidebar = () => {
         className="fixed top-3 left-3 h-[calc(100vh-24px)] w-[265px]
                    bg-black border border-[#464646] rounded-2xl shadow-md overflow-hidden"
       >
-        <div className="h-full w-full bg-[#141414] rounded-2xl flex flex-col">
+        <div className="h-full w-full bg-background-secondary rounded-2xl flex flex-col">
           {/* === LOGO (agak ke kiri, sejajar garis sidebar) === */}
           <div className="pl-[25px] pr-5 pt-5 pb-[40px]">
             <h1 className="text-[40px] font-bold font-[Genos] tracking-wide leading-none">
               <span className="text-purple-500">GRA</span>
-              <span className="text-white">DIA</span>
+              <span className="text-foreground">DIA</span>
             </h1>
           </div>
 
@@ -66,7 +66,7 @@ const Sidebar = () => {
                   return (
                     <p
                       key={`section-${index}`}
-                      className="text-[13px] text-gray-400 pl-[4px]"
+                      className="text-[13px] text-for pl-[4px]"
                     >
                       {item.section}
                     </p>

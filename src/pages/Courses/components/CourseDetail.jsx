@@ -85,7 +85,7 @@ const CourseDetail = ({ course, onClose, onSave }) => {
       {/* tombol back */}
       <button
         onClick={onClose}
-        className="absolute left-3 top-4 text-gray-400 hover:text-white"
+        className="absolute left-3 top-4 text-gray-400 hover:text-white hover:text-[#9457FF]"
       >
         <i className="ri-arrow-right-double-line text-2xl" />
       </button>
@@ -202,7 +202,7 @@ const CourseDetail = ({ course, onClose, onSave }) => {
           </button>
           <button
             onClick={handleSave}
-            className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] shadow-md shadow-purple-900/40 hover:brightness-110 transition-all"
+            className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] shadow-md shadow-purple-900/40 hover:brightness-110 hover:shadow-purple-800/60 transition-all"
           >
             <i className="ri-edit-line text-white text-[18px]" />
             <span className="text-[15px] font-medium">Save changes</span>
@@ -229,7 +229,7 @@ const Title = ({ value, onChange, className = "" }) => {
         />
       ) : (
         <h1
-          className="text-[40px] font-bold leading-tight cursor-text"
+          className="text-[40px] font-bold leading-tight cursor-text hover:text-[#9457FF]"
           onClick={() => setEdit(true)}
         >
           {value}
@@ -250,9 +250,9 @@ const InlineField = ({
 }) => {
   const [edit, setEdit] = useState(false);
   return (
-    <div className="flex items-center gap-3">
-      {icon && <i className={`${icon} text-gray-400 text-lg`} />}
-      <span className="w-32 text-gray-400">{label}</span>
+    <div className="flex items-center gap-3 group">
+      {icon && <i className={`${icon} text-gray-400 text-lg group-hover:text-[#9457FF]`} />}
+      <span className="w-32 text-gray-400 group-hover:text-[#9457FF]">{label}</span>
 
       <div className="flex-1 max-w-[360px] flex items-center gap-2">
         {edit ? (
@@ -265,7 +265,7 @@ const InlineField = ({
           />
         ) : (
           <button
-            className="text-left w-full font-medium cursor-text"
+            className="text-left w-full font-medium cursor-text hover:text-[#9457FF]"
             onClick={() => setEdit(true)}
           >
             {renderer ? renderer(value) : value || (
@@ -283,9 +283,9 @@ const InlineField = ({
 const NumberInline = ({ icon, label, value, onChange }) => {
   const [edit, setEdit] = useState(false);
   return (
-    <div className="flex items-center gap-3">
-      {icon && <i className={`${icon} text-gray-400 text-lg`} />}
-      <span className="w-32 text-gray-400">{label}</span>
+    <div className="flex items-center gap-3 group">
+      {icon && <i className={`${icon} text-gray-400 text-lg group-hover:text-[#9457FF]`} />}
+      <span className="w-32 text-gray-400 group-hover:text-[#9457FF]">{label}</span>
       <div className="flex-1 max-w-[360px]">
         {edit ? (
           <input
@@ -313,9 +313,9 @@ const NumberInline = ({ icon, label, value, onChange }) => {
 const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => {
   const [edit, setEdit] = useState(false);
   return (
-    <div className="flex items-center gap-3">
-      <i className="ri-time-line text-gray-400 text-lg" />
-      <span className="w-32 text-gray-400">{label}</span>
+    <div className="flex items-center gap-3 group">
+      <i className="ri-time-line text-gray-400 text-lg group-hover:text-[#9457FF]" />
+      <span className="w-32 text-gray-400 group-hover:text-[#9457FF]">{label}</span>
 
       {edit ? (
         <div className="flex items-center gap-2">
@@ -338,7 +338,7 @@ const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => {
         </div>
       ) : (
         <div
-          className="flex items-center gap-2 cursor-text"
+          className="flex items-center gap-2 cursor-text hover:text-[#9457FF]"
           onClick={() => setEdit(true)}
         >
           <span className="font-medium">{start || "-"}</span>

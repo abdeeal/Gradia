@@ -3,24 +3,27 @@ import React from "react";
 const TaskCard = ({
   color,
   title,
-  subtitle,
+  course,        // nama mata kuliah
+  relatedCourse, // course tambahan di antara judul & deskripsi
+  description,   // deskripsi tugas
   priority,
   status,
   deadline,
   time,
   onClick,
 }) => {
-  // Format tanggal deadline ke bentuk "12 Oct 2025"
+  // Format tanggal
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
-    if (isNaN(date)) return dateStr;
-    const options = { day: "2-digit", month: "short", year: "numeric" };
-    return date.toLocaleDateString("en-GB", options);
+    if (isNaN(date)) return dateStr || "";
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
   };
 
-  // Format jam
-  const formattedTime = time.includes("-") ? time.split("-")[1].trim() : time;
-
+  // Warna badge
   const getColors = (type) => {
     switch (type) {
       case "High":
@@ -54,36 +57,66 @@ const TaskCard = ({
   return (
     <div
       onClick={onClick}
-      className="w-full cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl p-[12px] hover:border-purple-500 transition-all duration-200 font-[Montserrat]"
+      className="w-full cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl p-4 px-2.5 hover:border-purple-500 transition-all duration-200 font-[Montserrat] min-h-[187px] flex flex-col justify-between"
     >
-      {/* Baris atas: lingkaran + tanggal */}
-      <div className="flex items-center gap-[6px] mb-[10px] pl-[14px] text-[10px] text-gray-400 relative">
+      {/* === Frame 1: Waktu === */}
+      <div className="relative pl-5 text-gray-200 ">
         <span
-          className={`w-2 h-2 rounded-full absolute left-0 top-1/2 -translate-y-1/2 ${circleColor}`}
-        ></span>
-
-        <span className="pl-[6px] whitespace-nowrap">
-          {formatDate(deadline)}, {formattedTime}
-        </span>
+          className={`w-[10px] h-[10px] rounded-full absolute left-0 top-1/2 -translate-y-1/2 ${circleColor}`}
+        />
+        <div className="flex items-center gap-1 text-foreground-secondary">
+          {deadline && (
+            <span className="text-[14px]">
+              {formatDate(deadline)}
+            </span>
+          )}
+          {time && (
+            <span className="">
+              {deadline ? "• " : "text-[14px]"}
+              {time}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Judul dan subjudul */}
-      <div className="pl-[14px] mb-[10px]">
-        <h3 className="font-semibold text-white text-[13px] leading-snug mb-[2px]">
+      {/* === Frame 2: Body (judul, related course, deskripsi) === */}
+      <div className="pl-0 pr-[8px]">
+        <h3 className="text-[#FAFAFA] text-[15px] font-semibold mb-[8px]">
           {title}
         </h3>
-        <p className="text-[11px] text-gray-400">{subtitle}</p>
+
+        {/* Related Course di antara judul & deskripsi */}
+        {relatedCourse && (
+          <div className="text-[#A3A3A3] text-[13px] font-semibold leading-tight mb-[4px]">
+            {relatedCourse}
+          </div>
+        )}
+
+        {description && (
+          <p
+            className="text-[#A3A3A3] text-[13px] font-normal"
+            style={{
+              display: "-webkit-box",
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+            title={description}
+          >
+            {description}
+          </p>
+        )}
       </div>
 
-      {/* Baris bawah: Priority & Status sejajar horizontal */}
-      <div className="flex justify-between items-center px-[8px] mt-[4px]">
+      {/* === Frame 3: Keterangan (Priority & Progress kiri bawah) === */}
+      <div className="flex items-center gap-[8px]">
         <span
-          className={`text-[10.5px] px-[7px] py-[2px] rounded-md font-medium ${priorityColor.bg} ${priorityColor.text}`}
+          className={`text-[12px] px-[10px] py-[4px] rounded-md font-medium ${priorityColor.bg} ${priorityColor.text}`}
         >
           {priority}
         </span>
         <span
-          className={`text-[10.5px] px-[7px] py-[2px] rounded-md font-medium ${statusColor.bg} ${statusColor.text}`}
+          className={`text-[12px] px-[10px] py-[4px] rounded-md font-medium ${statusColor.bg} ${statusColor.text}`}
         >
           {status}
         </span>

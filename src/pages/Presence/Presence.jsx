@@ -4,6 +4,7 @@ import Sidebar from "../../components/Sidebar.jsx";
 import PresenceCard from "./components/PresenceCard.jsx";
 import PresencePopup from "./components/PresencePopup.jsx";
 import PresenceTable from "./components/PresenceTable.jsx";
+import AddPresence from "./components/AddPresence.jsx";
 
 const Presence = () => {
   const [showPopup, setShowPopup] = useState(false);
@@ -78,10 +79,10 @@ const Presence = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0e0e0e] text-white font-inter">
+    <div className="flex min-h-screen bg-background text-foreground font-inter">
       <Sidebar />
 
-      <main ref={containerRef} className="flex-1 pt-[20px] pb-6 overflow-y-auto bg-[#0a0a0a]">
+      <main ref={containerRef} className="flex-1 pt-[20px] pb-6 overflow-y-auto bg-background">
         {/* Header */}
         <div className="flex items-center justify-between mb-[24px] px-0 pr-6">
           <div>
@@ -119,7 +120,7 @@ const Presence = () => {
             className="fixed inset-0 bg-black/50 z-40"
           />
           <aside className="drawer-panel fixed top-0 right-0 h-full w-[400px] max-w-[90vw] bg-[#141414] border-l border-[#2c2c2c] p-6 z-50 shadow-2xl">
-            <PresencePopup
+            <Presence
               course={selectedCourse}
               onClose={closePopup}
               onSubmit={handleSubmitPresence}
