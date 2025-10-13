@@ -163,14 +163,12 @@ const Tasks = () => {
   const updateTask = (updated) => {
     const newCol = normalizeStatus(updated.status);
     setTasksByCol((prev) => {
-      // remove from any column that contains it
       const next = {
         notStarted: prev.notStarted.filter((t) => t.id !== updated.id),
         inProgress: prev.inProgress.filter((t) => t.id !== updated.id),
         completed: prev.completed.filter((t) => t.id !== updated.id),
         overdue: prev.overdue.filter((t) => t.id !== updated.id),
       };
-      // push into new column
       next[newCol] = [updated, ...next[newCol]];
       return next;
     });
@@ -203,13 +201,13 @@ const Tasks = () => {
   }, [tasksByCol]);
 
   return (
-    <div className="flex bg-[#0a0a0a] min-h-screen text-white font-[Montserrat] relative">
+    <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
       <Sidebar />
 
       {/* Konten Utama (no left spacing next to sidebar) */}
       <div
         ref={taskContainerRef}
-        className="flex-1 pt-[20px] pb-6 overflow-y-auto bg-[#0a0a0a]"
+        className="flex-1 pt-[20px] pb-6 overflow-y-auto bg-background"
       >
         {/* Header (hapus padding kiri = 0) */}
         <div className="mb-[24px] px-0 pr-6">
@@ -269,8 +267,9 @@ const Tasks = () => {
         <div className="border-t border-[#464646] mb-[14px] mr-6"></div>
 
         {/* FRAME BESAR (tanpa margin kiri) */}
-        <div className="bg-[#141414] p-5 rounded-2xl mr-6 border border-[#2c2c2c]">
-          <div className="grid grid-cols-4 gap-4">
+        <div className="bg-background-secondary p-5 rounded-2xl mr-6 border border-[#2c2c2c]">
+          {/* gap antar kolom = 8px */}
+          <div className="grid grid-cols-4 gap-2">
             {/* ------------------ NOT STARTED ------------------ */}
             <TaskCategory
               title="Not Started"
@@ -370,19 +369,20 @@ const TaskCategory = ({ title, icon, iconBg, iconColor, tasks, onCardClick }) =>
   }, []);
 
   return (
-    <div ref={sectionRef} className="flex flex-col w-full gap-[8px]">
-      <div className="flex justify-between items-center bg-[#0a0a0a] px-[12px] py-[6px] rounded-lg min-h-[38px] w-full">
-        <span className="font-semibold text-[15px] text-white capitalize">
+    // gap antar elemen di kolom = 8px
+    <div ref={sectionRef} className="flex flex-col w-full gap-2">
+      {/* Header kategori */}
+      <div className="flex justify-between items-center bg-[#0a0a0a] px-3 py-2 rounded-lg min-h-[42px] w-full">
+        <span className="font-semibold text-[16px] text-white capitalize">
           {title}
         </span>
-        <div
-          className={`${iconBg} w-[26px] h-[26px] rounded-md flex items-center justify-center`}
-        >
-          <i className={`${icon} text-[15px]`} style={{ color: iconColor }}></i>
+        <div className={`${iconBg} w-8 h-8 rounded-md flex items-center justify-center`}>
+          <i className={`${icon} text-[20px]`} style={{ color: iconColor }} />
         </div>
       </div>
 
-      <div className="flex flex-col gap-[8px] w-full">
+      {/* List task (gap 8px) */}
+      <div className="flex flex-col gap-2 w-full">
         {tasks.map((task) => (
           <div
             key={task.id}

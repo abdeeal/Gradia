@@ -191,11 +191,11 @@ export const Courses = () => {
 
   return (
     // gap-6 = 24px antara Sidebar dan konten (sesuai revisi)
-    <div className="flex min-h-screen w-full bg-[#0a0a0a] text-white font-inter relative overflow-hidden gap-[0px]">
+    <div className="flex min-h-screen w-full bg-background text-foreground font-inter relative overflow-hidden gap-[0px]">
       <Sidebar />
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 bg-[#0a0a0a] px-0 pr-6 py-6 relative z-10">
+      <div className="flex-1 bg-background px-0 pr-6 py-6 relative z-10">
         {/* Header */}
         <div ref={headerRef} className="flex items-center justify-between mb-8">
           <div>

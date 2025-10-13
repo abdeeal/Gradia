@@ -111,7 +111,7 @@ const TaskDetail = ({ task, onClose, onChange, onSave, onDelete }) => {
   return (
     <div
       ref={panelRef}
-      className="fixed top-0 right-0 w-[624px] h-full mb-[20px] mr-[20px] rounded-2xl z-[300]"
+      className="fixed top-0 right-0 h-full z-[300] w-full md:w-[624px] lg:w-[624px]"
     >
       <div className="h-full overflow-y-auto pt-20 pr-6 pb-6 pl-[31px] text-white relative border border-[#464646]/50 rounded-2xl bg-[#0a0a0a] font-[Inter]">
         {/* back */}
