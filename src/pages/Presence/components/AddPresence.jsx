@@ -1,4 +1,4 @@
-src/pages/Presence/components/PresencePopup.jsx// 📄 PresencePopup.jsx (single file, no new files)
+
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Swal from "sweetalert2";
