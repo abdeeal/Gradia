@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { Link, useLocation } from "react-router-dom";
 import { navItemsMain, navItemsSide, navItemsSUm } from "../constants/data";
@@ -12,63 +12,90 @@ export const Navbar = () => {
   const mounted = useRef(false);
   const location = useLocation();
 
-  const toggleDrawer = () => {
-    if (drawer) {
-      setDrawer(false);
-    } else {
-      setDrawer(true);
-    }
-  };
+  const toggleDrawer = () => setDrawer((prev) => !prev);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!mounted.current) {
       mounted.current = true;
       return;
     }
 
-    if (drawer) {
-      document.getElementById("drawer").classList.add("inline");
-      document.getElementById("drawer").classList.remove("hidden");
+    const el = drawerRef.current;
+    if (!el) return;
 
-      gsap.fromTo(
-        drawerRef.current,
-        { height: 0, filter: "blur(16px)" },
+    const tl = gsap.timeline({ defaults: { ease: "power2.inOut" } });
+
+    if (drawer) {
+      gsap.set(el, { visibility: "visible", pointerEvents: "auto" });
+      tl.fromTo(
+        el,
+        { height: 0, opacity: 0, filter: "blur(16px)" },
         {
           height: 633,
+          opacity: 1,
           filter: "blur(0px)",
-          duration: 1,
-          ease: "power2.out",
+          duration: 0.6,
         }
       );
     } else {
-      document.getElementById("drawer").classList.remove("inline");
-      setTimeout(() => {
-        document.getElementById("drawer").classList.add("hidden");
-      }, 500);
-
-      gsap.to(drawerRef.current, {
+      tl.to(el, {
         height: 0,
+        opacity: 0,
         filter: "blur(8px)",
         duration: 0.4,
-        ease: "power2.in",
+        onComplete: () => {
+          gsap.set(el, { visibility: "hidden", pointerEvents: "none" });
+        },
       });
     }
+
+    return () => {
+      tl.kill();
+    };
+  }, [drawer]);
+
+  useLayoutEffect(() => {
+    document.body.style.overflow = drawer ? "hidden" : "auto";
+    document.body.style.touchAction = drawer ? "none" : "auto";
+    return () => {
+      document.body.style.overflow = "auto";
+      document.body.style.touchAction = "auto";
+    };
+  }, [drawer]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (
+        drawer &&
+        drawerRef.current &&
+        !drawerRef.current.contains(e.target)
+      ) {
+        setTimeout(() => setDrawer(false), 100);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [drawer]);
 
   return (
-    <nav>
-      {(isTablet || isMobile) &&  (
-        <div className="flex justify-between items-center relative ">
+    <nav className="sticky top-0 bg-black py-[22px] z-[90] xl:hidden">
+      {(isTablet || isMobile) && (
+        <div className="flex justify-between items-center relative  w-full">
           {/* drawer */}
           <div
             ref={drawerRef}
             id="drawer"
-            className={`absolute bg-gradient-to-b from-[#141414] via-[#000000] to-[#141414] w-[396px]  right-[-8px] top-0 px-3 rounded-[16px] overflow-hidden border border-border/20`}
+            className={`absolute bg-gradient-to-b from-[#141414] via-[#000000] to-[#141414] md:w-[396px] w-[calc(100%+22px)] right-[-11px] md:right-[-8px] top-0 px-3 rounded-[16px] overflow-hidden border border-border/20`}
             style={{ height: 0 }}
           >
-            <p className="font-semibold text-[20px] py-4 border-b border-border/50">
+            <p className="font-semibold text-[20px] py-4 border-b border-border/50 invisible md:visible">
               Menu
             </p>
+            <hr className="border-0 border-t border-border/50 md:hidden" />
 
             {/* navitem */}
             <div
@@ -84,12 +111,19 @@ export const Navbar = () => {
                   }`}
                 >
                   <div className="w-2 h-2 bg-current rounded-full" />
-                  <Link to={item.href}>{item.name}</Link>
+                  <Link
+                    onClick={() => {
+                      setDrawer(false);
+                    }}
+                    to={item.href}
+                  >
+                    {item.name}
+                  </Link>
                 </div>
               ))}
             </div>
 
-            <div className="flex flex-col pb-4 border-b border-border/50 font-inter font-semibold text-[32px] px-4 pt-5 gap-5">
+            <div className="flex flex-col pb-4 border-b border-border/30 md:border-border/50 font-inter font-semibold text-[32px] px-4 pt-5 gap-5">
               {navItemsMain.map((item, idx) => (
                 <div
                   key={idx}
@@ -100,22 +134,42 @@ export const Navbar = () => {
                   }`}
                 >
                   <div className="w-2 h-2 bg-current rounded-full" />
-                  <Link to={item.href}>{item.name}</Link>
+                  <Link
+                    onClick={() => {
+                      setDrawer(false);
+                    }}
+                    to={item.href}
+                  >
+                    {item.name}
+                  </Link>
                 </div>
               ))}
             </div>
 
-            <div className="flex flex-col pb-4 font-inter font-semibold text-[32px] px-4 pt-5 pb-8 gap-5">
+            <div className="flex flex-col font-inter font-semibold text-[32px] px-4 pt-5 pb-8 gap-5">
               {navItemsSide.map((item, idx) => (
                 <div key={idx} className={`flex gap-4 items-center`}>
                   <div className="w-2 h-2 bg-current rounded-full" />
-                  <Link to={item.href}>{item.name}</Link>
+                  <Link
+                    onClick={() => {
+                      setDrawer(false);
+                    }}
+                    to={item.href}
+                  >
+                    {item.name}
+                  </Link>
                 </div>
               ))}
             </div>
           </div>
 
-          <Link to={"/"}>
+          <Link
+            onClick={() => {
+              setDrawer(false);
+            }}
+            to={"/"}
+            className=" z-[100]"
+          >
             <p className="font-genos font-bold text-[36px]">
               <span className="text-logo">GRA</span>DIA
             </p>

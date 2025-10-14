@@ -13,6 +13,8 @@ export default async function handler(req, res) {
     if (error) {
       return res.status(500).json({ error: error.message })
     };
+    console.log(typeof data);
+
     return res.status(200).json(data);
   }
    if (req.method === "POST" && req.url === "/api/courses") {
