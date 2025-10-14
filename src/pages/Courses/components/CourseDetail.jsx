@@ -13,7 +13,6 @@ import Swal from "sweetalert2";
 const CourseDetail = ({ course, onClose, onSave }) => {
   const [formData, setFormData] = useState({});
 
-  // sinkron dari card yang diklik
   useEffect(() => {
     if (!course) return;
     const [s, e] = (course.time || "").split(" - ");
@@ -28,7 +27,6 @@ const CourseDetail = ({ course, onClose, onSave }) => {
 
   const setVal = (k, v) => setFormData((p) => ({ ...p, [k]: v }));
 
-  // Save -> kirim ke parent
   const handleSave = () => {
     const updated = {
       ...formData,
@@ -80,17 +78,15 @@ const CourseDetail = ({ course, onClose, onSave }) => {
   };
 
   return (
-    // body drawer: beri border di semua sisi
     <div className="h-full overflow-y-auto pt-20 pr-6 pb-6 pl-[31px] text-white relative border border-[#464646]/50 rounded-2xl">
       {/* tombol back */}
       <button
         onClick={onClose}
-        className="absolute left-3 top-4 text-gray-400 hover:text-white hover:text-[#9457FF]"
+        className="absolute left-3 top-4 text-gray-400 hover:text-[#9457FF]"
       >
         <i className="ri-arrow-right-double-line text-2xl" />
       </button>
 
-      {/* judul: max-w 473px agar ujung baris 1 sejajar kolom kanan */}
       <div className="ml-12 mr-12">
         <Title
           value={formData.title}
@@ -99,7 +95,6 @@ const CourseDetail = ({ course, onClose, onSave }) => {
         />
       </div>
 
-      {/* frame data: 473px, flex kolom supaya footer nempel bawah */}
       <div className="ml-12 mr-12 max-w-[473px] flex flex-col min-h-[calc(100vh-240px)]">
         <div className="font-inter text-[14px] space-y-3">
           <InlineField
@@ -108,15 +103,12 @@ const CourseDetail = ({ course, onClose, onSave }) => {
             value={formData.alias}
             onChange={(v) => setVal("alias", v)}
           />
-
           <InlineField
             label="Lecturer"
             icon="ri-graduation-cap-line"
             value={formData.lecturer}
             onChange={(v) => setVal("lecturer", v)}
           />
-
-          {/* Phone + WA */}
           <InlineField
             label="Phone"
             icon="ri-phone-line"
@@ -125,10 +117,7 @@ const CourseDetail = ({ course, onClose, onSave }) => {
             rightAdornment={
               formData.phone ? (
                 <a
-                  href={`https://wa.me/${(formData.phone || "").replace(
-                    /[^0-9]/g,
-                    ""
-                  )}`}
+                  href={`https://wa.me/${(formData.phone || "").replace(/[^0-9]/g, "")}`}
                   target="_blank"
                   rel="noreferrer"
                   className="shrink-0"
@@ -138,15 +127,12 @@ const CourseDetail = ({ course, onClose, onSave }) => {
               ) : null
             }
           />
-
           <InlineField
             label="Day"
             icon="ri-calendar-event-line"
             value={formData.day}
             onChange={(v) => setVal("day", v)}
           />
-
-          {/* Waktu inline */}
           <TimeInline
             label="Start / end"
             start={formData.startTime}
@@ -154,22 +140,18 @@ const CourseDetail = ({ course, onClose, onSave }) => {
             onChangeStart={(v) => setVal("startTime", v)}
             onChangeEnd={(v) => setVal("endTime", v)}
           />
-
           <InlineField
             label="Room"
             icon="ri-door-closed-line"
             value={formData.room}
             onChange={(v) => setVal("room", v)}
           />
-
-          {/* SKS pakai shopping bag */}
           <NumberInline
             label="SKS"
             icon="ri-shopping-bag-line"
             value={formData.sks}
             onChange={(v) => setVal("sks", v)}
           />
-
           <InlineField
             label="Link"
             icon="ri-share-box-line"
@@ -192,7 +174,6 @@ const CourseDetail = ({ course, onClose, onSave }) => {
           />
         </div>
 
-        {/* footer kanan bawah */}
         <div className="mt-auto flex justify-end items-center gap-3 pt-8 font-inter">
           <button
             onClick={handleDelete}
@@ -239,7 +220,7 @@ const Title = ({ value, onChange, className = "" }) => {
   );
 };
 
-/* ===== Inline text field (tanpa background saat edit) ===== */
+/* ===== Inline text field ===== */
 const InlineField = ({
   icon,
   label,
@@ -268,9 +249,7 @@ const InlineField = ({
             className="text-left w-full font-medium cursor-text hover:text-[#9457FF]"
             onClick={() => setEdit(true)}
           >
-            {renderer ? renderer(value) : value || (
-              <span className="text-gray-500">-</span>
-            )}
+            {renderer ? renderer(value) : value || <span className="text-gray-500">-</span>}
           </button>
         )}
         {rightAdornment}
@@ -279,7 +258,7 @@ const InlineField = ({
   );
 };
 
-/* ===== Number field (inline) ===== */
+/* ===== Number field ===== */
 const NumberInline = ({ icon, label, value, onChange }) => {
   const [edit, setEdit] = useState(false);
   return (
@@ -309,7 +288,7 @@ const NumberInline = ({ icon, label, value, onChange }) => {
   );
 };
 
-/* ===== Time field (inline, no box) ===== */
+/* ===== Time field ===== */
 const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => {
   const [edit, setEdit] = useState(false);
   return (

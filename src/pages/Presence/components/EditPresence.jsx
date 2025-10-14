@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Swal from "sweetalert2";
 
-/* ======== SweetAlert dark (stabil, via customClass) ======== */
+/* ========= SweetAlert (dark) ========= */
 export const showCustomAlert = (options) => {
   Swal.fire({
     ...options,
@@ -12,7 +12,7 @@ export const showCustomAlert = (options) => {
     customClass: {
       popup: "rounded-xl border border-[#464646] w-[340px] p-6 font-[Inter]",
       title: "font-[Inter] text-[18px]",
-      htmlContainer: "text-[13px] text-foreground-secondary mt-2",
+      htmlContainer: "text-[13px] text-gray-300 mt-2",
       confirmButton:
         "font-[Inter] text-[13px] px-4 py-2 rounded-md bg-[#830404] hover:brightness-125 transition-all",
       cancelButton:
@@ -22,58 +22,64 @@ export const showCustomAlert = (options) => {
     zIndex: 99999,
   });
 };
-const parseToFields = (dtStr) => {
-  if (!dtStr) return { dateStr: "", timeStr: "" };
-  // Format yang kita mau: "DD/MM/YY HH:MM:SS"
-  // Terima juga "DD/MM/YYYY HH:MM(:SS)" dan ISO-ish
-  const hasSlash = dtStr.includes("/");
-  if (hasSlash) {
-    const [dPart, tPart = ""] = dtStr.split(" ");
-    return {
-      dateStr: normalizeDateInput(dPart),
-      timeStr: tPart.includes(":")
-        ? (() => {
-            const [h = "00", m = "00", s = "00"] = tPart.split(":");
-            return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
-          })()
-        : "",
-    };
-  }
-  // fallback ISO-ish
-  try {
-    const d = new Date(dtStr.replace(" ", "T"));
-    if (isNaN(d)) throw new Error("invalid");
-    return { dateStr: toDDMMYY(d), timeStr: toHHMMSS(d) };
-  } catch {
-    return { dateStr: "", timeStr: "" };
-  }
-};
 
-const AddPresence = ({
-  course,
+const EditPresence = ({
+  record,                 // { id, courseId, courseTitle, rek/room, datetime, status, note, timeRange }
   onClose,
-  onSubmit,
-  onLiveUpdate,
+  onSave,
   onAppendLog,
   contentPaddingLeft = 272,
 }) => {
-  const [status, setStatus] = useState(course?.statusSelection || "");
-  const [note, setNote] = useState(course?.note || "");
+  const [status, setStatus] = useState(record?.status || "");
+  const [note, setNote] = useState(record?.note || "");
 
   useEffect(() => {
-    setStatus(course?.statusSelection || "");
-    setNote(course?.note || "");
-  }, [course?.id]);
+    setStatus(record?.status || "");
+    setNote(record?.note || "");
+  }, [record?.id]);
 
-  useEffect(() => {
-    if (!course) return;
-    onLiveUpdate?.({
-      courseId: course.id,
-      statusSelection: status,
-      note,
-    });
-  }, [status, note]);
+  const isPresence = status === "Presence";
+  const isAbsent = status === "Absent";
 
+  // ==== Nama & Ruangan ====
+  const courseTitle = record?.courseTitle || "—";
+  const roomText =
+    record?.room && record.room.toString().trim() !== ""
+      ? `Rek - ${record.room}`
+      : record?.rek && record.rek.toString().trim() !== ""
+      ? `Rek - ${record.rek}`
+      : "Rek - —";
+
+  // ==== Format tanggal & jam dari record.datetime ====
+  const formatDDMMYY_HHMMSS = (dtStr) => {
+    if (!dtStr) return { d: "—", t: "" };
+
+    if (dtStr.includes("/")) {
+      const [dpart, tpart = ""] = dtStr.split(" ");
+      const [dd = "—", mm = "—", yyyy = ""] = dpart.split("/");
+      const yy = yyyy ? String(yyyy).slice(-2) : "—";
+      return { d: `${dd}/${mm}/${yy}`, t: tpart || "" };
+    }
+
+    try {
+      const d = new Date(dtStr.replace(" ", "T"));
+      if (isNaN(d)) throw new Error("bad date");
+      const pad = (n) => String(n).padStart(2, "0");
+      const dd = pad(d.getDate());
+      const mm = pad(d.getMonth() + 1);
+      const yy = String(d.getFullYear()).slice(-2);
+      const hh = pad(d.getHours());
+      const mi = pad(d.getMinutes());
+      const ss = pad(d.getSeconds());
+      return { d: `${dd}/${mm}/${yy}`, t: `${hh}:${mi}:${ss}` };
+    } catch {
+      return { d: "—", t: "" };
+    }
+  };
+
+  const { d: dateShort, t: timeFull } = formatDDMMYY_HHMMSS(record?.datetime);
+
+  // ==== Submit handler ====
   const submit = () => {
     if (!status) {
       showCustomAlert({
@@ -85,16 +91,8 @@ const AddPresence = ({
       return;
     }
 
-    const payload = {
-      courseId: course?.id,
-      courseTitle: course?.title,
-      timeRange: course?.time,
-      room: course?.room || "",
-      status,
-      note,
-    };
-
-    onSubmit?.(payload);
+    const updated = { ...record, status, note };
+    onSave?.(updated);
 
     if (typeof onAppendLog === "function") {
       const now = new Date();
@@ -105,52 +103,39 @@ const AddPresence = ({
           hour: "2-digit",
           minute: "2-digit",
         })}`,
-        ...payload,
+        courseId: updated.courseId,
+        courseTitle: updated.courseTitle,
+        room: updated.rek || updated.room || "",
+        status: updated.status,
+        note: updated.note,
+        timeRange: updated.timeRange,
       });
     }
 
     showCustomAlert({
       icon: "success",
       title: "Presence Submitted",
-      html: `<p>${course?.title || ""} marked as <b>${status}</b></p>`,
-      timer: 1200,
+      html: `<p>${record?.courseTitle || ""} set to <b>${status}</b></p>`,
+      timer: 1100,
       showConfirmButton: false,
     });
 
     onClose?.();
   };
 
-  const isPresence = status === "Presence";
-  const isAbsent = status === "Absent";
-
-  const lowerStatus = (course?.status || "").toLowerCase();
-  const circleColor =
-    lowerStatus.includes("not")
-      ? "bg-gray-500"
-      : lowerStatus.includes("overdue")
-      ? "bg-red-500"
-      : lowerStatus.includes("on") || lowerStatus.includes("going")
-      ? "bg-[#FFD75A]"
-      : "bg-blue-400";
-
-  if (!course) return null;
-
-  const rekText =
-    (course?.rek && `rek - ${course.rek}`) ||
-    (course?.room && `rek - ${course.room}`) ||
-    "rek - —";
+  if (!record) return null;
 
   return createPortal(
     <>
+      {/* Overlay */}
       <div
-        className="fixed top-0 bottom-0 right-0 z-50 bg-black/60"
-        style={{ left: contentPaddingLeft }}
+        className="fixed inset-0 z-50 bg-black/60"
+        style={{ paddingLeft: contentPaddingLeft }}
         onClick={onClose}
       />
-
       <div
-        className="fixed top-0 bottom-0 right-0 z-[51] pointer-events-none"
-        style={{ left: contentPaddingLeft }}
+        className="fixed inset-0 z-[51] pointer-events-none"
+        style={{ paddingLeft: contentPaddingLeft }}
       >
         <div className="h-full w-full flex items-center justify-center">
           <div
@@ -159,9 +144,9 @@ const AddPresence = ({
             className="pointer-events-auto w-[520px] h-[430px] rounded-2xl bg-[#15171A] border border-[#2c2c2c] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header — vertikal center + sejajar kiri-kanan dgn body */}
+            {/* Header */}
             <div className="mx-auto mt-[12px] w-[498px] h-10 flex items-center justify-between px-3">
-              <h2 className="font-inter text-[18px] text-foreground leading-none">
+              <h2 className="font-[Montserrat] text-[18px] text-foreground leading-none">
                 Log Presence
               </h2>
               <button
@@ -173,48 +158,46 @@ const AddPresence = ({
               </button>
             </div>
 
-            {/* Frame — jarak atas disamakan dengan jarak header ke tepi atas */}
+            {/* Frame */}
             <div className="mx-auto mt-[12px] w-[498px] h-[340px] rounded-xl border border-[#2c2c2c] bg-[#0f0f10] p-4 pb-5 flex flex-col">
-              {/* waktu + status */}
-              <div className="flex items-center gap-3 text-sm text-zinc-300">
-                <span className={`inline-block w-2.5 h-2.5 rounded-full ${circleColor}`} />
-                <span className="tabular-nums">{course?.time || "—"}</span>
-
-                <span
-                  className={`inline-flex items-center justify-center h-[26px] px-3 rounded-sm text-xs font-medium ml-3
-                    ${
-                      lowerStatus.includes("on") || lowerStatus.includes("going")
-                        ? "bg-[#3A2F04] text-[#FFD75A]"
-                        : lowerStatus.includes("overdue")
-                        ? "bg-[#3F0909] text-[#FF8F8F]"
-                        : "bg-[#2E2E2E] text-zinc-400"
-                    }`}
-                >
-                  {course?.status || "On Going"}
-                </span>
-              </div>
-
-              {/* nama & rek */}
-              <div className="mt-3">
-                <h3 className="text-foreground font-medium leading-snug truncate">
-                  {course?.title || "—"}
+              {/* Course & Room */}
+              <div className="mt-0">
+                <h3 className="font-[Montserrat] text-white font-medium leading-snug truncate">
+                  {courseTitle}
                 </h3>
-                <p className="text-sm text-foreground-secondary">
-                    {course?.rek
-                        ? course.rek.toString().includes("-")
-                        ? course.rek // sudah lengkap: misal "IOT-201"
-                        : `Rek - ${course.rek}` // hanya angka
-                        : course?.room
-                        ? course.room.toString().includes("-")
-                        ? course.room
-                        : `Rek - ${course.room}`
-                        : "Rek - —"}
+                <p className="text-sm text-foreground-secondary font-[Montserrat]">
+                  {roomText}
                 </p>
               </div>
 
-              {/* tombol Presence / Absent */}
+              {/* Date & Time */}
+<div className="mt-3 flex items-center text-sm text-zinc-300 font-[Montserrat]">
+  {/* Date */}
+  <div className="flex items-center gap-2">
+    <i className="ri-calendar-line text-gray-400 text-[15px]" />
+    <span className="tabular-nums">{dateShort}</span>
+  </div>
+
+  {/* Separator (muncul hanya jika dua-duanya ada) */}
+  {dateShort !== "—" && timeFull && (
+    <span
+      className="mx-3 text-zinc-500/80 select-none"
+      aria-hidden="true"
+    >
+      /
+    </span>
+  )}
+
+  {/* Time */}
+  <div className="flex items-center gap-2">
+    <i className="ri-time-line text-gray-400 text-[15px]" />
+    <span className="tabular-nums">{timeFull}</span>
+  </div>
+</div>
+
+
+              {/* Presence / Absent */}
               <div className="mt-4 flex gap-3 justify-start">
-                {/* Presence */}
                 <button
                   type="button"
                   onClick={() => setStatus("Presence")}
@@ -235,7 +218,6 @@ const AddPresence = ({
                   </span>
                 </button>
 
-                {/* Absent */}
                 <button
                   type="button"
                   onClick={() => setStatus("Absent")}
@@ -257,7 +239,6 @@ const AddPresence = ({
                 </button>
               </div>
 
-              {/* notes */}
               <label className="mt-5 text-sm text-zinc-400 font-inter">Add Notes</label>
               <textarea
                 rows={2}
@@ -267,14 +248,14 @@ const AddPresence = ({
                 className="mt-2 w-full rounded-lg border border-[#2c2c2c] p-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-500 resize-none font-inter bg-transparent"
               />
 
-              {/* submit */}
+              {/* Submit */}
               <div className="mt-8 flex justify-end">
                 <button
                   onClick={submit}
-                  className="inline-flex items-center gap-2 pl-4 pr-4 h-9 rounded-md text-sm font-inter
+                  className="inline-flex items-center gap-2 pl-4 pr-4 h-9 rounded-md text-sm font-[Montserrat]
                              bg-[linear-gradient(to_right,#34146C,#28073B)] hover:brightness-110 transition"
                 >
-                  <span>Submit Presence</span>
+                  <span>Save Presence</span>
                   <i className="ri-logout-circle-r-line text-base" />
                 </button>
               </div>
@@ -287,4 +268,4 @@ const AddPresence = ({
   );
 };
 
-export default AddPresence;
+export default EditPresence;

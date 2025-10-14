@@ -211,8 +211,8 @@ const Tasks = () => {
       >
         {/* Header (hapus padding kiri = 0) */}
         <div className="mb-[24px] px-0 pr-6">
-          <h1 className="text-[24px] font-bold mb-1.5">Tasks</h1>
-          <p className="text-gray-400 text-[15px] font-[Inter]">
+          <h1 className="text-[20px] font-Monsterrat font-semibold">Tasks</h1>
+          <p className="text-gray-400 text-[16px] font-Monsterrat">
             Keep track of your tasks all in one place.
           </p>
         </div>

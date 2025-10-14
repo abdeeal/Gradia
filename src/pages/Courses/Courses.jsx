@@ -199,8 +199,8 @@ export const Courses = () => {
         {/* Header */}
         <div ref={headerRef} className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="font-inter text-[20px] font-semibold leading-6">Courses</h1>
-            <p className="font-inter text-[16px] mt-2 text-gray-400">
+            <h1 className="font-monsterrat text-[20px] font-semibold leading-6">Courses</h1>
+            <p className="font-monsterrat text-[16px] mt-2 text-gray-400">
               Keep track of your courses all in one place.
             </p>
           </div>
