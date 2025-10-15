@@ -127,28 +127,28 @@ const Tasks = () => {
   }, [selectedTask, showAddPanel]);
 
   // Animasi halaman utama
-  // useEffect(() => {
-  //   if (taskContainerRef.current) {
-  //     gsap.fromTo(
-  //       taskContainerRef.current,
-  //       { opacity: 0, y: 20 },
-  //       { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }
-  //     );
-  //   }
-  // }, []);
+  useEffect(() => {
+    if (taskContainerRef.current) {
+      gsap.fromTo(
+        taskContainerRef.current,
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }
+      );
+    }
+  }, []);
 
   // Animasi drawer slide in/out
-  // useEffect(() => {
-  //   if (selectedTask || showAddPanel) {
-  //     gsap.fromTo(
-  //       ".drawer-panel",
-  //       { x: "100%" },
-  //       { x: "0%", duration: 0.5, ease: "power3.out" }
-  //     );
-  //   } else {
-  //     gsap.to(".drawer-panel", { x: "100%", duration: 0.4, ease: "power3.in" });
-  //   }
-  // }, [selectedTask, showAddPanel]);
+  useEffect(() => {
+    if (selectedTask || showAddPanel) {
+      gsap.fromTo(
+        ".drawer-panel",
+        { x: "100%" },
+        { x: "0%", duration: 0.5, ease: "power3.out" }
+      );
+    } else {
+      gsap.to(".drawer-panel", { x: "100%", duration: 0.4, ease: "power3.in" });
+    }
+  }, [selectedTask, showAddPanel]);
 
   /* ===== CRUD: add / update / delete ===== */
   const addTask = (payload) => {
@@ -211,8 +211,8 @@ const Tasks = () => {
       >
         {/* Header (hapus padding kiri = 0) */}
         <div className="mb-[24px] px-0 pr-6">
-          <h1 className="text-[24px] font-bold mb-1.5">Tasks</h1>
-          <p className="text-gray-400 text-[15px] font-[Inter]">
+          <h1 className="text-[20px] font-Monsterrat font-semibold">Tasks</h1>
+          <p className="text-gray-400 text-[16px] font-Monsterrat">
             Keep track of your tasks all in one place.
           </p>
         </div>
@@ -225,7 +225,7 @@ const Tasks = () => {
                 key={stat.label}
                 className="relative p-3 flex flex-col justify-center text-left"
               >
-                <p className="text-[13px] text-gray-400 font-medium">
+                <p className="text-[16px] text-gray-400 font-medium">
                   {stat.label}
                 </p>
                 <p className="font-extrabold mt-1 text-[26px] text-[#FFEB3B]">
@@ -241,25 +241,25 @@ const Tasks = () => {
 
         {/* Bar: Overview + Filter + Sort + Add */}
         <div className="flex justify-between items-center font-[Inter] mb-2 px-0 pr-6">
-          <h2 className="text-[18px] font-semibold">Overview</h2>
+          <h2 className="text-[20px] font-semibold">Overview</h2>
 
           <div className="flex items-center gap-2.5">
-            <button className="flex items-center gap-1.5 px-[10px] py-[6px] rounded-md text-[14px] border border-zinc-700 hover:border-zinc-500 transition-all">
+            <button className="flex items-center gap-1.5 px-[10px] py-[6px] rounded-md text-[16px] border border-zinc-700 hover:border-zinc-500 transition-all">
               <i className="ri-filter-3-line text-[15px]"></i> Filter
             </button>
 
-            <button className="flex items-center gap-1.5 px-[10px] py-[6px] rounded-md text-[14px] border border-zinc-700 hover:border-zinc-500 transition-all">
+            <button className="flex items-center gap-1.5 px-[10px] py-[6px] rounded-md text-[16px] border border-zinc-700 hover:border-zinc-500 transition-all">
               <i className="ri-sort-desc text-[15px]"></i> Sort
             </button>
 
             <button
               onClick={handleAddClick}
-              className="flex items-center gap-1.5 px-[12px] py-[6px] rounded-md text-[14px] text-white transition-all"
+              className="flex items-center gap-1.5 px-[12px] py-[6px] rounded-md text-[16px] text-white transition-all"
               style={{
                 background: "linear-gradient(135deg, #34146C 0%, #28073B 100%)",
               }}
             >
-              <i className="ri-add-line text-[15px]"></i> Add Task
+              <i className="ri-add-line text-[16px]"></i> Add Task
             </button>
           </div>
         </div>

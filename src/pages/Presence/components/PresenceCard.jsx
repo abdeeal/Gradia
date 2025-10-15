@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-const PresenceCard = ({ courses = [], onOpenPopup }) => {
+const PresenceCard = ({ courses = [], onOpenAddPresence }) => {
   // Tampilkan hanya 3 card
   const visibleCourses = useMemo(() => courses.slice(0, 3), [courses]);
 
@@ -58,7 +58,7 @@ const PresenceCard = ({ courses = [], onOpenPopup }) => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <div className={`w-2 h-2 rounded-full ${circleColor}`} />
-                    <p className="text-[11px] text-gray-300">{c.time}</p>
+                    <p className="text-[11px] text-foreground-secondary">{c.time}</p>
                   </div>
                   <span
                     className={`text-[10px] px-1.5 py-[2px] rounded-md ${
@@ -73,17 +73,17 @@ const PresenceCard = ({ courses = [], onOpenPopup }) => {
 
                 {/* MIDDLE: judul + rek — TENGAH secara vertikal */}
                 <div className="flex-1 flex flex-col justify-center">
-                  <h3 className="text-[13px] font-semibold leading-snug text-white line-clamp-2 break-words">
+                  <h3 className="text-[13px] font-semibold leading-snug text-foreground line-clamp-2 break-words">
                     {c.title}
                   </h3>
-                  <p className="text-[11px] text-gray-400 mt-1">
+                  <p className="text-[11px] text-foreground-secondary mt-1">
                     Rek - {c.rek}
                   </p>
                 </div>
 
                 {/* BOTTOM: tombol */}
                 <button
-                  onClick={() => onOpenPopup?.(c)}
+                  onClick={() => onOpenAddPresence?.(c)}
                   className="bg-gradient-to-l from-[#28073B] to-[#34146C] hover:opacity-90 transition-all px-3 py-1.5 rounded-md text-[11px] flex items-center gap-1 self-start mt-2"
                 >
                   Log Presence
@@ -106,7 +106,7 @@ const PresenceCard = ({ courses = [], onOpenPopup }) => {
             className="w-[160px] flex flex-col items-center text-center transition-[height] duration-200"
             style={{ height: cardHeight ? `${cardHeight}px` : "auto" }}
           >
-            <h4 className="text-[15px] font-semibold text-white mt-1 mb-6">
+            <h4 className="text-[15px] font-semibold text-foreground mt-1 mb-6">
               Total Presence
             </h4>
 
@@ -114,14 +114,14 @@ const PresenceCard = ({ courses = [], onOpenPopup }) => {
               <div className="bg-[#22C55E]/20 text-[#4ADE80] text-[13px] font-semibold px-3 py-1 rounded-md mb-1">
                 20
               </div>
-              <span className="text-[12px] text-gray-300">Presence</span>
+              <span className="text-[12px] text-foreground-secondary">Presence</span>
             </div>
 
             <div className="flex flex-col items-center mt-auto">
               <div className="bg-[#EF4444]/20 text-[#F87171] text-[13px] font-semibold px-3 py-1 rounded-md mb-1">
                 2
               </div>
-              <span className="text-[12px] text-gray-300">Absent</span>
+              <span className="text-[12px] text-foreground-secondary">Absent</span>
             </div>
           </div>
         </div>

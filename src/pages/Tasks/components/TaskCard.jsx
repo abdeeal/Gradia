@@ -57,22 +57,22 @@ const TaskCard = ({
   return (
     <div
       onClick={onClick}
-      className="w-full cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl p-4 px-2.5 hover:border-purple-500 transition-all duration-200 font-[Montserrat] min-h-[187px] flex flex-col justify-between"
+      className="w-full cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl p-4 px-2.5 hover:border-purple-500 transition-all duration-200 font-[Montserrat] min-h-[187px] flex flex-col"
     >
       {/* === Frame 1: Waktu === */}
-      <div className="relative pl-5 text-gray-200 ">
+      <div className="relative pl-5 text-gray-200 mb-5">
         <span
           className={`w-[10px] h-[10px] rounded-full absolute left-0 top-1/2 -translate-y-1/2 ${circleColor}`}
         />
         <div className="flex items-center gap-1 text-foreground-secondary">
           {deadline && (
-            <span className="text-[14px]">
+            <span className="text-[16px]">
               {formatDate(deadline)}
             </span>
           )}
           {time && (
             <span className="">
-              {deadline ? "• " : "text-[14px]"}
+              {deadline ? "• " : "text-[16px]"}
               {time}
             </span>
           )}
@@ -80,21 +80,21 @@ const TaskCard = ({
       </div>
 
       {/* === Frame 2: Body (judul, related course, deskripsi) === */}
-      <div className="pl-0 pr-[8px]">
-        <h3 className="text-[#FAFAFA] text-[15px] font-semibold mb-[12px]">
+      <div className="pl-0 pr-[8px] mb-6">
+        <h3 className="text-[#FAFAFA] text-[16px] font-semibold mb-[8px]">
           {title}
         </h3>
 
         {/* Related Course di antara judul & deskripsi */}
         {relatedCourse && (
-          <div className="text-[#A3A3A3] text-[13px] font-semibold leading-tight mb-[4px]">
+          <div className="text-[#A3A3A3] text-[16px] font-semibold leading-tight mb-[4px]">
             {relatedCourse}
           </div>
         )}
 
         {description && (
           <p
-            className="text-[#A3A3A3] text-[13px] font-normal"
+            className="text-[#A3A3A3] text-[16px] font-normal"
             style={{
               display: "-webkit-box",
               WebkitLineClamp: 1,
@@ -111,12 +111,12 @@ const TaskCard = ({
       {/* === Frame 3: Keterangan (Priority & Progress kiri bawah) === */}
       <div className="flex items-center gap-[8px]">
         <span
-          className={`text-[12px] px-[10px] py-[4px] rounded-md font-medium ${priorityColor.bg} ${priorityColor.text}`}
+          className={`text-[16px] px-[10px] py-[4px] rounded-md font-medium ${priorityColor.bg} ${priorityColor.text}`}
         >
           {priority}
         </span>
         <span
-          className={`text-[12px] px-[10px] py-[4px] rounded-md font-medium ${statusColor.bg} ${statusColor.text}`}
+          className={`text-[16px] px-[10px] py-[4px] rounded-md font-medium ${statusColor.bg} ${statusColor.text}`}
         >
           {status}
         </span>
