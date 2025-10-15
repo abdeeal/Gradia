@@ -5,7 +5,7 @@ const GridDrawer = ({icon, title, children, className}) => {
             <i className={`${icon} text-[18px]`}></i>
             <p>{title}</p>
           </div>
-          <div className={`${className} w-fit h-fit relative flex items-center h-full`}>
+          <div className={`${className} w-fit relative flex items-center h-full`}>
             {children}
           </div>
     </>
