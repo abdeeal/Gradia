@@ -22,29 +22,33 @@ const CourseCard = ({ course, onClick }) => {
     <div
       ref={cardRef}
       onClick={onClick}
-      className="cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl p-3 hover:border-purple-500 transition-all duration-200 relative"
+      className="cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl px-[12px] py-4 hover:border-purple-500 transition-all duration-200 relative"
     >
-      {/* Waktu + Lingkaran */}
-      <div className="flex items-center text-[13px] text-gray-400 mb-1">
-        <span className={`w-2.5 h-2.5 rounded-full mr-2 ${circleColor}`}></span>
-        {course.time}
-      </div>
+      <div className="pr-[32px]">
+        {/* Waktu + Lingkaran */}
+        <div className="flex items-center text-gray-400 mb-3">
+          <span
+            className={`w-2.5 h-2.5 rounded-full mr-2 ${circleColor}`}
+          ></span>
+          {course.time}
+        </div>
 
-      {/* Judul */}
-      <h4 className="text-white font-semibold text-[14px] leading-snug mb-1">
-        {course.title}
-      </h4>
+        {/* Judul */}
+        <h4 className="text-white font-semibold leading-snug mb-3">
+          {course.title} <span className="uppercase">({course.alias})</span>
+        </h4>
 
-      {/* Ruangan & Dosen */}
-      <div className="flex flex-col gap-[1px] text-gray-400">
-        <p className="text-[11.5px] flex items-center">
-          <i className="ri-building-line text-purple-400 mr-1 text-[14px]"></i>
-          {course.room}
-        </p>
-        <p className="text-[11.5px] flex items-center">
-          <i className="ri-graduation-cap-line text-purple-400 mr-1 text-[14px]"></i>
-          {course.lecturer}
-        </p>
+        {/* Ruangan & Dosen */}
+        <div className="flex flex-col gap-[1px] text-gray-400">
+          <p className="flex items-center mb-1 font-semibold">
+            <i className="ri-building-line text-[#643EB2] mr-1 "></i>
+            {course.room}
+          </p>
+          <p className="flex items-center line-clamp-1">
+            <i className="ri-graduation-cap-line text-[#643EB2] mr-1 "></i>
+            <span className="line-clamp-1">{course.lecturer}</span>
+          </p>
+        </div>
       </div>
     </div>
   );

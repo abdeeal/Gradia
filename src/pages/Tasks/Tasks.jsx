@@ -127,28 +127,28 @@ const Tasks = () => {
   }, [selectedTask, showAddPanel]);
 
   // Animasi halaman utama
-  useEffect(() => {
-    if (taskContainerRef.current) {
-      gsap.fromTo(
-        taskContainerRef.current,
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }
-      );
-    }
-  }, []);
+  // useEffect(() => {
+  //   if (taskContainerRef.current) {
+  //     gsap.fromTo(
+  //       taskContainerRef.current,
+  //       { opacity: 0, y: 20 },
+  //       { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }
+  //     );
+  //   }
+  // }, []);
 
   // Animasi drawer slide in/out
-  useEffect(() => {
-    if (selectedTask || showAddPanel) {
-      gsap.fromTo(
-        ".drawer-panel",
-        { x: "100%" },
-        { x: "0%", duration: 0.5, ease: "power3.out" }
-      );
-    } else {
-      gsap.to(".drawer-panel", { x: "100%", duration: 0.4, ease: "power3.in" });
-    }
-  }, [selectedTask, showAddPanel]);
+  // useEffect(() => {
+  //   if (selectedTask || showAddPanel) {
+  //     gsap.fromTo(
+  //       ".drawer-panel",
+  //       { x: "100%" },
+  //       { x: "0%", duration: 0.5, ease: "power3.out" }
+  //     );
+  //   } else {
+  //     gsap.to(".drawer-panel", { x: "100%", duration: 0.4, ease: "power3.in" });
+  //   }
+  // }, [selectedTask, showAddPanel]);
 
   /* ===== CRUD: add / update / delete ===== */
   const addTask = (payload) => {

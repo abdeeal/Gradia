@@ -81,7 +81,7 @@ const TaskCard = ({
 
       {/* === Frame 2: Body (judul, related course, deskripsi) === */}
       <div className="pl-0 pr-[8px]">
-        <h3 className="text-[#FAFAFA] text-[15px] font-semibold mb-[8px]">
+        <h3 className="text-[#FAFAFA] text-[15px] font-semibold mb-[12px]">
           {title}
         </h3>
 

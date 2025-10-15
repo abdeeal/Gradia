@@ -23,10 +23,15 @@ const TaskDetail = ({ task, onClose, onChange, onSave, onDelete }) => {
 
   // animasi drawer
   useEffect(() => {
-    if (!task) return;
-    gsap.fromTo(panelRef.current, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
+    if (!task || !panelRef.current) return;
+
+    const el = panelRef.current;
+    gsap.fromTo(el, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
+
     return () => {
-      gsap.to(panelRef.current, { x: "100%", duration: 0.4, ease: "power2.in" });
+      if (el) {
+        gsap.to(el, { x: "100%", duration: 0.4, ease: "power2.in" });
+      }
     };
   }, [task]);
 
@@ -200,11 +205,19 @@ const TaskDetail = ({ task, onClose, onChange, onSave, onDelete }) => {
                   onChange={handleChange}
                   className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200 focus:ring-1 focus:ring-purple-600 appearance-none cursor-pointer"
                 >
-                  <option value="" disabled style={{ color: "#9ca3af", backgroundColor: "#0a0a0a" }}>
+                  <option
+                    value=""
+                    disabled
+                    style={{ color: "#9ca3af", backgroundColor: "#0a0a0a" }}
+                  >
                     Select Course
                   </option>
                   {courses.map((c, i) => (
-                    <option key={i} value={c} style={{ backgroundColor: "#0a0a0a", color: "#e5e7eb" }}>
+                    <option
+                      key={i}
+                      value={c}
+                      style={{ backgroundColor: "#0a0a0a", color: "#e5e7eb" }}
+                    >
                       {c}
                     </option>
                   ))}

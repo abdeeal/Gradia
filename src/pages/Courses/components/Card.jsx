@@ -35,7 +35,7 @@ export const CourseCard = ({
         </p>
         <div className="flex flex-col gap-1 text-foreground-secondary text-start">
           <div className="flex gap-[10px]">
-            <i className="ri-door-closed-line text-icon"></i>
+            <i className="ri-building-line text-icon"></i>
             <p className="font-semibold line-clamp-1 uppercase">{room}</p>
           </div>
           <div className="flex gap-[10px]">

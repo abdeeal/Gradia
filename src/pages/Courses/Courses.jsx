@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react";
 import gsap from "gsap";
 import { useMediaQuery } from "react-responsive";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -23,7 +23,9 @@ const toUiCourse = (api) => ({
 });
 
 const toApiCourse = (ui) => {
-  const [start = "", end = ""] = (ui.time || `${ui.startTime || ""} - ${ui.endTime || ""}`)
+  const [start = "", end = ""] = (
+    ui.time || `${ui.startTime || ""} - ${ui.endTime || ""}`
+  )
     .split(" - ")
     .map((s) => s.trim());
 
@@ -89,16 +91,18 @@ export const Courses = () => {
     };
   }, [selectedCourse, showAdd]);
 
-  /* ===== Animasi drawer: pakai selector .drawer-panel (sesuai request) ===== */
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const el = drawerRef.current;
+    if (!el) return;
+
     if (selectedCourse || showAdd) {
       gsap.fromTo(
-        ".drawer-panel",
+        el,
         { x: "100%" },
         { x: "0%", duration: 0.5, ease: "power3.out" }
       );
     } else {
-      gsap.to(".drawer-panel", { x: "100%", duration: 0.4, ease: "power3.in" });
+      gsap.to(el, { x: "100%", duration: 0.4, ease: "power3.in" });
     }
   }, [selectedCourse, showAdd]);
 
@@ -152,7 +156,9 @@ export const Courses = () => {
   /* ===== UPDATE: CourseDetail -> PUT -> sync UI ===== */
   const handleUpdateCourse = async (updatedUi) => {
     // Optimistic update
-    setCourses((prev) => prev.map((c) => (c.id === updatedUi.id ? { ...c, ...updatedUi } : c)));
+    setCourses((prev) =>
+      prev.map((c) => (c.id === updatedUi.id ? { ...c, ...updatedUi } : c))
+    );
 
     try {
       const payload = toApiCourse(updatedUi);
@@ -199,7 +205,9 @@ export const Courses = () => {
         {/* Header */}
         <div ref={headerRef} className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="font-inter text-[20px] font-semibold leading-6">Courses</h1>
+            <h1 className="font-inter text-[20px] font-semibold leading-6">
+              Courses
+            </h1>
             <p className="font-inter text-[16px] mt-2 text-gray-400">
               Keep track of your courses all in one place.
             </p>
@@ -232,8 +240,6 @@ export const Courses = () => {
 
         {/* GRID */}
         <div
-          ref={gridRef}
-          // p-4 = 16px jarak border frame ↔ isi (sesuai revisi)
           className={`bg-[#141414] rounded-2xl p-4 overflow-x-auto relative transition-all duration-300 ${
             selectedCourse || showAdd ? "opacity-60" : "opacity-100"
           }`}
@@ -241,24 +247,23 @@ export const Courses = () => {
           {loading ? (
             <div className="text-gray-400 text-sm">Loading courses…</div>
           ) : (
-            // gap-4 = 16px antar kolom hari (sesuai revisi)
             <div className="grid grid-cols-5 gap-4 items-start">
               {dayOrder.map((day) => {
                 const list = groupedWithAllDays[day] || [];
                 return (
                   <div key={day} className="flex flex-col w-full">
                     {/* header hari */}
-                    <div className="bg-[#000000] rounded-xl p-3 mb-3 w-full">
+                    <div className="bg-[#000000] rounded-[8px] px-3 py-5 mb-3 w-full">
                       <div className="flex justify-between items-center">
-                        <h3 className="font-medium text-white text-[15px]">{day}</h3>
-                        <span className="text-[11px] bg-[#EAB308]/50 px-2 py-[2px] rounded-full text-[#FDE047]">
+                        <h3 className="font-medium text-white text-[15px]">
+                          {day}
+                        </h3>
+                        <span className="bg-drop-yellow px-2 py-[2px] rounded-full text-yellow">
                           {list.length}
                         </span>
                       </div>
                     </div>
 
-                    {/* cards / placeholder */}
-                    {/* gap-2 = 8px antar baris (antar CourseCard) */}
                     <div className="flex flex-col gap-2 font-[Montserrat] w-full">
                       {list.length > 0 ? (
                         list.map((course) => (
@@ -271,7 +276,7 @@ export const Courses = () => {
                           </div>
                         ))
                       ) : (
-                        <div className="text-xs text-gray-500 bg-[#0f0f0f] border border-[#2a2a2a] rounded-lg p-3 text-center">
+                        <div className="text-neutral-600 bg-[#0f0f0f] border border-[#2a2a2a] rounded-lg p-5 text-center">
                           No courses
                         </div>
                       )}
@@ -293,22 +298,19 @@ export const Courses = () => {
           <div
             ref={drawerRef}
             // tambahkan class "drawer-panel" agar animasi useEffect bekerja
-            className="drawer-panel w-[628px] max-w-[90%] bg-[#111] h-full shadow-2xl relative"
+            className="drawer-panel w-[628px] bg-[#111] h-full shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
             {selectedCourse && (
               <CourseDetail
                 course={selectedCourse}
                 onClose={handleCloseDrawer}
-                onSave={handleUpdateCourse} // PUT -> sync DB
+                onSave={handleUpdateCourse}
               />
             )}
 
             {showAdd && (
-              <AddCourse
-                onClose={handleCloseDrawer}
-                onAdd={handleAddCourse} // POST -> tambah card baru
-              />
+              <AddCourse onClose={handleCloseDrawer} onAdd={handleAddCourse} />
             )}
           </div>
         </div>

@@ -119,7 +119,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
       <div
         id="drawer-courses"
         ref={drawerRef}
-        className="absolute w-full max-w-full md:w-[624px] h-full bg-black right-0 md:border-2 border-border/50 md:rounded-l-[24px] p-4 md:p-6 flex flex-col justify-between overflow-y-auto"
+        className="absolute w-full max-w-full md:w-[624px] h-full bg-background right-0 md:border-2 border-border/50 md:rounded-l-[24px] p-4 md:p-6 flex flex-col justify-between overflow-y-auto"
         style={{ transform: "translateX(100%)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -203,7 +203,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
                   name="start"
                   id="time"
                   defaultValue={`${empty ? "00:00" : data?.start || "Not set"}`}
-                  className="bg-[#15171A] rounded-[4px] px-1  focus:ring-0 focus:border-none focus:outline-none max-w-full"
+                  className="focus:ring-0 focus:border-none focus:outline-none max-w-full"
                 />
                 <span className="text-foreground-secondary hidden md:flex">
                   /
@@ -213,7 +213,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
                   name="end"
                   id="time"
                   defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
-                  className="bg-[#15171A] rounded-[4px] px-1  focus:ring-0 focus:border-none focus:outline-none hidden md:flex max-w-full"
+                  className="focus:ring-0 focus:border-none focus:outline-none hidden md:flex max-w-full"
                 />
               </div>
             </GridDrawer>
@@ -229,7 +229,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
                   name="end"
                   id="time"
                   defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
-                  className="bg-[#15171A] rounded-[4px] px-1  focus:ring-0 focus:border-none focus:outline-none max-w-full "
+                  className="focus:ring-0 focus:border-none focus:outline-none max-w-full "
                 />
               </div>
             </GridDrawer>
