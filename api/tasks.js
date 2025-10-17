@@ -42,4 +42,59 @@ export default async function handler(req, res) {
     }
   });
 }
+ if (req.method === "PUT") {
+    let body = "";
+    req.on("data", chunk => (body += chunk.toString()));
+    req.on("end", async () => {
+      try {
+        const { id_task, id_course, title, description, deadline, status } = JSON.parse(body);
+
+        if (!id_task) {
+          return res.status(400).json({ error: "Parameter id_task wajib diisi untuk update." });
+        }
+
+        const updateData = { id_course, title, description, deadline, status };
+
+        const { data, error } = await supabase
+          .from("task")
+          .update(updateData)
+          .eq("id_task", id_task)
+          .select();
+
+        if (error) return res.status(400).json({ error: error.message });
+
+        return res.status(200).json({
+          message: `Task dengan id_task ${id_task} berhasil diperbarui.`,
+          data,
+        });
+      } catch (err) {
+        return res.status(500).json({ error: "Gagal memproses data update." });
+      }
+    });
+    return;
+  }
+ if (req.method === "DELETE") {
+
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const id = url.searchParams.get("id");
+
+    if (!id) {
+      return res
+        .status(400)
+        .json({ error: "Parameter 'id' (id_task) diperlukan untuk menghapus task." });
+    }
+
+    const { error } = await supabase
+      .from("task")
+      .delete()
+      .eq("id_task", id); 
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    return res.status(200).json({ message: `Task dengan id_task ${id} berhasil dihapus.` });
+  }
+
+  res.status(405).json({ error: "Method not allowed" });
 }
