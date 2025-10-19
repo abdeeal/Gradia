@@ -4,6 +4,8 @@ import Sidebar from "../../components/Sidebar.jsx";
 import TaskCard from "./components/TaskCard.jsx";
 import TaskDetail from "./components/TaskDetail.jsx";
 import AddTask from "./components/AddTask.jsx";
+import Mobile from "./layouts/Mobile.jsx";
+import { useMediaQuery } from "react-responsive";
 
 /* ===== Helpers ===== */
 const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -22,95 +24,48 @@ const Tasks = () => {
   const taskContainerRef = useRef(null);
 
   /* ====== Initial seed -> state by columns ====== */
-  const [tasksByCol, setTasksByCol] = useState(() => ({
-    notStarted: [
-      {
-        id: uid(),
-        title: "Laporan Praktikum",
-        subtitle: "Dasar Kecerdasan Artifisial",
-        description:
-          "Membuat laporan hasil percobaan AI menggunakan dataset MNIST.",
-        deadline: "2025-01-10",
-        time: "16:59",
-        category: "Tugas",
-        relatedCourse: "Dasar Kecerdasan Artifisial",
-        priority: "Medium",
-        status: "Not started",
-        score: "Empty",
-        link: "https://elearning.telkomuniversity.ac.id",
-      },
-    ],
-    inProgress: [
-      {
-        id: uid(),
-        title: "Tugas Proyek Web",
-        subtitle: "Pemrograman Web",
-        description: "Membangun halaman dashboard React dengan TailwindCSS.",
-        deadline: "2025-01-15",
-        time: "23:59",
-        relatedCourse: "Pemrograman Web",
-        priority: "High",
-        status: "In Progress",
-        score: "Empty",
-        link: "https://github.com/",
-      },
-      {
-        id: uid(),
-        title: "Analisis Database",
-        subtitle: "Basis Data Lanjut",
-        description: "Analisis struktur tabel dengan Prisma ORM.",
-        deadline: "2025-01-19",
-        time: "22:00",
-        relatedCourse: "Basis Data Lanjut",
-        priority: "Medium",
-        status: "In Progress",
-        score: "Empty",
-        link: "https://dbdocs.io",
-      },
-    ],
-    completed: Array.from({ length: 8 }, (_, i) => ({
-      id: uid(),
-      title: `Tugas Ke-${i + 1}`,
-      subtitle: "Analisis Data",
-      description:
-        "Analisis dataset menggunakan Python dan visualisasi dengan Pandas.",
-      deadline: `2024-12-${String((i % 28) + 1).padStart(2, "0")}`,
-      time: "17:00",
-      relatedCourse: "Analisis Data",
-      priority: i % 2 === 0 ? "Medium" : "Low",
-      status: "Completed",
-      score: `${80 + (i % 15)}`,
-      link: "https://colab.research.google.com",
-    })),
-    overdue: [
-      {
-        id: uid(),
-        title: "Ujian Tengah Semester",
-        subtitle: "Jaringan Komputer",
-        description: "Ujian teori jaringan dan subnet mask.",
-        deadline: "2024-12-20",
-        time: "09:00",
-        relatedCourse: "Jaringan Komputer",
-        priority: "High",
-        status: "Overdue",
-        score: "Empty",
-        link: "https://ujian.telkomuniversity.ac.id",
-      },
-      {
-        id: uid(),
-        title: "Ujian Akhir Semester",
-        subtitle: "Manajemen Proyek TIK",
-        description: "Ujian studi kasus proyek sistem informasi.",
-        deadline: "2024-12-28",
-        time: "13:00",
-        relatedCourse: "Manajemen Proyek TIK",
-        priority: "High",
-        status: "Overdue",
-        score: "Empty",
-        link: "https://elearning.telkomuniversity.ac.id",
-      },
-    ],
-  }));
+
+  const [tasksByCol, setTasksByCol] = useState({
+    notStarted: [],
+    inProgress: [],
+    completed: [],
+    overdue: [],
+  });
+
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const res = await fetch("/api/tasks");
+        if (!res.ok) throw new Error("Failed to fetch tasks");
+        const data = await res.json();
+
+        // asumsi data berbentuk array of tasks
+        // contoh item: { id, title, description, status, ... }
+
+        const grouped = {
+          notStarted: [],
+          inProgress: [],
+          completed: [],
+          overdue: [],
+        };
+
+        data.forEach((task) => {
+          const status = task.status?.toLowerCase();
+          if (status === "not started") grouped.notStarted.push(task);
+          else if (status === "in progress") grouped.inProgress.push(task);
+          else if (status === "completed") grouped.completed.push(task);
+          else if (status === "overdue") grouped.overdue.push(task);
+        });
+
+        setTasksByCol(grouped);
+      } catch (err) {
+        console.error("Error fetching tasks:", err);
+      }
+    };
+
+    fetchTasks();
+  }, []);
+  
 
   /* ===== Drawer handlers ===== */
   const handleCardClick = (task) => setSelectedTask(task);
@@ -199,6 +154,11 @@ const Tasks = () => {
       { label: "Overdue", value: tasksByCol.overdue.length },
     ];
   }, [tasksByCol]);
+
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
+
+  if (isMobile || isTablet) return <Mobile />;
 
   return (
     <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
@@ -355,7 +315,14 @@ const Tasks = () => {
 };
 
 /* -------------------------- Task Category -------------------------- */
-const TaskCategory = ({ title, icon, iconBg, iconColor, tasks, onCardClick }) => {
+const TaskCategory = ({
+  title,
+  icon,
+  iconBg,
+  iconColor,
+  tasks,
+  onCardClick,
+}) => {
   const sectionRef = useRef(null);
 
   useEffect(() => {
@@ -376,7 +343,9 @@ const TaskCategory = ({ title, icon, iconBg, iconColor, tasks, onCardClick }) =>
         <span className="font-semibold text-[16px] text-white capitalize">
           {title}
         </span>
-        <div className={`${iconBg} w-8 h-8 rounded-md flex items-center justify-center`}>
+        <div
+          className={`${iconBg} w-8 h-8 rounded-md flex items-center justify-center`}
+        >
           <i className={`${icon} text-[20px]`} style={{ color: iconColor }} />
         </div>
       </div>

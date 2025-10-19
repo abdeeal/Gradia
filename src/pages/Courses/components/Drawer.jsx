@@ -6,6 +6,8 @@ import { useMediaQuery } from "react-responsive";
 import { Link } from "react-router-dom";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
+import AutoTextarea from "@/components/Textarea";
+import { Textarea } from "@/components/ui/textarea";
 
 export const Drawer = ({ drawer, setDrawer, empty, data }) => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -128,13 +130,10 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
             <i className="ri-arrow-right-double-line text-[32px] text-foreground-secondary"></i>
           </button>
           <div className="md:pt-16 pt-12 px-1 md:px-12 pb-12 flex flex-col">
-            <textarea
-              type="text"
-              name="name"
+            <Textarea
+              placeholder="Enter your course name here"
+              size="lg"
               defaultValue={`${empty ? "" : data?.name || "Not set"}`}
-              className="font-bold text-[48px] focus:ring-0 focus:outline-none focus:border-none max-w-full w-full"
-              rows={2}
-              placeholder="Enter your course title"
             />
           </div>
 
