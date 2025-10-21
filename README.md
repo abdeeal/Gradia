@@ -50,6 +50,8 @@ DFD (Data Flow Diagram): https://drive.google.com/file/d/1U2ZuqMYzc8cX8WK3452YKQ
 
 ERD (Entity Relationship Diagram): https://drive.google.com/file/d/17E8hJeIIg67QtvpS6ow8usZ4U4_VzAXM/view?pli=1
 
+Class Diagran : https://drive.google.com/file/d/17E8hJeIIg67QtvpS6ow8usZ4U4_VzAXM/view?pli=1
+
 Normalisasi Database : https://docs.google.com/spreadsheets/d/1evRfSbAU37K1OdL0cA_AWVS06-wztkW5Uy4bIMQRw7w/edit?usp=drivesdk 
 
 
