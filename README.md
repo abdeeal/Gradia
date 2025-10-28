@@ -52,6 +52,12 @@ ERD (Entity Relationship Diagram): https://drive.google.com/file/d/17E8hJeIIg67Q
 
 Class Diagran : https://drive.google.com/file/d/17E8hJeIIg67QtvpS6ow8usZ4U4_VzAXM/view?pli=1
 
+Activity Diagram : https://drive.google.com/drive/folders/1co9YtAvh29gwlnE5vxe_xsAcU-oW4dMk?usp=sharing
+
+Sequence Diagram : https://trello.com/c/XMGjjeMP/18-sequence
+
+Use Case Diagram : https://trello.com/c/PB1yXAiZ/3-usecase
+
 Normalisasi Database : https://docs.google.com/spreadsheets/d/1evRfSbAU37K1OdL0cA_AWVS06-wztkW5Uy4bIMQRw7w/edit?usp=drivesdk 
 
 
