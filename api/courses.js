@@ -6,106 +6,54 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  if (req.method === "PUT") {
+ 
+  if (req.method === "POST" && req.url === "/api/auth/otp") {
     let body = "";
+
     req.on("data", (chunk) => {
       body += chunk.toString();
     });
+
     req.on("end", async () => {
-      const { id_courses, ...updateFields } = JSON.parse(body);
+      try {
+        const { id_user, otp_code, expires_at } = JSON.parse(body);
 
-      if (!id_courses) {
-        return res
-          .status(400)
-          .json({ error: "Parameter 'id_courses' wajib diisi untuk update." });
+        if (!id_user || !otp_code || !expires_at) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          return res.end(
+            JSON.stringify({
+              error: "Field 'id_user', 'otp_code', dan 'expires_at' wajib diisi.",
+            })
+          );
+        }
+
+    
+        const { data, error } = await supabase
+          .from("otp")
+          .insert([{ id_user, otp_code, expires_at }])
+          .select();
+
+        if (error) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ error: error.message }));
+        }
+
+      
+        res.writeHead(201, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            message: "OTP berhasil dikirim dan disimpan.",
+            data,
+          })
+        );
+      } catch (err) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
       }
-
-      const { data, error } = await supabase
-        .from("course")
-        .update(updateFields)
-        .eq("id_courses", id_courses)
-        .select();
-
-      if (error) {
-        return res.status(500).json({ error: error.message });
-      }
-
-      res
-        .status(200)
-        .json({
-          message: `Course dengan id ${id_courses} berhasil diperbarui.`,
-          data,
-        });
     });
-    return;
-  }
-  if (req.method === "GET") {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const q = url.searchParams.get("q");
-
-    if (q === "today") {
-      const today = new Date().toLocaleString("en-US", { weekday: "long" });
-      const { data, error } = await supabase
-        .from("course")
-        .select("*")
-        .eq("day", today);
-
-      if (error) {
-        return res.status(500).json({ error: error.message });
-      }
-
-      return res.status(200).json(data);
-    }
-
-    const { data, error } = await supabase.from("course").select("*");
-
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
-
-    return res.status(200).json(data);
-  }
-
-  if (req.method === "POST" && req.url === "/api/courses") {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-    req.on("end", async () => {
-      const course = JSON.parse(body);
-
-      const { data, error } = await supabase
-        .from("course")
-        .insert([course])
-        .select();
-
-      res.writeHead(error ? 400 : 201, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify(
-          error ? { error: error.message } : { message: "ok", data }
-        )
-      );
-    });
-  }
-  if (req.method === "DELETE") {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const id = url.searchParams.get("id");
-
-    if (!id) {
-      return res.status(400).json({ error: "Parameter 'id' diperlukan." });
-    }
-
-    const { error } = await supabase
-      .from("course")
-      .delete()
-      .eq("id_courses", id);
-
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
-
-    return res
-      .status(200)
-      .json({ message: `Course dengan id ${id} berhasil dihapus.` });
+  } else {
+    
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Endpoint tidak ditemukan." }));
   }
 }
