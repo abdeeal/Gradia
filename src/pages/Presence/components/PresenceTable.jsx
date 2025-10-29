@@ -1,3 +1,4 @@
+import getPages from "@/lib/getPages";
 import React, { useMemo, useState, useEffect, useRef } from "react";
 
 /* ===== Kolom (grid 14 col, TANPA Room) ===== */
@@ -90,7 +91,7 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
     if (rows && rows.length) return rows.map((r, i) => toObjRecord(r, i));
     if (courses && courses.length) {
       // ➜ Generate 25 dummy rows (cukup untuk beberapa page size)
-      return Array.from({ length: 25 }, (_, i) =>
+      return Array.from({ length: 30 }, (_, i) =>
         courseToDummyRow(courses[i % courses.length], i)
       );
     }
@@ -102,7 +103,7 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
   const [pageIndex, setPageIndex] = useState(0);
   const [openSizeMenu, setOpenSizeMenu] = useState(false);
   const sizeMenuRef = useRef(null);
-  
+
   useEffect(() => {
     const onClickOutside = (e) => {
       if (!sizeMenuRef.current) return;
@@ -128,17 +129,20 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
     [normalizedObjs.length]
   );
 
-  const goPrev = () => setPageIndex((p) => Math.max(0, p - 1));
-  const goNext = () => setPageIndex((p) => Math.min(totalPages - 1, p + 1));
   const pillFill = "bg-[rgba(124,111,111,0.2)]";
-   
+
+  const goPrev = () => setPageIndex((p) => Math.max(p - 1, 0));
+  const goNext = () => setPageIndex((p) => Math.min(p + 1, totalPages - 1));
+
   return (
     <div className="space-y-3">
       {/* Header bar */}
       <div className="flex items-center justify-between">
-        <h3 className="text-foreground text-[16px] font-semibold">Log Presence</h3>
+        <h3 className="text-foreground text-[16px] font-semibold">
+          Log Presence
+        </h3>
         <div ref={sizeMenuRef} className="relative">
-          <div className="flex items-center gap-2 text-sm text-foreground-secondary">
+          <div className="flex items-center gap-2 text-foreground-secondary">
             <span>Showing</span>
             <button
               onClick={() => setOpenSizeMenu((v) => !v)}
@@ -167,8 +171,10 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
                       setPageIndex(0);
                       setOpenSizeMenu(false);
                     }}
-                    className={`w-full text-left px-3 py-1.5 text-sm ${
-                      opt === pageSize ? "text-foreground" : "text-foreground-secondary"
+                    className={`w-full text-left px-3 py-1.5 text-base ${
+                      opt === pageSize
+                        ? "text-foreground"
+                        : "text-foreground-secondary"
                     } hover:bg-[#1e1e1e]`}
                   >
                     {opt}
@@ -185,7 +191,7 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
       {/* Table frame */}
       <div className="rounded-2xl border border-[#2c2c2c] bg-[#141414] px-3 pt-3 pb-2">
         {/* Header row */}
-        <div className="grid grid-cols-14 gap-x-8 text-[15px] font-semibold text-foreground px-2 py-2">
+        <div className="grid grid-cols-14 gap-x-8 text-[16px] font-semibold text-foreground px-2 py-2">
           {columns.map((c) => (
             <div key={c.key} className={`${c.span} text-center`}>
               {c.label}
@@ -207,19 +213,19 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
                 onClick={() => onRowClick && onRowClick(obj)}
               >
                 {/* No */}
-                <div className="col-span-1 text-center text-sm text-foreground-secondary">
+                <div className="col-span-1 text-center text-base text-foreground-secondary">
                   {obj._no}
                 </div>
                 {/* Date */}
-                <div className="col-span-2 text-center text-sm text-foreground-secondary">
+                <div className="col-span-2 text-center text-base text-foreground-secondary">
                   {date || "—"}
                 </div>
                 {/* Course (TANPA room) */}
-                <div className="col-span-5 text-center text-sm text-foreground-secondary">
+                <div className="col-span-5 text-center text-base text-foreground-secondary">
                   {obj.courseTitle}
                 </div>
                 {/* Time */}
-                <div className="col-span-2 text-center text-sm text-foreground-secondary">
+                <div className="col-span-2 text-center text-base text-foreground-secondary">
                   {displayTime || "—"}
                 </div>
                 {/* Status */}
@@ -235,15 +241,15 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
                   </span>
                 </div>
                 {/* Note */}
-                <div className="col-span-2 text-center text-sm text-foreground-secondary truncate">
-                  {obj.note || "—"}
+                <div className="col-span-2 text-center text-base text-foreground-secondary truncate">
+                  {obj.note || ""}
                 </div>
               </div>
             );
           })}
 
           {pageRows.length === 0 && (
-            <div className="px-3 py-6 text-center text-foreground-secondary text-sm">
+            <div className="px-3 py-6 text-center text-foreground-secondary text-base">
               No data
             </div>
           )}
@@ -252,7 +258,8 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
 
       {/* Pagination */}
       <div className="relative">
-        <div className="flex items-center justify-between text-sm text-foreground-secondary pb-2">
+        <div className="flex items-center justify-between text-base text-foreground-secondary pb-2">
+          {/* Tombol Previous */}
           <button
             onClick={goPrev}
             disabled={pageIndex === 0}
@@ -262,25 +269,33 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
             Previous
           </button>
 
-          <div className="flex items-center gap-3">
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const active = i === pageIndex;
-              return (
+          {/* Pagination Numbers */}
+          <div className="flex items-center gap-2">
+            {getPages(pageIndex, totalPages, 4).map((p, i) =>
+              p === "..." ? (
+                <span
+                  key={`dots-${i}`}
+                  className="text-foreground-secondary px-2 select-none"
+                >
+                  ...
+                </span>
+              ) : (
                 <button
-                  key={i}
-                  onClick={() => setPageIndex(i)}
-                  className={`text-xs ${
-                    active
-                      ? "text-foreground, underline underline-offset-4"
-                      : "text-foreground-secondary"
+                  key={p}
+                  onClick={() => setPageIndex(p - 1)}
+                  className={`text-base transition-colors ${
+                    p - 1 === pageIndex
+                      ? "text-foreground underline-offset-4 bg-[#262626] px-2 rounded-[4px] py-1"
+                      : "text-foreground-secondary bg-background-secondary px-2 rounded-[4px] py-1 hover:bg-[#1a1a1a]"
                   }`}
                 >
-                  {String(i + 1).padStart(2, "0")}
+                  {String(p).padStart(2, "0")}
                 </button>
-              );
-            })}
+              )
+            )}
           </div>
 
+          {/* Tombol Next */}
           <button
             onClick={goNext}
             disabled={pageIndex >= totalPages - 1}
@@ -290,6 +305,8 @@ const PresenceTable = ({ rows, courses, onRowClick }) => {
             <i className="ri-arrow-right-s-fill" />
           </button>
         </div>
+
+        {/* Garis Bawah */}
         <div className="h-px bg-[#2c2c2c] w-full" />
       </div>
     </div>

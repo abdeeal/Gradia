@@ -27,11 +27,11 @@ const colorMap = {
   },
 };
 
-const Badges = ({ color = "yellow", title }) => {
+const Badges = ({ color = "yellow", title, className=" " }) => {
   const classes = colorMap[color] || colorMap.yellow;
 
   return (
-    <div className={`px-2 rounded-[4px] ${classes.bg}`}>
+    <div className={`px-2 rounded-[4px] ${classes.bg} ${className}`}>
       <p className={`${classes.text}`}>{title}</p>
     </div>
   );

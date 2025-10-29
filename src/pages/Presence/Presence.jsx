@@ -5,6 +5,8 @@ import PresenceCard from "./components/PresenceCard.jsx";
 import PresenceTable from "./components/PresenceTable.jsx";
 import AddPresence from "./components/AddPresence.jsx";
 import EditPresence from "./components/EditPresence.jsx";
+import Mobile from "./layouts/Mobile.jsx";
+import { useMediaQuery } from "react-responsive";
 
 const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -54,7 +56,13 @@ function Presence() {
   const onRowClick = (row) => setEditingRecord(row);
 
   const onSaveEdit = (updated) =>
-    setRecords((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
+    setRecords((prev) =>
+      prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r))
+    );
+
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
+  if (isMobile || isTablet) return <Mobile />;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -66,22 +74,30 @@ function Presence() {
         <div className="w-full pt-6">
           {/* Header Presence */}
           <header className="mb-6">
-            <h1 className="text-2xl font-semibold text-foreground font-[Montserrat]  text-[20px]">
+            <h1 className=" font-semibold text-foreground font-[Montserrat]  text-[20px]">
               Presence
             </h1>
-            <p className="text-sm text-foreground-secondary mt-1 font-[Montserrat] text-[16px]">
-              Monitor and manage attendance records with access to presence logs.
+            <p className="text-foreground-secondary mt-1 font-[Montserrat] text-[16px]">
+              Monitor and manage attendance records with access to presence
+              logs.
             </p>
           </header>
 
           {/* Cards */}
           <section className="mb-6">
-            <PresenceCard courses={courses} onOpenAddPresence={onOpenAddFromCard} />
+            <PresenceCard
+              courses={courses}
+              onOpenAddPresence={onOpenAddFromCard}
+            />
           </section>
 
           {/* Tabel Presence Log */}
           <section className="">
-            <PresenceTable rows={records} courses={courses} onRowClick={onRowClick} />
+            <PresenceTable
+              rows={records}
+              courses={courses}
+              onRowClick={onRowClick}
+            />
           </section>
         </div>
       </main>

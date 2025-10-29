@@ -149,6 +149,8 @@ export const Courses = () => {
       setCourses((prev) => [createdUi, ...prev]);
       setShowAdd(false);
     } catch (e) {
+
+      
       console.error(e);
     }
   };

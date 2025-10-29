@@ -8,18 +8,41 @@ const supabase = createClient(
 export default async function handler(req, res) {
   const method = req.method;
 
-
   if (method === "GET") {
-    const { data, error } = await supabase.from("presence").select("*");
+    const { data, error } = await supabase
+      .from("presence")
+      .select(
+        `
+      id_presence,
+      presences_at,
+      status,
+      note,
+      created_at,
+      course: id_course ( name, room, sks, start, end )
+    `
+      )
+      .order("presences_at", { ascending: false });
 
     if (error) {
       return res.status(500).json({ error: error.message });
     }
 
-    return res.status(200).json(data);
+    const formatted = data.map((item) => ({
+      id_presence: item.id_presence,
+      presences_at: item.presences_at,
+      status: item.status,
+      note: item.note,
+      created_at: item.created_at,
+      course_name: item.course?.name || "-",
+      course_room: item.course?.room || "-",
+      course_sks: item.course?.sks || "-",
+      course_start: item.course?.start || "-",
+      course_end: item.course?.end || "-",
+    }));
+
+    return res.status(200).json(formatted);
   }
 
-  
   if (method === "POST") {
     try {
       let body = "";
@@ -58,8 +81,7 @@ export default async function handler(req, res) {
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
-  }
- else if (method === "PUT") {
+  } else if (method === "PUT") {
     try {
       let body = "";
       req.on("data", (chunk) => (body += chunk.toString()));
@@ -92,9 +114,7 @@ export default async function handler(req, res) {
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
-  }
- 
-  else if (method === "DELETE") {
+  } else if (method === "DELETE") {
     const { id } = req.query;
 
     if (!id) {
@@ -113,9 +133,7 @@ export default async function handler(req, res) {
     return res
       .status(200)
       .json({ message: `Presence dengan id ${id} berhasil dihapus` });
-  }
-
-  else {
+  } else {
     return res.status(405).json({ error: "Method not allowed" });
   }
 }
