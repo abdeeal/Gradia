@@ -6,6 +6,8 @@ import { useMediaQuery } from "react-responsive";
 import { Link } from "react-router-dom";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
+import AutoTextarea from "@/components/Textarea";
+import { Textarea } from "@/components/ui/textarea";
 
 export const Drawer = ({ drawer, setDrawer, empty, data }) => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -119,7 +121,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
       <div
         id="drawer-courses"
         ref={drawerRef}
-        className="absolute w-full max-w-full md:w-[624px] h-full bg-black right-0 md:border-2 border-border/50 md:rounded-l-[24px] p-4 md:p-6 flex flex-col justify-between overflow-y-auto"
+        className="absolute w-full max-w-full md:w-[624px] h-full bg-background right-0 md:border-2 border-border/50 md:rounded-l-[24px] p-4 md:p-6 flex flex-col justify-between overflow-y-auto"
         style={{ transform: "translateX(100%)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -128,13 +130,10 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
             <i className="ri-arrow-right-double-line text-[32px] text-foreground-secondary"></i>
           </button>
           <div className="md:pt-16 pt-12 px-1 md:px-12 pb-12 flex flex-col">
-            <textarea
-              type="text"
-              name="name"
+            <Textarea
+              placeholder="Enter your course name here"
+              size="lg"
               defaultValue={`${empty ? "" : data?.name || "Not set"}`}
-              className="font-bold text-[48px] focus:ring-0 focus:outline-none focus:border-none max-w-full w-full"
-              rows={2}
-              placeholder="Enter your course title"
             />
           </div>
 
@@ -203,7 +202,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
                   name="start"
                   id="time"
                   defaultValue={`${empty ? "00:00" : data?.start || "Not set"}`}
-                  className="bg-[#15171A] rounded-[4px] px-1  focus:ring-0 focus:border-none focus:outline-none max-w-full"
+                  className="focus:ring-0 focus:border-none focus:outline-none max-w-full"
                 />
                 <span className="text-foreground-secondary hidden md:flex">
                   /
@@ -213,7 +212,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
                   name="end"
                   id="time"
                   defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
-                  className="bg-[#15171A] rounded-[4px] px-1  focus:ring-0 focus:border-none focus:outline-none hidden md:flex max-w-full"
+                  className="focus:ring-0 focus:border-none focus:outline-none hidden md:flex max-w-full"
                 />
               </div>
             </GridDrawer>
@@ -229,7 +228,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
                   name="end"
                   id="time"
                   defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
-                  className="bg-[#15171A] rounded-[4px] px-1  focus:ring-0 focus:border-none focus:outline-none max-w-full "
+                  className="focus:ring-0 focus:border-none focus:outline-none max-w-full "
                 />
               </div>
             </GridDrawer>

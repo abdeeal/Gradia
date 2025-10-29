@@ -4,7 +4,7 @@ export const navItemsSUm = [
 ]
 
 export const navItemsMain = [
-  {name: "My tasks", href: "/my-tasks"},
+  {name: "My tasks", href: "/tasks"},
   {name: "Courses", href: "/courses"},
   {name: "Presences", href: "/presences"},
 ]

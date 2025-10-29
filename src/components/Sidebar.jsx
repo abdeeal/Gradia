@@ -7,13 +7,13 @@ const Sidebar = () => {
   const active = location.pathname;
   const sidebarRef = useRef(null);
 
-  useEffect(() => {
-    gsap.fromTo(
-      sidebarRef.current,
-      { x: -100, opacity: 0 },
-      { x: 0, opacity: 1, duration: 0.6, ease: "power3.out" }
-    );
-  }, []);
+  // useEffect(() => {
+  //   gsap.fromTo(
+  //     sidebarRef.current,
+  //     { x: -100, opacity: 0 },
+  //     { x: 0, opacity: 1, duration: 0.6, ease: "power3.out" }
+  //   );
+  // }, []);
 
   const linkClass = (path) =>
     `group flex items-center gap-3 px-[14px] py-[6px] rounded-lg transition-all duration-200 font-inter text-[15px] ${

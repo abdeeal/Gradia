@@ -63,7 +63,7 @@ function Presence() {
       {/* ==== Konten utama sejajar dengan Gradia ==== */}
       <main className="flex-1 font-[Inter]">
         {/* Hapus margin kiri — biar sejajar persis */}
-        <div className="w-full max-w-[980px] mx-auto py-6">
+        <div className="w-full pt-6">
           {/* Header Presence */}
           <header className="mb-6">
             <h1 className="text-2xl font-semibold text-foreground font-[Montserrat]  text-[20px]">
@@ -80,7 +80,7 @@ function Presence() {
           </section>
 
           {/* Tabel Presence Log */}
-          <section className="mb-8">
+          <section className="">
             <PresenceTable rows={records} courses={courses} onRowClick={onRowClick} />
           </section>
         </div>
