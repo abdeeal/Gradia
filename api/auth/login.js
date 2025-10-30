@@ -21,11 +21,10 @@ export default async function handleLogin(req, res) {
       if (!text || !password) {
         res.writeHead(400, { "Content-Type": "application/json" });
         return res.end(
-          JSON.stringify({ error: "Text dan password wajib diisi." })
+          JSON.stringify({ error: "Text and password are required." })
         );
       }
 
-      
       const { data: user, error: userError } = await supabase
         .from("users")
         .select("*")
@@ -37,21 +36,20 @@ export default async function handleLogin(req, res) {
       if (!user) {
         res.writeHead(404, { "Content-Type": "application/json" });
         return res.end(
-          JSON.stringify({ error: "Username atau email tidak ditemukan." })
+          JSON.stringify({ error: "Username or email not found." })
         );
       }
 
-      
       const match = await bcrypt.compare(password, user.password);
       if (!match) {
         res.writeHead(401, { "Content-Type": "application/json" });
-        return res.end(JSON.stringify({ error: "Password salah." }));
+        return res.end(JSON.stringify({ error: "Incorrect password." }));
       }
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
-          message: "Login berhasil!",
+          message: "Login successful!",
           user: {
             id_user: user.id_user || user.id,
             username: user.username,
