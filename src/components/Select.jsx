@@ -13,6 +13,7 @@ const SelectUi = ({
   children,
   defaultValue,
   valueClassFn,
+  onChange, 
 }) => {
   const [value, setValue] = React.useState(defaultValue || "");
 
@@ -22,8 +23,13 @@ const SelectUi = ({
 
   const triggerClassName = valueClassFn ? valueClassFn(value) : className;
 
+  const handleChange = (val) => {
+    setValue(val);
+    if (onChange) onChange(val);
+  };
+
   return (
-    <Select defaultValue={defaultValue} onValueChange={setValue}>
+    <Select defaultValue={defaultValue} onValueChange={handleChange}>
       <SelectTrigger
         className={`w-full border-none focus:ring-0 text-[16px] focus:outline-none text-foreground px-0 [&>svg]:hidden ${triggerClassName} py-0 !h-fit whitespace-normal break-words text-left`}
       >

@@ -6,6 +6,7 @@ import { Navbar } from "./components/Navbar";
 
 function App() {
   const match = useMatch("/");
+  sessionStorage.setItem("id_workspace", "1");
   const msg =
     "Jangan otak atik file ini, kalau mau edit file course ada di /Pages/courses/ buat ngakses halamannya ada di /courses";
   return (

@@ -66,7 +66,7 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   }
 
-  if (req.method === "POST" && req.url === "/api/courses") {
+  if (req.method === "POST") {
     let body = "";
     req.on("data", (chunk) => {
       body += chunk.toString();

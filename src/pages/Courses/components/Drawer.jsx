@@ -1,15 +1,23 @@
-import { useRef, useLayoutEffect, useEffect } from "react";
+import { useRef, useLayoutEffect, useEffect, useState } from "react";
 import gsap from "gsap";
 import GridDrawer from "./GridDrawer";
 import { Button } from "../../../components/Button";
 import { useMediaQuery } from "react-responsive";
-import { Link } from "react-router-dom";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
-import AutoTextarea from "@/components/Textarea";
 import { Textarea } from "@/components/ui/textarea";
+import axios from "axios";
+import { useAlert } from "@/hooks/useAlert";
 
-export const Drawer = ({ drawer, setDrawer, empty, data }) => {
+export const Drawer = ({
+  drawer,
+  setDrawer,
+  empty = false,
+  data,
+  refreshCourses,
+}) => {
+  const { showAlert } = useAlert();
+
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const drawerRef = useRef(null);
   const overlayRef = useRef(null);
@@ -25,6 +33,12 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
       return "#";
     }
   };
+
+  const [link, setLink] = useState(data?.link || "");
+
+  useEffect(() => {
+    setLink(data?.link || "");
+  }, [data]);
 
   const waLink = safeUrl(safePhone, "https://wa.me/");
   const externalLink = safeUrl(safeLink);
@@ -110,6 +124,103 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
     };
   }, [drawer]);
 
+  const [loading, setLoading] = useState(false);
+  const workspaceId = sessionStorage.getItem("id_workspace");
+  const handleSubmit = async () => {
+    try {
+      setLoading(true);
+
+      // ambil semua value dari drawer
+      const form = document.querySelector("#drawer-courses");
+      const newData = {
+        name: form.querySelector("textarea")?.value || "",
+        alias: form.querySelector("input[name='alias']")?.value || "",
+        lecturer: form.querySelector("input[name='lecturer']")?.value || "",
+        phone: form.querySelector("input[name='phone']")?.value || "",
+        day: day,
+        start: form.querySelector("input[name='start']")?.value || "",
+        end: form.querySelector("input[name='end']")?.value || "",
+        room: form.querySelector("input[name='room']")?.value || "",
+        sks,
+        link: form.querySelector("input[name='link']")?.value || "",
+        id_workspace: workspaceId,
+      };
+
+      const editData = {
+        name: form.querySelector("textarea")?.value || "",
+        alias: form.querySelector("input[name='alias']")?.value || "",
+        lecturer: form.querySelector("input[name='lecturer']")?.value || "",
+        phone: form.querySelector("input[name='phone']")?.value || "",
+        day: day,
+        start: form.querySelector("input[name='start']")?.value || "",
+        end: form.querySelector("input[name='end']")?.value || "",
+        room: form.querySelector("input[name='room']")?.value || "",
+        sks,
+        link: form.querySelector("input[name='link']")?.value || "",
+        id_workspace: workspaceId,
+        id_courses: data.id_courses,
+      };
+
+      if (empty) {
+        await axios.post("/api/courses", newData, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        showAlert({
+          icon: "ri-checkbox-circle-fill",
+          title: "Success",
+          desc: "Course added successfully.",
+          variant: "success",
+        });
+      } else {
+        await axios.put(`/api/courses`, editData, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        showAlert({
+          icon: "ri-edit-2-fill",
+          title: "Updated",
+          desc: "Course updated successfully.",
+          variant: "success",
+        });
+      }
+      if (typeof refreshCourses === "function") refreshCourses();
+      setDrawer(false);
+    } catch (err) {
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Error",
+        desc: "Failed to save course. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [day, setDay] = useState(empty ? "" : data?.day || "");
+  const [sks, setSks] = useState(empty ? 1 : data?.sks || 1);
+
+  //cek form
+  const [name, setName] = useState(empty ? "" : data?.name || "");
+  const [lecturer, setLecturer] = useState(empty ? "" : data?.lecturer || "");
+  const [start, setStart] = useState(empty ? "" : data?.start || "");
+  const [end, setEnd] = useState(empty ? "" : data?.end || "");
+  const [isFormValid, setIsFormValid] = useState(false);
+
+  useEffect(() => {
+    const valid =
+      name.trim() !== "" &&
+      lecturer.trim() !== "" &&
+      start.trim() !== "" &&
+      end.trim() !== "" &&
+      day.trim() !== "" &&
+      sks > 0;
+    setIsFormValid(valid);
+  }, [name, lecturer, start, end, day, sks]);
+
   return (
     <div
       id="overlay-drawer"
@@ -134,6 +245,7 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
               placeholder="Enter your course name here"
               size="lg"
               defaultValue={`${empty ? "" : data?.name || "Not set"}`}
+              onChange={(e) => setName(e.target.value)}
             />
           </div>
 
@@ -152,6 +264,8 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
               <input
                 type="text"
                 name="lecturer"
+                value={lecturer}
+                onChange={(e) => setLecturer(e.target.value)}
                 defaultValue={`${empty ? "" : data?.lecturer || "Not set"}`}
                 className="focus:ring-0 focus:outline-none focus:border-none max-w-full w-full"
                 placeholder="Not set"
@@ -181,7 +295,8 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
             <GridDrawer icon={"ri-calendar-event-line"} title={"Day"}>
               <SelectUi
                 placeholder={"Select a day"}
-                defaultValue={`${empty ? "" : data?.day || ""}`}
+                defaultValue={day}
+                onChange={setDay}
               >
                 <SelectLabel>Day</SelectLabel>
                 {dayOrder.map((item, idx) => (
@@ -201,37 +316,51 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
                   type="time"
                   name="start"
                   id="time"
+                  value={start}
+                  onChange={(e) => setStart(e.target.value)}
                   defaultValue={`${empty ? "00:00" : data?.start || "Not set"}`}
                   className="focus:ring-0 focus:border-none focus:outline-none max-w-full"
                 />
                 <span className="text-foreground-secondary hidden md:flex">
                   /
                 </span>
-                <input
-                  type="time"
-                  name="end"
-                  id="time"
-                  defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
-                  className="focus:ring-0 focus:border-none focus:outline-none hidden md:flex max-w-full"
-                />
+                {isMobile ? (
+                  ""
+                ) : (
+                  <input
+                    type="time"
+                    name="end"
+                    id="time"
+                    value={end}
+                    onChange={(e) => setEnd(e.target.value)}
+                    defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
+                    className="focus:ring-0 focus:border-none focus:outline-none hidden md:flex max-w-full"
+                  />
+                )}
               </div>
             </GridDrawer>
 
-            <GridDrawer
-              icon={"ri-time-line"}
-              title={"End"}
-              className={"flex md:hidden"}
-            >
-              <div className="flex gap-[10px] items-center">
-                <input
-                  type="time"
-                  name="end"
-                  id="time"
-                  defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
-                  className="focus:ring-0 focus:border-none focus:outline-none max-w-full "
-                />
-              </div>
-            </GridDrawer>
+            {isMobile ? (
+              <GridDrawer
+                icon={"ri-time-line"}
+                title={"End"}
+                className={"flex md:hidden"}
+              >
+                <div className="flex gap-[10px] items-center">
+                  <input
+                    type="time"
+                    name="end"
+                    id="time"
+                    value={end}
+                    onChange={(e) => setEnd(e.target.value)}
+                    defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
+                    className="focus:ring-0 focus:border-none focus:outline-none max-w-full "
+                  />
+                </div>
+              </GridDrawer>
+            ) : (
+              ""
+            )}
 
             <GridDrawer icon={"ri-door-closed-line"} title={"Room"}>
               <input
@@ -246,11 +375,12 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
             <GridDrawer icon={"ri-weight-line"} title={"SKS"}>
               <SelectUi
                 placeholder="1"
-                defaultValue={empty ? 1 : data?.sks || ""}
+                defaultValue={empty ? 1 : data?.sks || 1}
+                onChange={(val) => setSks(Number(val))}
                 valueClassFn={(val) => {
                   if (val === 2) return "bg-drop-yellow text-yellow px-3";
                   if (val === 1) return "bg-drop-cyan text-cyan px-3";
-                  return "bg-drop-red text-red px-3"; 
+                  return "bg-drop-red text-red px-3";
                 }}
               >
                 <SelectLabel>SKS</SelectLabel>
@@ -276,7 +406,8 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
               <input
                 type="text"
                 name="link"
-                defaultValue={`${empty ? "" : data?.link || ""}`}
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
                 placeholder="Not set"
                 className="focus:ring-0 focus:outline-none focus:border-none underline text-blue-500 max-w-full w-full"
               />
@@ -284,19 +415,32 @@ export const Drawer = ({ drawer, setDrawer, empty, data }) => {
           </div>
         </div>
 
-        <div className="md:px-12 py-6 pt-20 md:pt-12 px-1  w-full flex justify-end gap-4 cursor-none">
-          {empty ? (
-            ""
-          ) : (
+        <div className="md:px-12 py-6 pt-20 md:pt-12 px-1 w-full flex justify-end gap-4">
+          {!empty && (
             <button className="bg-[#830404] w-11 rounded-lg">
               <i className="ri-delete-bin-2-line text-[20px]"></i>
             </button>
           )}
-          {empty ? (
-            <Button variant="main" title="Add course" />
-          ) : (
-            <Button variant="main" icon="ri-edit-line" title="Save changes" />
-          )}
+
+          <Button
+            variant="main"
+            title={
+              empty
+                ? loading
+                  ? "Adding..."
+                  : "Add course"
+                : loading
+                ? "Saving..."
+                : "Save changes"
+            }
+            onClick={handleSubmit}
+            disabled={!isFormValid || loading}
+            className={`transition-opacity duration-200 ${
+              !isFormValid || loading
+                ? "opacity-50 cursor-not-allowed"
+                : "opacity-100"
+            }`}
+          />
         </div>
       </div>
     </div>

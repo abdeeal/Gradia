@@ -116,7 +116,11 @@ const Drawer = ({ drawer, setDrawer, task, empty, courses = [] }) => {
           </div>
 
           <div className="grid px-1 md:px-12 grid-cols-[40%_60%] auto-rows-min max-w-full gap-2 space-y-4 md:gap-6 text-[16px] items-start w-full">
-            <GridDrawer className={"w-full"} icon={"ri-file-line"} title={"Description"}>
+            <GridDrawer
+              className={"w-full"}
+              icon={"ri-file-line"}
+              title={"Description"}
+            >
               <Textarea
                 placeholder="Not set"
                 defaultValue={`${empty ? "" : task?.description || "Not set"}`}
@@ -129,24 +133,32 @@ const Drawer = ({ drawer, setDrawer, task, empty, courses = [] }) => {
             </GridDrawer>
 
             <GridDrawer icon={"ri-links-line"} title={"Course"}>
-                <SelectUi
-                  className={""}
-                  placeholder={"Select a course"}
-                  defaultValue={`${empty ? "" : task?.relatedCourse || ""}`}
-                >
-                  <SelectLabel>Course</SelectLabel>
-                  {courses.map((item, idx) => (
+              <SelectUi
+                className={""}
+                placeholder={"Select a course"}
+                defaultValue={
+                  !empty &&
+                  task?.relatedCourse &&
+                  task.relatedCourse.trim() !== ""
+                    ? task.relatedCourse
+                    : undefined
+                }
+              >
+                <SelectLabel>Course</SelectLabel>
+                {courses
+                  .filter((c) => c.name && c.name.trim() !== "")
+                  .map((item, idx) => (
                     <SelectItem key={idx} value={item.name}>
                       {item.name}
                     </SelectItem>
                   ))}
-                </SelectUi>
+              </SelectUi>
             </GridDrawer>
 
             <GridDrawer icon={"ri-fire-line"} title={"Priority"}>
               <SelectUi
                 placeholder="High"
-                defaultValue={empty ? "High" : task?.priority || ""}
+                defaultValue={empty ? "High" : task?.priority || undefined}
                 valueClassFn={(val) => {
                   if (val === "Medium")
                     return "bg-drop-yellow text-yellow px-2";
@@ -166,7 +178,7 @@ const Drawer = ({ drawer, setDrawer, task, empty, courses = [] }) => {
             <GridDrawer icon={"ri-loader-line"} title={"Status"}>
               <SelectUi
                 placeholder="Not started"
-                defaultValue={empty ? "Not started" : task?.status || ""}
+                defaultValue={empty ? "Not started" : task?.status || undefined}
                 valueClassFn={(val) => {
                   if (val === "Not started")
                     return "bg-drop-gray text-gray px-2";

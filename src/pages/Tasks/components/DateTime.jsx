@@ -30,7 +30,7 @@ export function DateTime({ defaultValue }) {
   }, [defaultValue])
 
   return (
-    <div className="flex gap-4">
+    <div className="flex gap-4 items-center">
       {/* DATE PICKER */}
       <div className="flex flex-col gap-2">
         <Popover open={open} onOpenChange={setOpen}>
