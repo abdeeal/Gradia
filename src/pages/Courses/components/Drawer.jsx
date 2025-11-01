@@ -180,7 +180,7 @@ export const Drawer = ({
           },
         });
         showAlert({
-          icon: "ri-edit-2-fill",
+          icon: "ri-checkbox-circle-fill",
           title: "Updated",
           desc: "Course updated successfully.",
           variant: "success",
@@ -378,9 +378,9 @@ export const Drawer = ({
                 defaultValue={empty ? 1 : data?.sks || 1}
                 onChange={(val) => setSks(Number(val))}
                 valueClassFn={(val) => {
-                  if (val === 2) return "bg-drop-yellow text-yellow px-3";
-                  if (val === 1) return "bg-drop-cyan text-cyan px-3";
-                  return "bg-drop-red text-red px-3";
+                  if (val === 2) return "!bg-drop-yellow text-yellow px-3";
+                  if (val === 1) return "!bg-drop-cyan text-cyan px-3";
+                  return "!bg-drop-red text-red px-3";
                 }}
               >
                 <SelectLabel>SKS</SelectLabel>
