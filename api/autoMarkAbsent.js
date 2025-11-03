@@ -8,13 +8,13 @@ const supabase = createClient(
 export default async function handler(req, res) {
   try {
     const now = new Date();
-    const utcTime = now.getTime() + 7 * 60 * 60 * 1000; // UTC+7
+    const utcTime = now.getTime() + 7 * 60 * 60 * 1000; 
     const wib = new Date(utcTime);
     const today = wib.toISOString().split("T")[0];
 
     console.log(`🕒 Running auto absent for date: ${today} (WIB)`);
 
-    // Ambil semua course
+    
     const { data: courses, error: courseError } = await supabase
       .from("course")
       .select("id_courses, id_workspace, day");
@@ -24,13 +24,11 @@ export default async function handler(req, res) {
     let totalAbsentAdded = 0;
 
     for (const course of courses) {
-      // Cek apakah course-nya hari ini
+      
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const todayName = dayNames[wib.getDay()];
 
-      if (course.day !== todayName) continue; // skip kalau bukan jadwal hari ini
-
-      // Cek apakah sudah ada presence untuk course ini hari ini
+      if (course.day !== todayName) continue; 
       const { data: existing, error: presenceError } = await supabase
         .from("presence")
         .select("id_presence")
@@ -60,7 +58,7 @@ export default async function handler(req, res) {
     console.log(`✅ Auto absent complete. Total records added: ${totalAbsentAdded}`);
 
     return res.status(200).json({
-      message: "✅ Auto-mark absent complete at 13:15 WIB",
+      message: "✅ Auto-mark absent complete at 23:59 WIB",
       total_absent_added: totalAbsentAdded,
       date: today,
     });
