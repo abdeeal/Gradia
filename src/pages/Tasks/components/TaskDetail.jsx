@@ -1,4 +1,3 @@
-// 📄 src/pages/Tasks/components/TaskDetail.jsx
 import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import Swal from "sweetalert2";
@@ -6,7 +5,7 @@ import Swal from "sweetalert2";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
 
-/* ---------- Title (48px, 2 baris) ---------- */
+/* ---------- Title ---------- */
 const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
   if (!editable) {
     return (
@@ -56,7 +55,7 @@ const statusValueClass = (val) => {
   return BADGE_BASE;
 };
 
-/* ---------- Row ---------- */
+/* ---------- Row Wrapper ---------- */
 const Row = ({ icon, label, children, onClick, className = "" }) => (
   <div
     className={`flex items-center gap-3 group h-[30px] ${onClick ? "cursor-pointer" : ""} ${className}`}
@@ -65,14 +64,12 @@ const Row = ({ icon, label, children, onClick, className = "" }) => (
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400 whitespace-nowrap">{label}</span>
     <div className="flex-1 min-w-0 flex items-center h-[30px]">
-      <div className="field-slot w-full h-[30px] flex items-center pl-2">
-        {children}
-      </div>
+      <div className="field-slot w-full h-[30px] flex items-center pl-2">{children}</div>
     </div>
   </div>
 );
 
-/* ---------- InputBase ---------- */
+/* ---------- Input ---------- */
 const InputBase = ({ as = "input", className = "", onBlur, ...rest }) => {
   const Comp = as;
   return (
@@ -97,7 +94,6 @@ const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
       <SelectLabel className="text-[14px] text-gray-400 font-inter px-2 py-1">
         {label}
       </SelectLabel>
-
       {options.map((opt) => (
         <SelectItem
           key={opt}
@@ -113,47 +109,67 @@ const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
   </div>
 );
 
-/* ---------- Main ---------- */
-const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-const TaskDetail = ({ task, onClose, onChange, onSave }) => {
+const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
   const drawerRef = useRef(null);
 
   const [form, setForm] = useState({
-    id: task?.id || uid(),
+    id_task: task?.id_task,
     title: task?.title || "",
-    subtitle: task?.subtitle || "",
+    subtitle: task?.description || "",
     deadline: task?.deadline || "",
     time: task?.time || "",
-    relatedCourse: task?.relatedCourse || "",
+    id_course: task?.id_course ?? null, // pakai id_course
     priority: task?.priority || "High",
     status: task?.status || "Not started",
     score: task?.score ?? "",
     link: task?.link || "",
   });
-
   const [editingKey, setEditingKey] = useState(null);
 
-  const courses = [
-    "Jaringan Komputer",
-    "Pemrograman Web",
-    "Analisis Data",
-    "Dasar Kecerdasan Artifisial",
-    "Manajemen Proyek TIK",
-    "Keamanan Siber",
-  ];
-  const priorities = ["High", "Medium", "Low"];
-  const statuses = ["Not started", "In Progress", "Completed", "Overdue"];
+  // Daftar courses: terima dari prop jika ada, fallback fetch, terakhir static.
+  const [courses, setCourses] = useState(
+    coursesProp && coursesProp.length
+      ? coursesProp
+      : [
+          { id_course: 1, title: "Jaringan Komputer" },
+          { id_course: 2, title: "Pemrograman Web" },
+          { id_course: 3, title: "Analisis Data" },
+          { id_course: 4, title: "Dasar Kecerdasan Artifisial" },
+          { id_course: 5, title: "Manajemen Proyek TIK" },
+          { id_course: 6, title: "Keamanan Siber" },
+        ]
+  );
+
+  useEffect(() => {
+    // jika tidak ada prop, coba fetch
+    if (!coursesProp) {
+      fetch("/api/courses")
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((res) => {
+          if (Array.isArray(res) && res.length) {
+            // normalisasi field
+            const mapped = res.map((c) => ({
+              id_course: c.id_course ?? c.id ?? c.course_id,
+              title: c.title ?? c.name ?? c.course_name,
+            }));
+            setCourses(mapped.filter((c) => c.id_course && c.title));
+          }
+        })
+        .catch(() => {
+          /* keep fallback */
+        });
+    }
+  }, [coursesProp]);
 
   useEffect(() => {
     if (!task) return;
     setForm({
-      id: task.id || uid(),
+      id_task: task.id_task,
       title: task.title || "",
-      subtitle: task.subtitle || "",
+      subtitle: task.description || "",
       deadline: task.deadline || "",
       time: task.time || "",
-      relatedCourse: task.relatedCourse || "",
+      id_course: task.id_course ?? null,
       priority: task.priority || "High",
       status: task.status || "Not started",
       score: task.score ?? "",
@@ -167,22 +183,14 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
     return () => gsap.to(drawerRef.current, { x: "100%", duration: 0.4, ease: "power2.in" });
   }, []);
 
-  const setVal = (k, v) => {
-    setForm((p) => {
-      const next = { ...p, [k]: v };
-      onChange?.(next);
-      return next;
-    });
-  };
+  const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   const notify = (options) =>
     Swal.fire({
       ...options,
       background: "#141414cc",
       color: "#fff",
-      customClass: {
-        popup: "rounded-xl border border-[#464646] w-[340px] p-6 font-[Inter]",
-      },
+      customClass: { popup: "rounded-xl border border-[#464646] w-[340px] p-6 font-[Inter]" },
       buttonsStyling: false,
     });
 
@@ -191,7 +199,18 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
       notify({ icon: "info", title: "Title is required" });
       return;
     }
-    onSave?.(form);
+    onSave?.({
+      id_task: form.id_task,
+      title: form.title,
+      description: form.subtitle,
+      deadline: form.deadline || null,
+      priority: form.priority || null,
+      status: form.status || null,
+      score: form.score === "" ? null : Number(form.score),
+      link: form.link || null,
+      id_course: form.id_course ?? null, // kirim id_course
+    });
+
     Swal.fire({
       icon: "success",
       title: "Task updated!",
@@ -199,11 +218,12 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
       color: "#fff",
       showConfirmButton: false,
       timer: 1200,
-      customClass: {
-        popup: "font-[Inter] rounded-2xl py-4 px-6 w-[300px]",
-      },
+      customClass: { popup: "font-[Inter] rounded-2xl py-4 px-6 w-[300px]" },
     }).then(onClose);
   };
+
+  const selectedCourseTitle =
+    courses.find((c) => String(c.id_course) === String(form.id_course))?.title || "";
 
   if (!task) return null;
 
@@ -214,38 +234,19 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
       onClick={(e) => e.stopPropagation()}
     >
       <style>{`
-        input[type="time"]::-webkit-calendar-picker-indicator{ display:none; }
-        input[type="time"]{ -moz-appearance: textfield; appearance: textfield; }
-
-        /* Samakan tinggi & margin trigger Select */
-        [data-slot="select-trigger"],
-        [role="combobox"][data-slot="select-trigger"] {
-          height: 30px !important;
-          min-height: 30px !important;
-          max-height: 30px !important;
-          line-height: 30px !important;
-          padding-top: 0 !important;
-          padding-bottom: 0 !important;
-          margin: 0 !important;
-          width: auto !important;
-        }
-        [data-slot="select-value"]{
-          display: inline-flex !important;
-          align-items: center !important;
-          margin: 0 !important;
-        }
+        input[type="time"]::-webkit-calendar-picker-indicator{display:none;}
+        input[type="time"]{-moz-appearance:textfield;appearance:textfield;}
+        [data-slot="select-trigger"],[role="combobox"][data-slot="select-trigger"]{
+          height:30px!important;min-height:30px!important;max-height:30px!important;
+          line-height:30px!important;padding-top:0!important;padding-bottom:0!important;margin:0!important;width:auto!important}
+        [data-slot="select-value"]{display:inline-flex!important;align-items:center!important;margin:0!important}
       `}</style>
 
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
-        {/* back */}
-        <button
-          onClick={onClose}
-          className="absolute left-3 top-4 text-gray-400 hover:text-white"
-        >
+        <button onClick={onClose} className="absolute left-3 top-4 text-gray-400 hover:text-white">
           <i className="ri-arrow-right-double-line text-2xl" />
         </button>
 
-        {/* Title */}
         <div className="ml-12 mr-12" onClick={() => setEditingKey("title")}>
           <Title
             value={form.title}
@@ -256,10 +257,8 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
           />
         </div>
 
-        {/* Body */}
         <div className="ml-12 mr-12 max-w-[473px] flex flex-col">
           <div className="font-inter text-[16px] space-y-6">
-            {/* Description */}
             <Row icon="ri-sticky-note-line" label="Description" onClick={() => setEditingKey("subtitle")}>
               {editingKey === "subtitle" ? (
                 <InputBase
@@ -277,7 +276,6 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
               )}
             </Row>
 
-            {/* Deadline + Time */}
             <Row icon="ri-calendar-2-line" label="Deadline" onClick={() => setEditingKey("deadline_time")}>
               {editingKey === "deadline_time" ? (
                 <div className="flex items-center gap-2 w-full h-[30px]">
@@ -285,21 +283,11 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
                     <InputBase
                       as="input"
                       type="date"
-                      value={form.deadline}
+                      value={form.deadline ? String(form.deadline).slice(0, 10) : ""}
                       onChange={(e) => setVal("deadline", e.target.value)}
                       onBlur={() => setEditingKey(null)}
                       placeholder="dd/mm/yyyy"
                       autoFocus
-                    />
-                  </div>
-                  <div className="w-[35%]">
-                    <InputBase
-                      as="input"
-                      type="time"
-                      value={form.time}
-                      onChange={(e) => setVal("time", e.target.value)}
-                      onBlur={() => setEditingKey(null)}
-                      placeholder="--:--"
                     />
                   </div>
                 </div>
@@ -307,29 +295,22 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
                 <div className="w-full flex items-center gap-2 h-[30px]">
                   <div className="w-[65%] truncate">
                     {form.deadline ? (
-                      <span className="text-gray-200">{form.deadline}</span>
+                      <span className="text-gray-200">{String(form.deadline).slice(0, 10)}</span>
                     ) : (
                       <span className="text-gray-500">dd/mm/yyyy</span>
-                    )}
-                  </div>
-                  <div className="w-[35%] truncate">
-                    {form.time ? (
-                      <span className="text-gray-200">{form.time}</span>
-                    ) : (
-                      <span className="text-gray-500">--:--</span>
                     )}
                   </div>
                 </div>
               )}
             </Row>
 
-            {/* Related Course (controlled) */}
+            {/* Related Course — value = id_course, label = title */}
             <Row icon="ri-links-line" label="Related Course">
               <div className="flex items-center h-[30px] w-full">
                 <SelectUi
-                  value={form.relatedCourse}
-                  onValueChange={(val) => setVal("relatedCourse", val)}
-                  placeholder={form.relatedCourse || "Select Course"}
+                  value={form.id_course !== null ? String(form.id_course) : undefined}
+                  onValueChange={(val) => setVal("id_course", val ? Number(val) : null)}
+                  placeholder={selectedCourseTitle || "Select Course"}
                   className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
                   valueClassFn={() => ""}
                 >
@@ -337,37 +318,38 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
                     Related Course
                   </SelectLabel>
                   {courses.map((c) => (
-                    <SelectItem key={c} value={c} className="text-[16px] font-inter">
-                      {c}
+                    <SelectItem
+                      key={c.id_course}
+                      value={String(c.id_course)}
+                      className="text-[16px] font-inter"
+                    >
+                      {c.title}
                     </SelectItem>
                   ))}
                 </SelectUi>
               </div>
             </Row>
 
-            {/* Priority (controlled) */}
             <Row icon="ri-fire-line" label="Priority">
               <BadgeSelect
                 value={form.priority}
                 onChange={(val) => setVal("priority", val)}
-                options={priorities}
+                options={["High", "Medium", "Low"]}
                 valueClassFn={priorityValueClass}
                 label="Priority"
               />
             </Row>
 
-            {/* Status (controlled) */}
             <Row icon="ri-loader-line" label="Status">
               <BadgeSelect
                 value={form.status}
                 onChange={(val) => setVal("status", val)}
-                options={statuses}
+                options={["Not started", "In Progress", "Completed", "Overdue"]}
                 valueClassFn={statusValueClass}
                 label="Status"
               />
             </Row>
 
-            {/* Score */}
             <Row icon="ri-trophy-line" label="Score" onClick={() => setEditingKey("score")}>
               {editingKey === "score" ? (
                 <InputBase
@@ -391,7 +373,6 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
               )}
             </Row>
 
-            {/* Link */}
             <Row icon="ri-share-box-line" label="Link" onClick={() => setEditingKey("link")}>
               {editingKey === "link" ? (
                 <InputBase
@@ -418,7 +399,6 @@ const TaskDetail = ({ task, onClose, onChange, onSave }) => {
             </Row>
           </div>
 
-          {/* Footer */}
           <div className="mt-12 flex justify-end items-center gap-3 font-inter">
             <button
               onClick={handleSave}

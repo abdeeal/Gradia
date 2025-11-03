@@ -51,7 +51,9 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
 
   const doDelete = async () => {
     try {
-      const res = await fetch(`/api/courses?id=${course.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/courses?id=${course.id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) throw new Error("Failed to delete course");
       if (typeof onDelete === "function") onDelete(course.id);
     } catch (e) {
@@ -223,7 +225,7 @@ const DayField = ({ icon, label, value, onChange }) => (
     <span className="w-32 text-gray-400">{label}</span>
     <div className="flex-1 max-w-[360px] flex items-center">
       <SelectUi
-        placeholder="Select a day"
+        placeholder={"Select a day"}
         value={value || undefined}
         onValueChange={onChange}
       >
@@ -245,19 +247,18 @@ const NumberInline = ({ icon, label, value, onChange }) => (
     <div className="flex-1 w-fit">
       <SelectUi
         placeholder="1"
-        value={value === "" || value == null ? undefined : String(value)}
+        value={value === "" ? undefined : Number(value)}
         onValueChange={(v) => onChange(Number(v))}
         valueClassFn={(val) => {
-          const n = Number(val);
-          if (n === 2) return "bg-drop-yellow text-yellow px-3";
-          if (n === 1) return "bg-drop-cyan text-cyan px-3";
+          if (val === 2) return "bg-drop-yellow text-yellow px-3";
+          if (val === 1) return "bg-drop-cyan text-cyan px-3";
           return "bg-drop-red text-red px-3";
         }}
       >
         <SelectLabel>SKS</SelectLabel>
-        {["1", "2", "3"].map((s) => (
-          <SelectItem key={s} value={s}>
-            {s}
+        {[1, 2, 3].map((sks) => (
+          <SelectItem key={sks} value={sks}>
+            {sks}
           </SelectItem>
         ))}
       </SelectUi>
@@ -271,16 +272,18 @@ const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => (
     <span className="w-32 text-gray-400">{label}</span>
     <div className="flex items-center gap-2">
       <input
-        type="time"
         value={start || ""}
+        type="time"
         onChange={(e) => onChangeStart(e.target.value)}
+        placeholder="HH:MM"
         className="bg-transparent outline-none font-medium w-[96px]"
       />
       <span className="text-gray-500">/</span>
       <input
-        type="time"
         value={end || ""}
+        type="time"
         onChange={(e) => onChangeEnd(e.target.value)}
+        placeholder="HH:MM"
         className="bg-transparent outline-none font-medium w-[96px]"
       />
     </div>

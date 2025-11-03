@@ -45,12 +45,8 @@ const toApiCourse = (ui) => {
   };
 };
 
+/* ===== Order of days (always render) ===== */
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const normDay = (d) => {
-  const x = String(d || "").trim();
-  const hit = dayOrder.find((v) => v.toLowerCase() === x.toLowerCase());
-  return hit || "";
-};
 
 export const Courses = () => {
   const [courses, setCourses] = useState([]); // flat array (UI shape)
@@ -61,6 +57,7 @@ export const Courses = () => {
 
   const drawerRef = useRef(null);
   const headerRef = useRef(null);
+  const gridRef = useRef(null);
 
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
@@ -122,7 +119,7 @@ export const Courses = () => {
   const groupedCourses = useMemo(() => {
     const grouped = {};
     filteredCourses.forEach((c) => {
-      const day = normDay(c.day);
+      const day = (c.day || "").trim();
       if (!grouped[day]) grouped[day] = [];
       grouped[day].push(c);
     });
@@ -148,6 +145,7 @@ export const Courses = () => {
       const json = await res.json(); // { message, data: [...] }
       const created = Array.isArray(json?.data) ? json.data[0] : json;
       const createdUi = toUiCourse(created);
+      // jika workspace lain, jangan tampilkan
       if (Number(createdUi.id_workspace) !== workspace) return;
       setCourses((prev) => [createdUi, ...prev]);
       setShowAdd(false);
@@ -213,6 +211,7 @@ export const Courses = () => {
   if (isMobile || isTablet) return <Tab />;
 
   return (
+    // gap-6 = 24px antara Sidebar dan konten (sesuai revisi)
     <div className="flex min-h-screen w-full bg-background text-foreground font-inter relative overflow-hidden gap-[0px]">
       <Sidebar />
 
@@ -321,7 +320,9 @@ export const Courses = () => {
               />
             )}
 
-            {showAdd && <AddCourse onClose={handleCloseDrawer} onAdd={handleAddCourse} />}
+            {showAdd && (
+              <AddCourse onClose={handleCloseDrawer} onAdd={handleAddCourse} />
+            )}
           </div>
         </div>
       )}

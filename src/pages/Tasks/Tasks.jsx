@@ -8,9 +8,7 @@ import Mobile from "./layouts/Mobile.jsx";
 import { useMediaQuery } from "react-responsive";
 
 /* ===== Helpers ===== */
-const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-const normalizeStatus = (s = "") => {
+const normalizeStatusKey = (s = "") => {
   const x = s.toLowerCase();
   if (x.includes("progress")) return "inProgress";
   if (x.includes("complete")) return "completed";
@@ -18,12 +16,16 @@ const normalizeStatus = (s = "") => {
   return "notStarted";
 };
 
+const getCourseTitle = (courses, id_course) => {
+  if (id_course == null) return "";
+  const found = courses.find((c) => String(c.id_course) === String(id_course));
+  return found?.title || found?.name || "";
+};
+
 const Tasks = () => {
   const [selectedTask, setSelectedTask] = useState(null);
   const [showAddPanel, setShowAddPanel] = useState(false);
   const taskContainerRef = useRef(null);
-
-  /* ====== Initial seed -> state by columns ====== */
 
   const [tasksByCol, setTasksByCol] = useState({
     notStarted: [],
@@ -32,40 +34,46 @@ const Tasks = () => {
     overdue: [],
   });
 
+  // daftar courses (id_course + title) untuk dropdown & display
+  const [courses, setCourses] = useState([]);
+
+  // === LOAD Courses & Tasks from API ===
   useEffect(() => {
-    const fetchTasks = async () => {
+    const load = async () => {
       try {
-        const res = await fetch("/api/tasks");
-        if (!res.ok) throw new Error("Failed to fetch tasks");
+        // 1) Courses
+        try {
+          const resCourses = await fetch("/api/courses");
+          if (resCourses.ok) {
+            const data = await resCourses.json();
+            const mapped = (Array.isArray(data) ? data : [])
+              .map((c) => ({
+                id_course: c.id_course ?? c.id ?? c.course_id,
+                title: c.title ?? c.name ?? c.course_name,
+              }))
+              .filter((c) => c.id_course && c.title);
+            setCourses(mapped);
+          } else {
+            setCourses([]);
+          }
+        } catch {
+          setCourses([]);
+        }
+
+        // 2) Tasks
+        const id_workspace = Number(sessionStorage.getItem("id_workspace") || "1");
+        const res = await fetch(`/api/tasks?workspace=${id_workspace}`);
+        if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
-
-        // asumsi data berbentuk array of tasks
-        // contoh item: { id, title, description, status, ... }
-
-        const grouped = {
-          notStarted: [],
-          inProgress: [],
-          completed: [],
-          overdue: [],
-        };
-
-        data.forEach((task) => {
-          const status = task.status?.toLowerCase();
-          if (status === "not started") grouped.notStarted.push(task);
-          else if (status === "in progress") grouped.inProgress.push(task);
-          else if (status === "completed") grouped.completed.push(task);
-          else if (status === "overdue") grouped.overdue.push(task);
-        });
-
+        const grouped = { notStarted: [], inProgress: [], completed: [], overdue: [] };
+        data.forEach((t) => grouped[normalizeStatusKey(t.status || "")].push(t));
         setTasksByCol(grouped);
-      } catch (err) {
-        console.error("Error fetching tasks:", err);
+      } catch (e) {
+        console.error("Initial load failed:", e);
       }
     };
-
-    fetchTasks();
+    load();
   }, []);
-  
 
   /* ===== Drawer handlers ===== */
   const handleCardClick = (task) => setSelectedTask(task);
@@ -75,13 +83,11 @@ const Tasks = () => {
     setShowAddPanel(false);
   };
 
-  // 🔒 Kunci scroll body saat drawer aktif
+  // lock scroll saat drawer
   useEffect(() => {
-    document.body.style.overflow =
-      selectedTask || showAddPanel ? "hidden" : "auto";
+    document.body.style.overflow = selectedTask || showAddPanel ? "hidden" : "auto";
   }, [selectedTask, showAddPanel]);
 
-  // Animasi halaman utama
   useEffect(() => {
     if (taskContainerRef.current) {
       gsap.fromTo(
@@ -92,60 +98,69 @@ const Tasks = () => {
     }
   }, []);
 
-  // Animasi drawer slide in/out
-  useEffect(() => {
-    if (selectedTask || showAddPanel) {
-      gsap.fromTo(
-        ".drawer-panel",
-        { x: "100%" },
-        { x: "0%", duration: 0.5, ease: "power3.out" }
-      );
-    } else {
-      gsap.to(".drawer-panel", { x: "100%", duration: 0.4, ease: "power3.in" });
+  // === CRUD ke API ===
+  const refreshList = async () => {
+    const id_workspace = Number(sessionStorage.getItem("id_workspace") || "1");
+    const res = await fetch(`/api/tasks?workspace=${id_workspace}`);
+    const fresh = await res.json();
+    const grouped = { notStarted: [], inProgress: [], completed: [], overdue: [] };
+    fresh.forEach((t) => grouped[normalizeStatusKey(t.status || "")].push(t));
+    setTasksByCol(grouped);
+    return fresh;
+  };
+
+  const addTask = async (payload) => {
+    try {
+      // payload dari AddTask sudah berisi id_course
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await refreshList();
+    } catch (e) {
+      console.error("POST /api/tasks failed:", e);
     }
-  }, [selectedTask, showAddPanel]);
-
-  /* ===== CRUD: add / update / delete ===== */
-  const addTask = (payload) => {
-    const col = normalizeStatus(payload.status);
-    const task = { ...payload, id: uid() };
-    setTasksByCol((prev) => ({
-      ...prev,
-      [col]: [task, ...prev[col]],
-    }));
   };
 
-  const updateTask = (updated) => {
-    const newCol = normalizeStatus(updated.status);
-    setTasksByCol((prev) => {
-      const next = {
-        notStarted: prev.notStarted.filter((t) => t.id !== updated.id),
-        inProgress: prev.inProgress.filter((t) => t.id !== updated.id),
-        completed: prev.completed.filter((t) => t.id !== updated.id),
-        overdue: prev.overdue.filter((t) => t.id !== updated.id),
-      };
-      next[newCol] = [updated, ...next[newCol]];
-      return next;
-    });
+  const updateTask = async (updated) => {
+    try {
+      // updated dari TaskDetail sudah berisi id_course
+      const res = await fetch("/api/tasks", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const fresh = await refreshList();
+      const latest = fresh.find((t) => t.id_task === updated.id_task);
+      if (latest) setSelectedTask(latest);
+    } catch (e) {
+      console.error("PUT /api/tasks failed:", e);
+    }
   };
 
-  const deleteTask = (taskId) => {
-    setTasksByCol((prev) => ({
-      notStarted: prev.notStarted.filter((t) => t.id !== taskId),
-      inProgress: prev.inProgress.filter((t) => t.id !== taskId),
-      completed: prev.completed.filter((t) => t.id !== taskId),
-      overdue: prev.overdue.filter((t) => t.id !== taskId),
-    }));
+  const deleteTask = async (taskId) => {
+    try {
+      const res = await fetch(`/api/tasks?id=${encodeURIComponent(taskId)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      setTasksByCol((prev) => ({
+        notStarted: prev.notStarted.filter((t) => t.id_task !== taskId),
+        inProgress: prev.inProgress.filter((t) => t.id_task !== taskId),
+        completed: prev.completed.filter((t) => t.id_task !== taskId),
+        overdue: prev.overdue.filter((t) => t.id_task !== taskId),
+      }));
+    } catch (e) {
+      console.error("DELETE /api/tasks failed:", e);
+    }
   };
 
-  // Stats dari state
   const stats = useMemo(() => {
-    const total =
-      tasksByCol.notStarted.length +
-      tasksByCol.inProgress.length +
-      tasksByCol.completed.length +
-      tasksByCol.overdue.length;
-
+    const total = ["notStarted", "inProgress", "completed", "overdue"].reduce(
+      (n, k) => n + tasksByCol[k].length,
+      0
+    );
     return [
       { label: "Total tasks", value: total },
       { label: "Not started", value: tasksByCol.notStarted.length },
@@ -157,19 +172,13 @@ const Tasks = () => {
 
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
-
   if (isMobile || isTablet) return <Mobile />;
 
   return (
     <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
       <Sidebar />
 
-      {/* Konten Utama (no left spacing next to sidebar) */}
-      <div
-        ref={taskContainerRef}
-        className="flex-1 pt-[20px] pb-6 overflow-y-auto bg-background"
-      >
-        {/* Header (hapus padding kiri = 0) */}
+      <div ref={taskContainerRef} className="flex-1 pt-[20px] pb-6 overflow-y-auto bg-background">
         <div className="mb-[24px] px-0 pr-6">
           <h1 className="text-[20px] font-Monsterrat font-semibold">Tasks</h1>
           <p className="text-gray-400 text-[16px] font-Monsterrat">
@@ -177,29 +186,20 @@ const Tasks = () => {
           </p>
         </div>
 
-        {/* Statistik (tanpa margin kiri) */}
         <div className="bg-black rounded-lg mb-[24px] border border-[#656565]/80 mr-6">
           <div className="grid grid-cols-5">
             {stats.map((stat, i, arr) => (
-              <div
-                key={stat.label}
-                className="relative p-3 flex flex-col justify-center text-left"
-              >
-                <p className="text-[16px] text-gray-400 font-medium">
-                  {stat.label}
-                </p>
-                <p className="font-extrabold mt-1 text-[26px] text-[#FFEB3B]">
-                  {stat.value}
-                </p>
+              <div key={stat.label} className="relative p-3 flex flex-col justify-center text-left">
+                <p className="text-[16px] text-gray-400 font-medium">{stat.label}</p>
+                <p className="font-extrabold mt-1 text-[26px] text-[#FFEB3B]">{stat.value}</p>
                 {i < arr.length - 1 && (
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 h-[60%] border-r border-dashed border-[#656565]/80"></div>
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 h-[60%] border-r border-dashed border-[#656565]/80" />
                 )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* Bar: Overview + Filter + Sort + Add */}
         <div className="flex justify-between items-center font-[Inter] mb-2 px-0 pr-6">
           <h2 className="text-[20px] font-semibold">Overview</h2>
 
@@ -215,9 +215,7 @@ const Tasks = () => {
             <button
               onClick={handleAddClick}
               className="flex items-center gap-1.5 px-[12px] py-[6px] rounded-md text-[16px] text-white transition-all"
-              style={{
-                background: "linear-gradient(135deg, #34146C 0%, #28073B 100%)",
-              }}
+              style={{ background: "linear-gradient(135deg, #34146C 0%, #28073B 100%)" }}
             >
               <i className="ri-add-line text-[16px]"></i> Add Task
             </button>
@@ -226,11 +224,8 @@ const Tasks = () => {
 
         <div className="border-t border-[#464646] mb-[14px] mr-6"></div>
 
-        {/* FRAME BESAR (tanpa margin kiri) */}
         <div className="bg-background-secondary p-5 rounded-2xl mr-6 border border-[#2c2c2c]">
-          {/* gap antar kolom = 8px */}
           <div className="grid grid-cols-4 gap-2">
-            {/* ------------------ NOT STARTED ------------------ */}
             <TaskCategory
               title="Not Started"
               icon="ri-file-edit-line"
@@ -238,9 +233,8 @@ const Tasks = () => {
               iconColor="#D4D4D8"
               tasks={tasksByCol.notStarted}
               onCardClick={handleCardClick}
+              courses={courses}
             />
-
-            {/* ------------------ IN PROGRESS ------------------ */}
             <TaskCategory
               title="In Progress"
               icon="ri-progress-2-line"
@@ -248,9 +242,8 @@ const Tasks = () => {
               iconColor="#22D3EE"
               tasks={tasksByCol.inProgress}
               onCardClick={handleCardClick}
+              courses={courses}
             />
-
-            {/* ------------------ COMPLETED ------------------ */}
             <TaskCategory
               title="Completed"
               icon="ri-checkbox-circle-line"
@@ -258,9 +251,8 @@ const Tasks = () => {
               iconColor="#4ADE80"
               tasks={tasksByCol.completed}
               onCardClick={handleCardClick}
+              courses={courses}
             />
-
-            {/* ------------------ OVERDUE ------------------ */}
             <TaskCategory
               title="Overdue"
               icon="ri-alarm-warning-line"
@@ -268,17 +260,14 @@ const Tasks = () => {
               iconColor="#F87171"
               tasks={tasksByCol.overdue}
               onCardClick={handleCardClick}
+              courses={courses}
             />
           </div>
         </div>
       </div>
 
-      {/* Overlay Hitam */}
       {(selectedTask || showAddPanel) && (
-        <div
-          onClick={closeAllDrawer}
-          className="fixed inset-0 bg-black/50 z-40 cursor-pointer"
-        ></div>
+        <div onClick={closeAllDrawer} className="fixed inset-0 bg-black/50 z-40 cursor-pointer"></div>
       )}
 
       {/* Drawer Detail */}
@@ -287,14 +276,8 @@ const Tasks = () => {
           <TaskDetail
             task={selectedTask}
             onClose={closeAllDrawer}
-            onUpdate={(updatedTask) => {
-              updateTask(updatedTask);
-              setSelectedTask(updatedTask); // keep viewing latest data
-            }}
-            onDelete={(taskId) => {
-              deleteTask(taskId);
-              closeAllDrawer();
-            }}
+            onSave={updateTask}
+            courses={courses}
           />
         </div>
       )}
@@ -304,9 +287,8 @@ const Tasks = () => {
         <div className="drawer-panel fixed top-0 right-0 h-full z-50">
           <AddTask
             onClose={closeAllDrawer}
-            onSubmit={(payload) => {
-              addTask(payload);
-            }}
+            onSubmit={addTask}
+            courses={courses}
           />
         </div>
       )}
@@ -315,14 +297,7 @@ const Tasks = () => {
 };
 
 /* -------------------------- Task Category -------------------------- */
-const TaskCategory = ({
-  title,
-  icon,
-  iconBg,
-  iconColor,
-  tasks,
-  onCardClick,
-}) => {
+const TaskCategory = ({ title, icon, iconBg, iconColor, tasks, onCardClick, courses }) => {
   const sectionRef = useRef(null);
 
   useEffect(() => {
@@ -336,31 +311,27 @@ const TaskCategory = ({
   }, []);
 
   return (
-    // gap antar elemen di kolom = 8px
     <div ref={sectionRef} className="flex flex-col w-full gap-2">
-      {/* Header kategori */}
       <div className="flex justify-between items-center bg-[#0a0a0a] px-3 py-2 rounded-lg min-h-[42px] w-full">
-        <span className="font-semibold text-[16px] text-white capitalize">
-          {title}
-        </span>
-        <div
-          className={`${iconBg} w-8 h-8 rounded-md flex items-center justify-center`}
-        >
+        <span className="font-semibold text-[16px] text-white capitalize">{title}</span>
+        <div className={`${iconBg} w-8 h-8 rounded-md flex items-center justify-center`}>
           <i className={`${icon} text-[20px]`} style={{ color: iconColor }} />
         </div>
       </div>
 
-      {/* List task (gap 8px) */}
       <div className="flex flex-col gap-2 w-full">
-        {tasks.map((task) => (
-          <div
-            key={task.id}
-            onClick={() => onCardClick(task)}
-            className="w-full cursor-pointer"
-          >
-            <TaskCard {...task} />
-          </div>
-        ))}
+        {tasks.map((task) => {
+          const course_title = task.course_title || getCourseTitle(courses, task.id_course);
+          return (
+            <div
+              key={task.id_task}
+              onClick={() => onCardClick(task)}
+              className="w-full cursor-pointer"
+            >
+              <TaskCard {...task} course_title={course_title} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

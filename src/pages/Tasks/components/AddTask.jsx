@@ -1,4 +1,3 @@
-// 📄 src/pages/Tasks/components/AddTask.jsx
 import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import Swal from "sweetalert2";
@@ -63,7 +62,7 @@ const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => {
   return (
     <div className="flex items-center h-[30px] pl-2 w-full">
       <SelectUi
-        value={hasValue ? value : undefined}      // jika kosong → pakai placeholder
+        value={hasValue ? value : undefined}
         onValueChange={onChange}
         placeholder={label}
         className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
@@ -89,32 +88,34 @@ const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => {
   );
 };
 
-/* ---------- Main ---------- */
-const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-const AddTask = ({ onClose, onSubmit, defaultValues = {} }) => {
+const AddTask = ({ onClose, onSubmit, courses: coursesProp }) => {
   const drawerRef = useRef(null);
   const [form, setForm] = useState({
     title: "",
     subtitle: "",
     deadline: "",
     time: "",
-    relatedCourse: "",
-    priority: "",          // ← tidak default High
-    status: "",            // ← tidak default Not started
+    id_course: null, // pakai id_course
+    priority: "",
+    status: "",
     score: "",
     link: "",
-    ...defaultValues,
   });
 
-  const courses = [
-    "Jaringan Komputer",
-    "Pemrograman Web",
-    "Analisis Data",
-    "Dasar Kecerdasan Artifisial",
-    "Manajemen Proyek TIK",
-    "Keamanan Siber",
-  ];
+  // Daftar courses: prop > fetch > static fallback
+  const [courses, setCourses] = useState(
+    coursesProp && coursesProp.length
+      ? coursesProp
+      : [
+          { id_course: 1, title: "Jaringan Komputer" },
+          { id_course: 2, title: "Pemrograman Web" },
+          { id_course: 3, title: "Analisis Data" },
+          { id_course: 4, title: "Dasar Kecerdasan Artifisial" },
+          { id_course: 5, title: "Manajemen Proyek TIK" },
+          { id_course: 6, title: "Keamanan Siber" },
+        ]
+  );
+
   const priorities = ["High", "Medium", "Low"];
   const statuses = ["Not started", "In Progress", "Completed", "Overdue"];
 
@@ -123,6 +124,25 @@ const AddTask = ({ onClose, onSubmit, defaultValues = {} }) => {
     return () => gsap.to(drawerRef.current, { x: "100%", duration: 0.4, ease: "power2.in" });
   }, []);
 
+  useEffect(() => {
+    if (!coursesProp) {
+      fetch("/api/courses")
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((res) => {
+          if (Array.isArray(res) && res.length) {
+            const mapped = res.map((c) => ({
+              id_course: c.id_course ?? c.id ?? c.course_id,
+              title: c.title ?? c.name ?? c.course_name,
+            }));
+            setCourses(mapped.filter((c) => c.id_course && c.title));
+          }
+        })
+        .catch(() => {
+          /* keep fallback */
+        });
+    }
+  }, [coursesProp]);
+
   const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   const notify = (options) =>
@@ -130,9 +150,7 @@ const AddTask = ({ onClose, onSubmit, defaultValues = {} }) => {
       ...options,
       background: "#141414cc",
       color: "#fff",
-      customClass: {
-        popup: "rounded-xl border border-[#464646] w-[340px] p-6 font-[Inter]",
-      },
+      customClass: { popup: "rounded-xl border border-[#464646] w-[340px] p-6 font-[Inter]" },
       buttonsStyling: false,
     });
 
@@ -141,14 +159,19 @@ const AddTask = ({ onClose, onSubmit, defaultValues = {} }) => {
       notify({ icon: "info", title: "Title is required" });
       return;
     }
-    // (Opsional) aktifkan validasi ini jika wajib dipilih:
-    // if (!form.priority || !form.status) {
-    //   notify({ icon: "info", title: "Please select Priority and Status" });
-    //   return;
-    // }
+    const id_workspace = Number(sessionStorage.getItem("id_workspace") || "1");
 
-    const payload = { id: form.id || uid(), ...form };
-    onSubmit?.(payload);  // ← kirim persis sesuai input user
+    onSubmit?.({
+      title: form.title,
+      description: form.subtitle,
+      deadline: form.deadline ? new Date(`${form.deadline}T${form.time || "00:00"}`) : null,
+      priority: form.priority || null,
+      status: form.status || null,
+      score: form.score === "" ? null : Number(form.score),
+      link: form.link || null,
+      id_course: form.id_course ?? null, // kirim id_course
+      id_workspace,
+    });
 
     Swal.fire({
       icon: "success",
@@ -157,11 +180,12 @@ const AddTask = ({ onClose, onSubmit, defaultValues = {} }) => {
       color: "#fff",
       showConfirmButton: false,
       timer: 1200,
-      customClass: {
-        popup: "font-[Inter] rounded-2xl py-4 px-6 w-[300px]",
-      },
+      customClass: { popup: "font-[Inter] rounded-2xl py-4 px-6 w-[300px]" },
     }).then(onClose);
   };
+
+  const selectedCourseTitle =
+    courses.find((c) => String(c.id_course) === String(form.id_course))?.title || "";
 
   return (
     <div
@@ -172,43 +196,21 @@ const AddTask = ({ onClose, onSubmit, defaultValues = {} }) => {
       <style>{`
         input[type="time"]::-webkit-calendar-picker-indicator{ display:none; }
         input[type="time"]{ -moz-appearance: textfield; appearance: textfield; }
-
-        [data-slot="select-trigger"],
-        [role="combobox"][data-slot="select-trigger"] {
-          height: 30px !important;
-          min-height: 30px !important;
-          max-height: 30px !important;
-          line-height: 30px !important;
-          padding-top: 0 !important;
-          padding-bottom: 0 !important;
-          width: auto !important;
-        }
-        [data-slot="select-value"]{
-          display: inline-flex !important;
-          align-items: center !important;
-          margin: 0 !important;
-        }
+        [data-slot="select-trigger"],[role="combobox"][data-slot="select-trigger"]{
+          height:30px!important;min-height:30px!important;max-height:30px!important;
+          line-height:30px!important;padding-top:0!important;padding-bottom:0!important;width:auto!important}
+        [data-slot="select-value"]{display:inline-flex!important;align-items:center!important;margin:0!important}
       `}</style>
 
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
-        {/* tombol back */}
-        <button
-          onClick={onClose}
-          className="absolute left-3 top-4 text-gray-400 hover:text-white"
-        >
+        <button onClick={onClose} className="absolute left-3 top-4 text-gray-400 hover:text-white">
           <i className="ri-arrow-right-double-line text-2xl" />
         </button>
 
-        {/* Title */}
         <div className="ml-12 mr-12">
-          <Title
-            value={form.title}
-            onChange={(v) => setVal("title", v)}
-            className="max-w-[473px] mb-12"
-          />
+          <Title value={form.title} onChange={(v) => setVal("title", v)} className="max-w-[473px] mb-12" />
         </div>
 
-        {/* Body */}
         <div className="ml-12 mr-12 max-w-[473px] flex flex-col">
           <div className="font-inter text-[16px] space-y-6">
             <Row icon="ri-sticky-note-line" label="Description">
@@ -242,12 +244,13 @@ const AddTask = ({ onClose, onSubmit, defaultValues = {} }) => {
               </div>
             </Row>
 
+            {/* Related Course — value = id_course, label = title */}
             <Row icon="ri-links-line" label="Related Course">
               <div className="flex items-center h-[30px] pl-2 w-full">
                 <SelectUi
-                  value={form.relatedCourse || undefined}   // controlled
-                  onValueChange={(val) => setVal("relatedCourse", val)}
-                  placeholder="Select Course"
+                  value={form.id_course !== null ? String(form.id_course) : undefined}
+                  onValueChange={(val) => setVal("id_course", val ? Number(val) : null)}
+                  placeholder={selectedCourseTitle || "Select Course"}
                   className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
                   valueClassFn={() => ""}
                 >
@@ -255,8 +258,12 @@ const AddTask = ({ onClose, onSubmit, defaultValues = {} }) => {
                     Related Course
                   </SelectLabel>
                   {courses.map((c) => (
-                    <SelectItem key={c} value={c} className="text-[16px] font-inter">
-                      {c}
+                    <SelectItem
+                      key={c.id_course}
+                      value={String(c.id_course)}
+                      className="text-[16px] font-inter"
+                    >
+                      {c.title}
                     </SelectItem>
                   ))}
                 </SelectUi>
@@ -302,7 +309,6 @@ const AddTask = ({ onClose, onSubmit, defaultValues = {} }) => {
             </Row>
           </div>
 
-          {/* Footer */}
           <div className="mt-12 flex justify-end items-center gap-3 font-inter">
             <button
               onClick={handleCreate}
