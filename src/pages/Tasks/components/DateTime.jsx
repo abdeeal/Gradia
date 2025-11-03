@@ -1,37 +1,44 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { Input } from "@/components/ui/input"
+import * as React from "react";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
+} from "@/components/ui/popover";
 
-export function DateTime({ defaultValue }) {
-  const [open, setOpen] = React.useState(false)
-  const [date, setDate] = React.useState()
-  const [time, setTime] = React.useState("00:00")
+export function DateTime({ defaultValue, value, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  const [date, setDate] = React.useState();
+  const [time, setTime] = React.useState("00:00");
 
-  // Jika ada defaultValue (ISO string), parsing jadi tanggal & waktu
   React.useEffect(() => {
-    if (defaultValue) {
-      const d = new Date(defaultValue)
-      // pastikan valid date
-      if (!isNaN(d.getTime())) {
-        setDate(d)
-        const hh = d.getHours().toString().padStart(2, "0")
-        const mm = d.getMinutes().toString().padStart(2, "0")
-        setTime(`${hh}:${mm}`)
-      }
+    const initial = value || defaultValue;
+    if (!initial) return;
+    const d = new Date(initial);
+    if (isNaN(d.getTime())) return;
+    setDate(d);
+    const hh = d.getHours().toString().padStart(2, "0");
+    const mm = d.getMinutes().toString().padStart(2, "0");
+    setTime(`${hh}:${mm}`);
+    onChange && onChange(d.toISOString());
+  }, [defaultValue, value, onChange]);
+
+  React.useEffect(() => {
+    if (date && time && onChange) {
+      const [hh, mm] = time.split(":");
+      const updated = new Date(date);
+      updated.setHours(parseInt(hh));
+      updated.setMinutes(parseInt(mm));
+      onChange(updated.toISOString());
     }
-  }, [defaultValue])
+  }, [date, time, onChange]);
 
   return (
-    <div className="flex gap-4">
-      {/* DATE PICKER */}
+    <div className="flex gap-4 items-center">
       <div className="flex flex-col gap-2">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -48,16 +55,15 @@ export function DateTime({ defaultValue }) {
               mode="single"
               selected={date}
               captionLayout="dropdown"
-              onSelect={(date) => {
-                setDate(date)
-                setOpen(false)
+              onSelect={(newDate) => {
+                setDate(newDate);
+                setOpen(false);
               }}
             />
           </PopoverContent>
         </Popover>
       </div>
 
-      {/* TIME PICKER */}
       <div className="flex flex-col gap-3">
         <Input
           type="time"
@@ -69,5 +75,5 @@ export function DateTime({ defaultValue }) {
         />
       </div>
     </div>
-  )
+  );
 }

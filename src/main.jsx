@@ -5,11 +5,15 @@ import "remixicon/fonts/remixicon.css";
 import "./index.css";
 
 import App from "./App.jsx";
+import { AlertProvider } from "./hooks/useAlert";
+
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <AlertProvider>
+        <App />
+      </AlertProvider>
     </BrowserRouter>
   </StrictMode>
 );

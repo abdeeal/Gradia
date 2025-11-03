@@ -1,5 +1,5 @@
 import { Button } from "@/components/Button";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Category from "../components/Category";
 import Card from "../components/Card";
 import Drawer from "../components/Drawer";
@@ -10,6 +10,7 @@ const Mobile = () => {
   const [drawer, setDrawer] = useState(false);
   const [task, setTask] = useState(null);
   const [emptyDrawer, setEmptyDrawer] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const toggleCategory = (title) => {
     setOpenCategories((prev) =>
@@ -17,21 +18,24 @@ const Mobile = () => {
     );
   };
 
-  useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        const res = await fetch("/api/tasks");
-        const data = await res.json();
-        setTasks(data);
-      } catch (err) {
-        console.error("Error fetching tasks:", err);
-      }
-    };
-
-    fetchTasks();
+  const fetchTasks = useCallback(async (isRefresh = false) => {
+    try {
+      if (!isRefresh) setLoading(true);
+      const res = await fetch("/api/tasks");
+      const data = await res.json();
+      setTasks(data);
+    } catch (err) {
+      console.error("Error fetching tasks:", err);
+    } finally {
+      if (!isRefresh) setLoading(false);
+    }
   }, []);
 
-  // Case-insensitive grouping
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  const refreshTasks = () => fetchTasks(true);
   const groupedTasks = {
     "Not started": tasks.filter(
       (t) => t.status?.toLowerCase() === "not started"
@@ -43,7 +47,6 @@ const Mobile = () => {
     Overdue: tasks.filter((t) => t.status?.toLowerCase() === "overdue"),
   };
 
-  // ngambil data course
   const [courses, setCourses] = useState([]);
 
   useEffect(() => {
@@ -56,26 +59,33 @@ const Mobile = () => {
         console.error("Error fetching courses:", err);
       }
     };
-
     fetchCourses();
   }, []);
 
   return (
     <div className="flex flex-col gap-8">
-      {task &&  (
+      {task && (
         <Drawer
           key={task.id_task}
           drawer={drawer}
           setDrawer={setDrawer}
           task={task}
           courses={courses}
+          setTask={setTask}
+          refreshTasks={refreshTasks}
         />
       )}
 
-      <Drawer drawer={emptyDrawer} setDrawer={setEmptyDrawer} empty courses={courses} />
+      <Drawer
+        drawer={emptyDrawer}
+        setDrawer={setEmptyDrawer}
+        empty
+        courses={courses}
+        setTask={setTask}
+        refreshTasks={refreshTasks}
+      />
 
       <div className="flex flex-col gap-8">
-        {/* HEADER SECTION */}
         <div className="flex flex-col gap-2">
           <p className="font-montserrat text-[20px] font-semibold">Tasks</p>
           <p className="text-foreground-secondary">
@@ -83,7 +93,6 @@ const Mobile = () => {
           </p>
         </div>
 
-        {/* STATS SECTION */}
         <div className="p-3 border border-border/50 rounded-[12px] grid grid-cols-2 md:flex md:w-full">
           <div className="flex flex-col md:flex-row gap-2 font-semibold border-r md:border-0 border-border/50 border-dashed mr-1.5 md:w-2/5">
             <div className="flex flex-col gap-2 md:w-[50%] md:border-r border-0 border-border/50 border-dashed">
@@ -126,7 +135,6 @@ const Mobile = () => {
           </div>
         </div>
 
-        {/* OVERVIEW SECTION */}
         <div className="flex justify-between items-center pb-4 border-b border-border/50">
           <p className="font-montserrat text-[20px] font-semibold">Overview</p>
           <div className="flex gap-3">
@@ -134,7 +142,6 @@ const Mobile = () => {
           </div>
         </div>
 
-        {/* CATEGORY SECTION */}
         <main className="bg-background-secondary w-full p-3 rounded-[12px] flex flex-col gap-3 mb-6 md:flex-row md:overflow-x-auto">
           {Object.entries(groupedTasks).map(([status, list]) => (
             <div
@@ -164,12 +171,22 @@ const Mobile = () => {
                 isOpen={openCategories.includes(status)}
                 onToggle={() => toggleCategory(status)}
               >
-                {list.length > 0 ? (
+                {loading ? (
+                  <div className="w-full h-[214px] rounded-[12px] bg-foreground/10 animate-pulse"></div>
+                ) : list.length > 0 ? (
                   list.map((task) => (
                     <Card
                       key={task.id_task}
                       onClick={() => {
-                        setTask(task);
+                        const relatedCourseId =
+                          task.relatedCourse ??
+                          task.course?.id_courses ??
+                          task.course_id ??
+                          null;
+                        setTask({
+                          ...task,
+                          relatedCourse: relatedCourseId,
+                        });
                         setDrawer(true);
                       }}
                       course={task.course.name}

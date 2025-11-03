@@ -12,24 +12,35 @@ const SelectUi = ({
   placeholder,
   children,
   defaultValue,
+  value,
   valueClassFn,
+  onChange,
+  onValueChange,
+  ...props
 }) => {
-  const [value, setValue] = React.useState(defaultValue || "");
+  const [internalValue, setInternalValue] = React.useState(defaultValue || "");
+  const currentValue = value !== undefined ? value : internalValue;
 
-  React.useEffect(() => {
-    setValue(defaultValue || "");
-  }, [defaultValue]);
+  const triggerClassName = valueClassFn ? valueClassFn(currentValue) : className;
 
-  const triggerClassName = valueClassFn ? valueClassFn(value) : className;
+  const handleChange = (val) => {
+    setInternalValue(val);
+    if (onChange) onChange(val);
+    if (onValueChange) onValueChange(val);
+  };
 
   return (
-    <Select defaultValue={defaultValue} onValueChange={setValue}>
+    <Select
+      value={currentValue}             
+      onValueChange={handleChange}    
+    >
       <SelectTrigger
         className={`w-full border-none focus:ring-0 text-[16px] focus:outline-none text-foreground px-0 [&>svg]:hidden ${triggerClassName} py-0 !h-fit whitespace-normal break-words text-left`}
+        {...props}
       >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent className={"break-words whitespace-normal"}>
+      <SelectContent className="break-words whitespace-normal">
         <SelectGroup>{children}</SelectGroup>
       </SelectContent>
     </Select>
