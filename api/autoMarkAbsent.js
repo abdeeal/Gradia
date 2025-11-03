@@ -25,7 +25,7 @@ export default async function handler(req, res) {
 
     for (const course of courses) {
       // Cek apakah course-nya hari ini
-      const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const todayName = dayNames[wib.getDay()];
 
       if (course.day !== todayName) continue; // skip kalau bukan jadwal hari ini
