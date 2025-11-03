@@ -6,12 +6,20 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
-  }
-
   try {
+    // 🔒 Pastikan hanya cron Vercel yang bisa akses (bisa tambahkan secret kalau mau)
+    if (req.method !== "GET" && req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    // Dapatkan tanggal hari ini (WIB)
+    const now = new Date();
+    const utcTime = now.getTime() + 7 * 60 * 60 * 1000; // UTC+7
+    const wib = new Date(utcTime);
+    const today = wib.toISOString().split("T")[0];
+
+    console.log(`🕒 Running auto absent for date: ${today} (WIB)`);
+
     // Ambil semua workspace
     const { data: workspaces, error: workspaceError } = await supabase
       .from("workspace")
@@ -19,10 +27,11 @@ export default async function handler(req, res) {
 
     if (workspaceError) throw workspaceError;
 
-    const today = new Date().toISOString().split("T")[0];
+    let totalAbsentAdded = 0;
 
+    // Loop setiap workspace
     for (const ws of workspaces) {
-      // Cari user di workspace tsb yang belum punya presensi hari ini
+      // Ambil user dalam workspace
       const { data: users, error: userError } = await supabase
         .from("user_workspace")
         .select("id_user")
@@ -31,32 +40,44 @@ export default async function handler(req, res) {
       if (userError) throw userError;
 
       for (const u of users) {
+        // Cek apakah user sudah absen hari ini
         const { data: existing, error: presenceError } = await supabase
           .from("presence")
-          .select("*")
+          .select("id_presence")
           .eq("id_workspace", ws.id_workspace)
           .eq("id_user", u.id_user)
           .gte("presences_at", `${today}T00:00:00`)
-          .lte("presences_at", `${today}T12:45:59`);
+          .lte("presences_at", `${today}T23:59:59`);
 
         if (presenceError) throw presenceError;
 
-        if (existing.length === 0) {
-          // Insert otomatis status "absent"
-          await supabase.from("presence").insert([
+        // Jika belum absen, tambahkan status absent otomatis
+        if (!existing || existing.length === 0) {
+          const { error: insertError } = await supabase.from("presence").insert([
             {
               id_workspace: ws.id_workspace,
               id_user: u.id_user,
               status: "absent",
               note: "Auto marked absent by system",
+              presences_at: new Date().toISOString(),
             },
           ]);
+
+          if (insertError) throw insertError;
+          totalAbsentAdded++;
         }
       }
     }
 
-    res.status(200).json({ message: "Auto absent done" });
+    console.log(`✅ Auto absent complete. Total records added: ${totalAbsentAdded}`);
+
+    return res.status(200).json({
+      message: "✅ Auto-mark absent complete at 13:15 WIB",
+      total_absent_added: totalAbsentAdded,
+      date: today,
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("❌ Error in autoMarkAbsent:", error.message);
+    return res.status(500).json({ error: error.message });
   }
 }

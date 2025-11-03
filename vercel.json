@@ -2,10 +2,10 @@
   "rewrites": [
     { "source": "/(.*)", "destination": "/" }
   ],
-  "crons" : [
+  "crons": [
     {
-      "path" : "/api/autoMarkAbsent.js",
-      "schedule" : "45 5 * * *"
+      "path": "/api/autoMarkAbsent",
+      "schedule": "15 6 * * *"
     }
   ]
 }
