@@ -9,11 +9,10 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/courses" element={<Courses />} />
       <Route path="/tasks" element={<Tasks />} />
-      <Route path="/presence" element={<Presence />} />
+      <Route path="/presences" element={<Presence />} />
 
       {/* optional: redirect root & typo plural */}
       <Route path="/" element={<Navigate to="/courses" replace />} />
-      <Route path="/presences" element={<Navigate to="/presence" replace />} />
       <Route path="*" element={<Navigate to="/courses" replace />} />
     </Routes>
   );

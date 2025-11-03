@@ -17,6 +17,7 @@ export default async function handler(req, res) {
       presences_at,
       status,
       note,
+      id_course,
       created_at,
       course: id_course ( name, room, sks, start, end )
     `
@@ -29,6 +30,7 @@ export default async function handler(req, res) {
 
     const formatted = data.map((item) => ({
       id_presence: item.id_presence,
+      id_course : item.id_course,
       presences_at: item.presences_at,
       status: item.status,
       note: item.note,
@@ -51,7 +53,7 @@ export default async function handler(req, res) {
       });
 
       req.on("end", async () => {
-        const { id_course, status, note } = JSON.parse(body);
+        const { id_course, status, note, id_workspace } = JSON.parse(body);
 
         if (!id_course || !status) {
           return res
@@ -66,6 +68,7 @@ export default async function handler(req, res) {
               id_course,
               status,
               note,
+              id_workspace
             },
           ])
           .select();

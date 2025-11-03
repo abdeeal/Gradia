@@ -164,7 +164,7 @@ const CourseDetail = ({ course, onClose, onSave }) => {
           />
         </div>
 
-        <div className="mt-auto flex justify-end items-center gap-3 pt-8 font-inter fixed bottom-12 right-12">
+        <div className="mt-[24px] flex justify-end items-center gap-3 pt-8 font-inter ">
           <button
             onClick={handleDelete}
             className="flex items-center justify-center w-[44px] h-[44px] rounded-lg bg-[#830404] hover:bg-[#9b0a0a] shadow-md shadow-red-900/40 transition-all"
