@@ -3,7 +3,9 @@ import { SelectItem, SelectLabel } from "@/components/ui/select";
 import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 
-const CourseDetail = ({ course, onClose, onSave }) => {
+const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
   const [formData, setFormData] = useState({});
 
   useEffect(() => {
@@ -23,6 +25,7 @@ const CourseDetail = ({ course, onClose, onSave }) => {
   const handleSave = () => {
     const updated = {
       ...formData,
+      sks: formData.sks ? Number(formData.sks) : 0,
       time: `${formData.startTime || ""} - ${formData.endTime || ""}`.trim(),
     };
     delete updated.startTime;
@@ -46,6 +49,16 @@ const CourseDetail = ({ course, onClose, onSave }) => {
     });
   };
 
+  const doDelete = async () => {
+    try {
+      const res = await fetch(`/api/courses?id=${course.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete course");
+      if (typeof onDelete === "function") onDelete(course.id);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleDelete = () => {
     Swal.fire({
       icon: "warning",
@@ -59,13 +72,15 @@ const CourseDetail = ({ course, onClose, onSave }) => {
       color: "#fff",
     }).then((r) => {
       if (r.isConfirmed) {
-        Swal.fire({
-          icon: "success",
-          title: "Course deleted!",
-          background: "rgba(20,20,20,.9)",
-          color: "#fff",
-          confirmButtonColor: "#9457FF",
-        }).then(onClose);
+        doDelete().then(() =>
+          Swal.fire({
+            icon: "success",
+            title: "Course deleted!",
+            background: "rgba(20,20,20,.9)",
+            color: "#fff",
+            confirmButtonColor: "#9457FF",
+          }).then(onClose)
+        );
       }
     });
   };
@@ -106,10 +121,7 @@ const CourseDetail = ({ course, onClose, onSave }) => {
             rightAdornment={
               formData.phone ? (
                 <a
-                  href={`https://wa.me/${(formData.phone || "").replace(
-                    /[^0-9]/g,
-                    ""
-                  )}`}
+                  href={`https://wa.me/${(formData.phone || "").replace(/[^0-9]/g, "")}`}
                   target="_blank"
                   rel="noreferrer"
                   className="shrink-0"
@@ -151,12 +163,7 @@ const CourseDetail = ({ course, onClose, onSave }) => {
             onChange={(v) => setVal("link", v)}
             rightAdornment={
               formData.link?.startsWith("https://") ? (
-                <a
-                  href={formData.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="shrink-0"
-                >
+                <a href={formData.link} target="_blank" rel="noreferrer" className="shrink-0">
                   <i className="ri-share-forward-line text-xl text-gray-400" />
                 </a>
               ) : null
@@ -210,51 +217,50 @@ const InlineField = ({ icon, label, value, onChange, rightAdornment }) => (
   </div>
 );
 
-const DayField = ({ icon, label, value, onChange }) => {
-  const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  return (
-    <div className="flex items-center gap-3 group">
-      {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
-      <span className="w-32 text-gray-400">{label}</span>
-      <div className="flex-1 max-w-[360px] flex items-center">
-        {value && (
-          <SelectUi placeholder={"Select a day"} defaultValue={`${value}`}>
-            <SelectLabel>Day</SelectLabel>
-            {dayOrder.map((item, idx) => (
-              <SelectItem key={idx} value={item}>
-                {item}
-              </SelectItem>
-            ))}
-          </SelectUi>
-        )}
-      </div>
+const DayField = ({ icon, label, value, onChange }) => (
+  <div className="flex items-center gap-3 group">
+    {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
+    <span className="w-32 text-gray-400">{label}</span>
+    <div className="flex-1 max-w-[360px] flex items-center">
+      <SelectUi
+        placeholder="Select a day"
+        value={value || undefined}
+        onValueChange={onChange}
+      >
+        <SelectLabel>Day</SelectLabel>
+        {dayOrder.map((item) => (
+          <SelectItem key={item} value={item}>
+            {item}
+          </SelectItem>
+        ))}
+      </SelectUi>
     </div>
-  );
-};
+  </div>
+);
 
 const NumberInline = ({ icon, label, value, onChange }) => (
   <div className="flex items-center gap-3 group w-fit">
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400">{label}</span>
     <div className="flex-1 w-fit">
-      {value && (
-        <SelectUi
-          placeholder="1"
-          defaultValue={value}
-          valueClassFn={(val) => {
-            if (val === 2) return "bg-drop-yellow text-yellow px-3";
-            if (val === 1) return "bg-drop-cyan text-cyan px-3";
-            return "bg-drop-red text-red px-3";
-          }}
-        >
-          <SelectLabel>SKS</SelectLabel>
-          {[1, 2, 3].map((sks) => (
-            <SelectItem key={sks} value={sks}>
-              {sks}
-            </SelectItem>
-          ))}
-        </SelectUi>
-      )}
+      <SelectUi
+        placeholder="1"
+        value={value === "" || value == null ? undefined : String(value)}
+        onValueChange={(v) => onChange(Number(v))}
+        valueClassFn={(val) => {
+          const n = Number(val);
+          if (n === 2) return "bg-drop-yellow text-yellow px-3";
+          if (n === 1) return "bg-drop-cyan text-cyan px-3";
+          return "bg-drop-red text-red px-3";
+        }}
+      >
+        <SelectLabel>SKS</SelectLabel>
+        {["1", "2", "3"].map((s) => (
+          <SelectItem key={s} value={s}>
+            {s}
+          </SelectItem>
+        ))}
+      </SelectUi>
     </div>
   </div>
 );
@@ -265,19 +271,17 @@ const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => (
     <span className="w-32 text-gray-400">{label}</span>
     <div className="flex items-center gap-2">
       <input
-        value={start || ""}
         type="time"
+        value={start || ""}
         onChange={(e) => onChangeStart(e.target.value)}
-        placeholder="HH:MM"
-        className="bg-transparent outline-none font-medium w-[72px]"
+        className="bg-transparent outline-none font-medium w-[96px]"
       />
       <span className="text-gray-500">/</span>
       <input
-        value={end || ""}
         type="time"
+        value={end || ""}
         onChange={(e) => onChangeEnd(e.target.value)}
-        placeholder="HH:MM"
-        className="bg-transparent outline-none font-medium w-[72px]"
+        className="bg-transparent outline-none font-medium w-[96px]"
       />
     </div>
   </div>

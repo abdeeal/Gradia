@@ -18,8 +18,8 @@ const toUiCourse = (api) => ({
   time: `${(api.start || "").slice(0, 5)} - ${(api.end || "").slice(0, 5)}`,
   room: api.room,
   sks: Number(api.sks) || 0,
-  link: api.link || "#",
-  color: api.color || "red",
+  link: api.link || "",
+  id_workspace: api.id_workspace ?? null,
 });
 
 const toApiCourse = (ui) => {
@@ -30,7 +30,7 @@ const toApiCourse = (ui) => {
     .map((s) => s.trim());
 
   return {
-    id_courses: ui.id, // undefined/null for POST
+    id_courses: ui.id, // undefined/null untuk POST
     name: ui.title || ui.alias || "",
     alias: ui.alias || "",
     lecturer: ui.lecturer || "",
@@ -41,12 +41,16 @@ const toApiCourse = (ui) => {
     room: ui.room || "",
     sks: Number(ui.sks) || 0,
     link: ui.link || "",
-    color: ui.color || "red",
+    id_workspace: Number(sessionStorage.getItem("id_workspace")) || 1,
   };
 };
 
-/* ===== Order of days (always render) ===== */
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const normDay = (d) => {
+  const x = String(d || "").trim();
+  const hit = dayOrder.find((v) => v.toLowerCase() === x.toLowerCase());
+  return hit || "";
+};
 
 export const Courses = () => {
   const [courses, setCourses] = useState([]); // flat array (UI shape)
@@ -57,29 +61,30 @@ export const Courses = () => {
 
   const drawerRef = useRef(null);
   const headerRef = useRef(null);
-  const gridRef = useRef(null);
 
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
+  const workspace = Number(sessionStorage.getItem("id_workspace")) || 1;
 
   /* ===== Fetch from API ===== */
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    fetch("/api/courses")
+    fetch(`/api/courses`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch courses");
         return res.json();
       })
       .then((data) => {
         if (!mounted) return;
-        const ui = Array.isArray(data) ? data.map(toUiCourse) : [];
+        const uiAll = Array.isArray(data) ? data.map(toUiCourse) : [];
+        const ui = uiAll.filter((c) => Number(c.id_workspace) === workspace);
         setCourses(ui);
       })
       .catch((err) => console.error("Error fetching courses:", err))
       .finally(() => mounted && setLoading(false));
     return () => (mounted = false);
-  }, []);
+  }, [workspace]);
 
   /* ===== Kunci scroll body saat drawer aktif ===== */
   useEffect(() => {
@@ -96,11 +101,7 @@ export const Courses = () => {
     if (!el) return;
 
     if (selectedCourse || showAdd) {
-      gsap.fromTo(
-        el,
-        { x: "100%" },
-        { x: "0%", duration: 0.5, ease: "power3.out" }
-      );
+      gsap.fromTo(el, { x: "100%" }, { x: "0%", duration: 0.5, ease: "power3.out" });
     } else {
       gsap.to(el, { x: "100%", duration: 0.4, ease: "power3.in" });
     }
@@ -121,7 +122,7 @@ export const Courses = () => {
   const groupedCourses = useMemo(() => {
     const grouped = {};
     filteredCourses.forEach((c) => {
-      const day = (c.day || "").trim();
+      const day = normDay(c.day);
       if (!grouped[day]) grouped[day] = [];
       grouped[day].push(c);
     });
@@ -138,19 +139,19 @@ export const Courses = () => {
   const handleAddCourse = async (newCourseUi) => {
     try {
       const payload = toApiCourse(newCourseUi);
-      const res = await fetch("/api/courses", {
+      const res = await fetch(`/api/courses`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Failed to create course");
-      const created = await res.json(); // expect full record with id_courses
+      const json = await res.json(); // { message, data: [...] }
+      const created = Array.isArray(json?.data) ? json.data[0] : json;
       const createdUi = toUiCourse(created);
+      if (Number(createdUi.id_workspace) !== workspace) return;
       setCourses((prev) => [createdUi, ...prev]);
       setShowAdd(false);
     } catch (e) {
-
-      
       console.error(e);
     }
   };
@@ -164,22 +165,36 @@ export const Courses = () => {
 
     try {
       const payload = toApiCourse(updatedUi);
-      await fetch(`/api/courses/${updatedUi.id}`, {
+      const res = await fetch(`/api/courses/${updatedUi.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) throw new Error("Failed to update course");
       setSelectedCourse(updatedUi);
     } catch (e) {
       console.error(e);
-      // TODO: rollback or toast error if needed
+      // TODO: rollback atau toast error jika perlu
+    }
+  };
+
+  /* ===== DELETE: sinkron UI setelah API delete ===== */
+  const handleDeleteCourse = async (id) => {
+    try {
+      const res = await fetch(`/api/courses?id=${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete course");
+      setCourses((prev) => prev.filter((c) => c.id !== id));
+      setSelectedCourse(null);
+    } catch (e) {
+      console.error(e);
     }
   };
 
   /* ===== Close dengan animasi keluar lalu unmount ===== */
   const handleCloseDrawer = () => {
     if (drawerRef.current) {
-      // Animasi keluar, lalu baru reset state agar panel tidak hilang duluan
       gsap.to(drawerRef.current, {
         x: "100%",
         duration: 0.35,
@@ -198,7 +213,6 @@ export const Courses = () => {
   if (isMobile || isTablet) return <Tab />;
 
   return (
-    // gap-6 = 24px antara Sidebar dan konten (sesuai revisi)
     <div className="flex min-h-screen w-full bg-background text-foreground font-inter relative overflow-hidden gap-[0px]">
       <Sidebar />
 
@@ -207,9 +221,7 @@ export const Courses = () => {
         {/* Header */}
         <div ref={headerRef} className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="font-inter text-[20px] font-semibold leading-6">
-              Courses
-            </h1>
+            <h1 className="font-inter text-[20px] font-semibold leading-6">Courses</h1>
             <p className="font-inter text-[16px] mt-2 text-gray-400">
               Keep track of your courses all in one place.
             </p>
@@ -257,9 +269,7 @@ export const Courses = () => {
                     {/* header hari */}
                     <div className="bg-[#000000] rounded-[8px] px-3 py-5 mb-3 w-full">
                       <div className="flex justify-between items-center">
-                        <h3 className="font-medium text-white text-[15px]">
-                          {day}
-                        </h3>
+                        <h3 className="font-medium text-white text-[15px]">{day}</h3>
                         <span className="bg-drop-yellow px-2 py-[2px] rounded-full text-yellow">
                           {list.length}
                         </span>
@@ -299,7 +309,6 @@ export const Courses = () => {
         >
           <div
             ref={drawerRef}
-            // tambahkan class "drawer-panel" agar animasi useEffect bekerja
             className="drawer-panel w-[628px] bg-[#111] h-full shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
@@ -308,12 +317,11 @@ export const Courses = () => {
                 course={selectedCourse}
                 onClose={handleCloseDrawer}
                 onSave={handleUpdateCourse}
+                onDelete={handleDeleteCourse}
               />
             )}
 
-            {showAdd && (
-              <AddCourse onClose={handleCloseDrawer} onAdd={handleAddCourse} />
-            )}
+            {showAdd && <AddCourse onClose={handleCloseDrawer} onAdd={handleAddCourse} />}
           </div>
         </div>
       )}

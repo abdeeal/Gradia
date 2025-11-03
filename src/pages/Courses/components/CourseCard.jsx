@@ -13,8 +13,8 @@ const CourseCard = ({ course, onClick }) => {
   }, []);
 
   const circleColor =
-    course.title.includes("Tata Tulis Ilmiah") ||
-    course.alias.toLowerCase() === "tatul"
+    (course.title || "").includes("Tata Tulis Ilmiah") ||
+    (course.alias || "").toLowerCase() === "tatul"
       ? "bg-[#FDE047]"
       : "bg-[#F87171]";
 
@@ -27,9 +27,7 @@ const CourseCard = ({ course, onClick }) => {
       <div className="pr-[32px]">
         {/* Waktu + Lingkaran */}
         <div className="flex items-center text-gray-400 mb-3">
-          <span
-            className={`w-2.5 h-2.5 rounded-full mr-2 ${circleColor}`}
-          ></span>
+          <span className={`w-2.5 h-2.5 rounded-full mr-2 ${circleColor}`}></span>
           {course.time}
         </div>
 

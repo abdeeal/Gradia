@@ -1,18 +1,21 @@
-import { useMatch } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import AppRoutes from "./routes";
 import { Container } from "./components/Container";
 import "./App.css";
 import { Navbar } from "./components/Navbar";
 
 function App() {
-  const match = useMatch("/");
-  const msg =
-    "Jangan otak atik file ini, kalau mau edit file course ada di /Pages/courses/ buat ngakses halamannya ada di /courses";
+  const { pathname } = useLocation();
+  sessionStorage.setItem("id_workspace", "1");
+  const isAuthPage =
+    pathname.startsWith("/login") || pathname.startsWith("/register");
+
+  const isDashboard = pathname.startsWith("/dashboard");
+
   return (
     <>
-      {match ? msg : ""}
-      <Container>
-        <Navbar />
+      {!isAuthPage && <Navbar />}
+      <Container noPadding={isAuthPage} noPaddingRight={isDashboard}>
         <AppRoutes />
       </Container>
     </>

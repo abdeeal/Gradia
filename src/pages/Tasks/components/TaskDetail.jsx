@@ -1,11 +1,138 @@
-import React, { useEffect, useState, useRef } from "react";
+// 📄 src/pages/Tasks/components/TaskDetail.jsx
+import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import Swal from "sweetalert2";
 
-const TaskDetail = ({ task, onClose, onChange, onSave, onDelete }) => {
-  const [formData, setFormData] = useState(task ? { ...task } : {});
-  const [editableField, setEditableField] = useState(null);
-  const panelRef = useRef(null);
+import SelectUi from "@/components/Select";
+import { SelectItem, SelectLabel } from "@/components/ui/select";
+
+/* ---------- Title (48px, 2 baris) ---------- */
+const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
+  if (!editable) {
+    return (
+      <div className={`font-inter ${className}`}>
+        <div className="text-[48px] font-bold text-foreground/90 leading-[1.1] break-words">
+          {value || <span className="text-gray-500">Enter Your Task Name</span>}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={`font-inter ${className}`}>
+      <textarea
+        rows={2}
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onFocusOut}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onFocusOut?.();
+          }
+        }}
+        autoFocus
+        placeholder="Enter Your Task Name"
+        className="w-full bg-transparent outline-none resize-none text-[48px] font-bold no-scrollbar placeholder:text-gray-500"
+      />
+    </div>
+  );
+};
+
+/* ---------- Badge Styles ---------- */
+const BADGE_BASE =
+  "inline-flex items-center justify-center h-[30px] rounded-[4px] text-[16px] font-[Montserrat] leading-none w-fit px-2";
+
+const priorityValueClass = (val) => {
+  if (val === "High") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
+  if (val === "Medium") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
+  if (val === "Low") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
+  return BADGE_BASE;
+};
+const statusValueClass = (val) => {
+  if (val === "In Progress") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
+  if (val === "Completed") return `${BADGE_BASE} bg-[#14532D]/60 text-[#4ADE80]`;
+  if (val === "Overdue") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
+  if (val === "Not started") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
+  return BADGE_BASE;
+};
+
+/* ---------- Row ---------- */
+const Row = ({ icon, label, children, onClick, className = "" }) => (
+  <div
+    className={`flex items-center gap-3 group h-[30px] ${onClick ? "cursor-pointer" : ""} ${className}`}
+    onClick={onClick}
+  >
+    {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
+    <span className="w-32 text-gray-400 whitespace-nowrap">{label}</span>
+    <div className="flex-1 min-w-0 flex items-center h-[30px]">
+      <div className="field-slot w-full h-[30px] flex items-center pl-2">
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
+/* ---------- InputBase ---------- */
+const InputBase = ({ as = "input", className = "", onBlur, ...rest }) => {
+  const Comp = as;
+  return (
+    <Comp
+      {...rest}
+      onBlur={onBlur}
+      className={`h-[30px] w-full bg-transparent border-none outline-none text-gray-200 text-[16px] placeholder:text-gray-500 ${className}`}
+    />
+  );
+};
+
+/* ---------- BadgeSelect (controlled) ---------- */
+const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
+  <div className="flex items-center h-[30px] w-full">
+    <SelectUi
+      value={value}
+      onValueChange={onChange}
+      placeholder={value || label}
+      className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
+      valueClassFn={(val) => valueClassFn(val || value)}
+    >
+      <SelectLabel className="text-[14px] text-gray-400 font-inter px-2 py-1">
+        {label}
+      </SelectLabel>
+
+      {options.map((opt) => (
+        <SelectItem
+          key={opt}
+          value={opt}
+          className={`text-[16px] font-inter ${
+            valueClassFn(opt).match(/text-\[[^ ]+\]|text-[^ ]+/g)?.[0] || ""
+          }`}
+        >
+          {opt}
+        </SelectItem>
+      ))}
+    </SelectUi>
+  </div>
+);
+
+/* ---------- Main ---------- */
+const uid = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+const TaskDetail = ({ task, onClose, onChange, onSave }) => {
+  const drawerRef = useRef(null);
+
+  const [form, setForm] = useState({
+    id: task?.id || uid(),
+    title: task?.title || "",
+    subtitle: task?.subtitle || "",
+    deadline: task?.deadline || "",
+    time: task?.time || "",
+    relatedCourse: task?.relatedCourse || "",
+    priority: task?.priority || "High",
+    status: task?.status || "Not started",
+    score: task?.score ?? "",
+    link: task?.link || "",
+  });
+
+  const [editingKey, setEditingKey] = useState(null);
 
   const courses = [
     "Jaringan Komputer",
@@ -15,105 +142,101 @@ const TaskDetail = ({ task, onClose, onChange, onSave, onDelete }) => {
     "Manajemen Proyek TIK",
     "Keamanan Siber",
   ];
+  const priorities = ["High", "Medium", "Low"];
+  const statuses = ["Not started", "In Progress", "Completed", "Overdue"];
 
-  // sinkron saat task dipilih/berganti
-  useEffect(() => {
-    setFormData(task ? { ...task } : {});
-  }, [task]);
-
-  // animasi drawer
   useEffect(() => {
     if (!task) return;
-    gsap.fromTo(panelRef.current, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
-    return () => {
-      gsap.to(panelRef.current, { x: "100%", duration: 0.4, ease: "power2.in" });
-    };
+    setForm({
+      id: task.id || uid(),
+      title: task.title || "",
+      subtitle: task.subtitle || "",
+      deadline: task.deadline || "",
+      time: task.time || "",
+      relatedCourse: task.relatedCourse || "",
+      priority: task.priority || "High",
+      status: task.status || "Not started",
+      score: task.score ?? "",
+      link: task.link || "",
+    });
+    setEditingKey(null);
   }, [task]);
 
-  if (!task) return null;
+  useEffect(() => {
+    gsap.fromTo(drawerRef.current, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
+    return () => gsap.to(drawerRef.current, { x: "100%", duration: 0.4, ease: "power2.in" });
+  }, []);
 
-  // Live update helper
-  const emitChange = (next) => {
-    setFormData(next);
-    if (typeof onChange === "function") onChange(next); // <- kirim balik ke parent untuk update TaskCard
+  const setVal = (k, v) => {
+    setForm((p) => {
+      const next = { ...p, [k]: v };
+      onChange?.(next);
+      return next;
+    });
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    emitChange({ ...formData, [name]: value });
-  };
-
-  const handleDoubleClick = (field) => setEditableField(field);
-
-  const showCustomAlert = (options) => {
+  const notify = (options) =>
     Swal.fire({
       ...options,
       background: "#141414cc",
       color: "#fff",
-      backdrop: "rgba(0,0,0,0.4)",
       customClass: {
         popup: "rounded-xl border border-[#464646] w-[340px] p-6 font-[Inter]",
-        title: "font-[Inter] text-[18px]",
-        htmlContainer: "text-[13px] text-gray-300 mt-2",
-        confirmButton:
-          "font-[Inter] text-[13px] px-4 py-2 rounded-md bg-[#830404] hover:brightness-125 transition-all",
-        cancelButton:
-          "font-[Inter] text-[13px] px-4 py-2 rounded-md bg-[#4b4b4b] hover:brightness-125 transition-all text-white",
       },
       buttonsStyling: false,
-      zIndex: 99999,
     });
-  };
 
-  const handleSaveChanges = () => {
-    setEditableField(null);
-    if (typeof onSave === "function") onSave(formData); // <- opsional, kalau parent ingin persist ke server
-    showCustomAlert({
+  const handleSave = () => {
+    if (!form.title.trim()) {
+      notify({ icon: "info", title: "Title is required" });
+      return;
+    }
+    onSave?.(form);
+    Swal.fire({
       icon: "success",
       title: "Task updated!",
-      text: `${formData.title || "Task"} updated successfully.`,
-      timer: 1200,
+      background: "rgba(20,20,20,.9)",
+      color: "#fff",
       showConfirmButton: false,
-    });
+      timer: 1200,
+      customClass: {
+        popup: "font-[Inter] rounded-2xl py-4 px-6 w-[300px]",
+      },
+    }).then(onClose);
   };
 
-  const handleDelete = () => {
-    showCustomAlert({
-      icon: "warning",
-      title: "Delete this task?",
-      text: "This action cannot be undone.",
-      showCancelButton: true,
-      confirmButtonText: "Delete",
-      cancelButtonText: "Cancel",
-    }).then((res) => {
-      if (res.isConfirmed) {
-        if (typeof onDelete === "function") onDelete(formData);
-        gsap.to(panelRef.current, {
-          x: "100%",
-          duration: 0.4,
-          ease: "power2.in",
-          onComplete: onClose,
-        });
-      }
-    });
-  };
-
-  const formatDeadline = (date, time) => {
-    if (!date) return "-";
-    const d = new Date(date);
-    if (isNaN(d)) return `${date} ${time || ""}`;
-    const dd = String(d.getDate()).padStart(2, "0");
-    const month = d.toLocaleString("en-US", { month: "long" });
-    const yyyy = d.getFullYear();
-    return `${dd} / ${month} / ${yyyy} ${time || ""}`;
-  };
+  if (!task) return null;
 
   return (
     <div
-      ref={panelRef}
-      className="fixed top-0 right-0 h-full z-[300] w-full md:w-[624px] lg:w-[624px]"
+      ref={drawerRef}
+      className="drawer-panel w-[628px] bg-[#111] h-full shadow-2xl relative"
+      onClick={(e) => e.stopPropagation()}
     >
-      <div className="h-full overflow-y-auto pt-20 pr-6 pb-6 pl-[31px] text-white relative border border-[#464646]/50 rounded-2xl bg-[#0a0a0a] font-[Inter]">
+      <style>{`
+        input[type="time"]::-webkit-calendar-picker-indicator{ display:none; }
+        input[type="time"]{ -moz-appearance: textfield; appearance: textfield; }
+
+        /* Samakan tinggi & margin trigger Select */
+        [data-slot="select-trigger"],
+        [role="combobox"][data-slot="select-trigger"] {
+          height: 30px !important;
+          min-height: 30px !important;
+          max-height: 30px !important;
+          line-height: 30px !important;
+          padding-top: 0 !important;
+          padding-bottom: 0 !important;
+          margin: 0 !important;
+          width: auto !important;
+        }
+        [data-slot="select-value"]{
+          display: inline-flex !important;
+          align-items: center !important;
+          margin: 0 !important;
+        }
+      `}</style>
+
+      <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
         {/* back */}
         <button
           onClick={onClose}
@@ -123,150 +246,185 @@ const TaskDetail = ({ task, onClose, onChange, onSave, onDelete }) => {
         </button>
 
         {/* Title */}
-        <div className="ml-12 mr-12">
-          <h2
-            onDoubleClick={() => handleDoubleClick("title")}
-            className="text-[40px] font-bold leading-tight mb-10 cursor-pointer"
-          >
-            {editableField === "title" ? (
-              <input
-                name="title"
-                value={formData.title || ""}
-                onChange={handleChange}
-                onBlur={() => setEditableField(null)}
-                autoFocus
-                className="bg-zinc-900 px-3 py-2 rounded-lg w-full outline-none"
-              />
-            ) : (
-              formData.title || "-"
-            )}
-          </h2>
+        <div className="ml-12 mr-12" onClick={() => setEditingKey("title")}>
+          <Title
+            value={form.title}
+            onChange={(v) => setVal("title", v)}
+            onFocusOut={() => setEditingKey(null)}
+            editable={editingKey === "title"}
+            className="max-w-[473px] mb-12"
+          />
         </div>
 
-        {/* Content */}
-        <div className="ml-12 mr-12 max-w-[473px] flex flex-col min-h-[calc(100vh-240px)]">
-          <div className="space-y-4 text-sm">
-            <DetailRow
-              icon="ri-sticky-note-line"
-              label="Description"
-              field="subtitle"
-              formData={formData}
-              editableField={editableField}
-              onDoubleClick={handleDoubleClick}
-              onChange={handleChange}
-            />
+        {/* Body */}
+        <div className="ml-12 mr-12 max-w-[473px] flex flex-col">
+          <div className="font-inter text-[16px] space-y-6">
+            {/* Description */}
+            <Row icon="ri-sticky-note-line" label="Description" onClick={() => setEditingKey("subtitle")}>
+              {editingKey === "subtitle" ? (
+                <InputBase
+                  value={form.subtitle}
+                  onChange={(e) => setVal("subtitle", e.target.value)}
+                  onBlur={() => setEditingKey(null)}
+                  onKeyDown={(e) => e.key === "Enter" && setEditingKey(null)}
+                  placeholder="Add a short description"
+                  autoFocus
+                />
+              ) : (
+                <div className="w-full text-gray-200 truncate">
+                  {form.subtitle || <span className="text-gray-500">Add a short description</span>}
+                </div>
+              )}
+            </Row>
 
-            {/* Deadline */}
-            <div className="flex items-center gap-3">
-              <i className="ri-calendar-2-line text-gray-400 text-lg" />
-              <span className="w-32 text-gray-400">Deadline</span>
-              <div className="w-[360px] max-w-[360px]">
-                {editableField === "deadline" ? (
-                  <div className="flex gap-2 items-center">
-                    <input
+            {/* Deadline + Time */}
+            <Row icon="ri-calendar-2-line" label="Deadline" onClick={() => setEditingKey("deadline_time")}>
+              {editingKey === "deadline_time" ? (
+                <div className="flex items-center gap-2 w-full h-[30px]">
+                  <div className="w-[65%]">
+                    <InputBase
+                      as="input"
                       type="date"
-                      name="deadline"
-                      value={formData.deadline || ""}
-                      onChange={handleChange}
-                      className="bg-zinc-900 px-3 py-1.5 rounded w-[65%] outline-none text-gray-200 focus:ring-1 focus:ring-purple-600"
-                    />
-                    <input
-                      type="time"
-                      name="time"
-                      value={formData.time || ""}
-                      onChange={handleChange}
-                      className="bg-zinc-900 px-3 py-1.5 rounded w-[35%] outline-none text-gray-200 focus:ring-1 focus:ring-purple-600"
+                      value={form.deadline}
+                      onChange={(e) => setVal("deadline", e.target.value)}
+                      onBlur={() => setEditingKey(null)}
+                      placeholder="dd/mm/yyyy"
+                      autoFocus
                     />
                   </div>
-                ) : (
-                  <span
-                    onDoubleClick={() => setEditableField("deadline")}
-                    className="inline-flex items-center h-[38px] font-medium cursor-pointer hover:text-purple-400 transition"
-                  >
-                    {formatDeadline(formData.deadline, formData.time)}
-                  </span>
-                )}
-              </div>
-            </div>
+                  <div className="w-[35%]">
+                    <InputBase
+                      as="input"
+                      type="time"
+                      value={form.time}
+                      onChange={(e) => setVal("time", e.target.value)}
+                      onBlur={() => setEditingKey(null)}
+                      placeholder="--:--"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full flex items-center gap-2 h-[30px]">
+                  <div className="w-[65%] truncate">
+                    {form.deadline ? (
+                      <span className="text-gray-200">{form.deadline}</span>
+                    ) : (
+                      <span className="text-gray-500">dd/mm/yyyy</span>
+                    )}
+                  </div>
+                  <div className="w-[35%] truncate">
+                    {form.time ? (
+                      <span className="text-gray-200">{form.time}</span>
+                    ) : (
+                      <span className="text-gray-500">--:--</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Row>
 
-            {/* Related Course */}
-            <div className="flex items-center gap-3">
-              <i className="ri-links-line text-gray-400 text-lg" />
-              <span className="w-32 text-gray-400">Related Course</span>
-              <div className="relative w-[360px] max-w-[360px]">
-                <select
-                  name="relatedCourse"
-                  value={formData.relatedCourse || ""}
-                  onChange={handleChange}
-                  className="bg-zinc-900 px-3 py-1.5 rounded w-full outline-none text-gray-200 focus:ring-1 focus:ring-purple-600 appearance-none cursor-pointer"
+            {/* Related Course (controlled) */}
+            <Row icon="ri-links-line" label="Related Course">
+              <div className="flex items-center h-[30px] w-full">
+                <SelectUi
+                  value={form.relatedCourse}
+                  onValueChange={(val) => setVal("relatedCourse", val)}
+                  placeholder={form.relatedCourse || "Select Course"}
+                  className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
+                  valueClassFn={() => ""}
                 >
-                  <option value="" disabled style={{ color: "#9ca3af", backgroundColor: "#0a0a0a" }}>
-                    Select Course
-                  </option>
-                  {courses.map((c, i) => (
-                    <option key={i} value={c} style={{ backgroundColor: "#0a0a0a", color: "#e5e7eb" }}>
+                  <SelectLabel className="text-[14px] font-inter text-gray-400 px-2 py-1">
+                    Related Course
+                  </SelectLabel>
+                  {courses.map((c) => (
+                    <SelectItem key={c} value={c} className="text-[16px] font-inter">
                       {c}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-                <i className="ri-arrow-down-s-fill text-gray-500 text-[16px] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                </SelectUi>
               </div>
-            </div>
+            </Row>
 
-            <DetailRow
-              icon="ri-fire-line"
-              label="Priority"
-              field="priority"
-              formData={formData}
-              editableField={editableField}
-              onDoubleClick={handleDoubleClick}
-              onChange={handleChange}
-            />
-            <DetailRow
-              icon="ri-loader-line"
-              label="Status"
-              field="status"
-              formData={formData}
-              editableField={editableField}
-              onDoubleClick={handleDoubleClick}
-              onChange={handleChange}
-            />
-            <DetailRow
-              icon="ri-trophy-line"
-              label="Score"
-              field="score"
-              formData={formData}
-              editableField={editableField}
-              onDoubleClick={handleDoubleClick}
-              onChange={handleChange}
-            />
+            {/* Priority (controlled) */}
+            <Row icon="ri-fire-line" label="Priority">
+              <BadgeSelect
+                value={form.priority}
+                onChange={(val) => setVal("priority", val)}
+                options={priorities}
+                valueClassFn={priorityValueClass}
+                label="Priority"
+              />
+            </Row>
+
+            {/* Status (controlled) */}
+            <Row icon="ri-loader-line" label="Status">
+              <BadgeSelect
+                value={form.status}
+                onChange={(val) => setVal("status", val)}
+                options={statuses}
+                valueClassFn={statusValueClass}
+                label="Status"
+              />
+            </Row>
+
+            {/* Score */}
+            <Row icon="ri-trophy-line" label="Score" onClick={() => setEditingKey("score")}>
+              {editingKey === "score" ? (
+                <InputBase
+                  as="input"
+                  type="number"
+                  value={form.score}
+                  onChange={(e) => setVal("score", e.target.value)}
+                  onBlur={() => setEditingKey(null)}
+                  onKeyDown={(e) => e.key === "Enter" && setEditingKey(null)}
+                  placeholder="e.g. 95"
+                  autoFocus
+                />
+              ) : (
+                <div className="w-full truncate">
+                  {form.score !== "" && form.score !== null ? (
+                    <span className="text-gray-200">{form.score}</span>
+                  ) : (
+                    <span className="text-gray-500">e.g. 95</span>
+                  )}
+                </div>
+              )}
+            </Row>
 
             {/* Link */}
-            <DetailRow
-              icon="ri-share-box-line"
-              label="Link"
-              field="link"
-              formData={formData}
-              editableField={editableField}
-              onDoubleClick={handleDoubleClick}
-              onChange={handleChange}
-              isLink
-            />
+            <Row icon="ri-share-box-line" label="Link" onClick={() => setEditingKey("link")}>
+              {editingKey === "link" ? (
+                <InputBase
+                  value={form.link}
+                  onChange={(e) => setVal("link", e.target.value)}
+                  onBlur={() => setEditingKey(null)}
+                  onKeyDown={(e) => e.key === "Enter" && setEditingKey(null)}
+                  placeholder="https://..."
+                  autoFocus
+                />
+              ) : form.link ? (
+                <a
+                  href={form.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="truncate text-gray-200 underline decoration-dotted underline-offset-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {form.link}
+                </a>
+              ) : (
+                <span className="text-gray-500">https://...</span>
+              )}
+            </Row>
           </div>
 
           {/* Footer */}
-          <div className="mt-auto flex justify-end items-center gap-3 pt-8">
+          <div className="mt-12 flex justify-end items-center gap-3 font-inter">
             <button
-              onClick={handleDelete}
-              className="flex items-center justify-center w-[44px] h-[44px] rounded-lg bg-[#830404] hover:brightness-125 shadow-md shadow-red-900/40 transition-all duration-200"
+              onClick={handleSave}
+              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] transition-all"
             >
-              <i className="ri-delete-bin-2-line text-white text-[20px]" />
-            </button>
-            <button
-              onClick={handleSaveChanges}
-              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] shadow-md shadow-purple-900/40 hover:brightness-125 hover:shadow-[0_0_18px_rgba(147,51,234,0.6)] transition-all duration-300"
-            >
-              <i className="ri-edit-line text-white text-[18px]" />
+              <i className="ri-save-3-line text-foreground text-[18px]" />
               <span className="text-[15px] font-medium">Save Changes</span>
             </button>
           </div>
@@ -275,49 +433,5 @@ const TaskDetail = ({ task, onClose, onChange, onSave, onDelete }) => {
     </div>
   );
 };
-
-/* Row reusable – kolom nilai fixed 360px & tinggi baca 38px */
-const DetailRow = ({
-  icon,
-  label,
-  field,
-  formData,
-  editableField,
-  onDoubleClick,
-  onChange,
-  isLink = false,
-}) => (
-  <div className="flex items-center gap-3">
-    <i className={`${icon} text-gray-400 text-lg`} />
-    <span className="w-32 text-gray-400">{label}</span>
-
-    {editableField === field ? (
-      <input
-        name={field}
-        value={formData[field] || ""}
-        onChange={onChange}
-        onBlur={() => onDoubleClick(null)}
-        autoFocus
-        className="bg-zinc-900 px-3 py-1.5 rounded w-[360px] max-w-[360px] outline-none text-white"
-      />
-    ) : isLink && formData[field] ? (
-      <a
-        href={formData[field]}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center h-[38px] w-[360px] max-w-[360px] font-medium text-blue-400 hover:underline hover:text-blue-300 transition break-all"
-      >
-        {formData[field]}
-      </a>
-    ) : (
-      <span
-        onDoubleClick={() => onDoubleClick(field)}
-        className="inline-flex items-center h-[38px] w-[360px] max-w-[360px] font-medium cursor-pointer hover:text-purple-400 transition break-all"
-      >
-        {formData[field] || "-"}
-      </span>
-    )}
-  </div>
-);
 
 export default TaskDetail;

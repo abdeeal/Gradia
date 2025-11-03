@@ -1,14 +1,13 @@
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Swal from "sweetalert2";
 
 /**
- * Drawer Add Course
- * Versi Final:
- * - Semua field (termasuk Start/End) punya bg #141414 + border #2c2c2c
- * - Layout, margin, dan font konsisten
+ * Drawer Add Course – controlled fields, siap kirim ke API mapper.
  */
+const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
 const AddCourse = ({ onClose, onAdd }) => {
   const [formData, setFormData] = useState({
     title: "",
@@ -40,13 +39,11 @@ const AddCourse = ({ onClose, onAdd }) => {
 
     const newCourse = {
       ...formData,
-      id: Date.now(),
+      sks: formData.sks ? Number(formData.sks) : 0,
       time: `${formData.startTime || ""} - ${formData.endTime || ""}`.trim(),
     };
-    delete newCourse.startTime;
-    delete newCourse.endTime;
 
-    if (typeof onAdd === "function") onAdd(newCourse);
+    onAdd?.(newCourse);
 
     Swal.fire({
       icon: "success",
@@ -72,6 +69,7 @@ const AddCourse = ({ onClose, onAdd }) => {
 
       <div className="ml-12 mr-12">
         <Title
+          value={formData.title}
           onChange={(v) => setVal("title", v)}
           className="max-w-[473px] mb-12"
         />
@@ -82,47 +80,59 @@ const AddCourse = ({ onClose, onAdd }) => {
           <InlineField
             label="Alias"
             icon="ri-hashtag"
+            value={formData.alias}
             onChange={(v) => setVal("alias", v)}
           />
           <InlineField
             label="Lecturer"
             icon="ri-graduation-cap-line"
+            value={formData.lecturer}
             onChange={(v) => setVal("lecturer", v)}
           />
           <InlineField
             label="Phone"
             icon="ri-phone-line"
+            value={formData.phone}
             onChange={(v) => setVal("phone", v)}
           />
           <DayField
             label="Day"
             icon="ri-calendar-event-line"
+            value={formData.day}
             onChange={(v) => setVal("day", v)}
           />
           <TimeInline
             label="Start / end"
+            start={formData.startTime}
+            end={formData.endTime}
             onChangeStart={(v) => setVal("startTime", v)}
             onChangeEnd={(v) => setVal("endTime", v)}
           />
           <InlineField
             label="Room"
             icon="ri-door-closed-line"
+            value={formData.room}
             onChange={(v) => setVal("room", v)}
           />
           <NumberInline
             label="SKS"
             icon="ri-shopping-bag-line"
+            value={formData.sks}
             onChange={(v) => setVal("sks", v)}
           />
           <InlineField
             label="Link"
             icon="ri-share-box-line"
+            value={formData.link}
             onChange={(v) => setVal("link", v)}
           />
         </div>
 
         <div className="mt-auto flex justify-end items-center gap-3 pt-8 font-inter fixed bottom-12 right-12">
-          <button className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] cursor-pointer transition-all">
+          <button
+            onClick={handleAdd}
+            className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] cursor-pointer transition-all"
+          >
             <i className="ri-add-line text-foreground text-[18px]" />
             <span className="text-[15px] font-medium">Add Course</span>
           </button>
@@ -137,6 +147,7 @@ const Title = ({ value, onChange, className = "" }) => (
   <div className={`font-inter ${className}`}>
     <textarea
       rows={2}
+      value={value || ""}
       onChange={(e) => onChange(e.target.value)}
       className="w-full bg-transparent outline-none resize-none text-[48px] font-bold no-scrollbar"
       placeholder="Enter your course title"
@@ -150,6 +161,8 @@ const InlineField = ({ icon, label, value, onChange, rightAdornment }) => (
     <span className="w-32 text-gray-400">{label}</span>
     <div className="flex-1 max-w-[360px] flex items-center">
       <input
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
         className="w-full bg-transparent outline-none font-medium"
         placeholder="Not set"
       />
@@ -158,25 +171,26 @@ const InlineField = ({ icon, label, value, onChange, rightAdornment }) => (
   </div>
 );
 
-const DayField = ({ icon, label, value, onChange }) => {
-  const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  return (
-    <div className="flex items-center gap-3 group">
-      {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
-      <span className="w-32 text-gray-400">{label}</span>
-      <div className="flex-1 max-w-[360px] flex items-center">
-        <SelectUi placeholder={"Select a day"}>
-          <SelectLabel>Day</SelectLabel>
-          {dayOrder.map((item, idx) => (
-            <SelectItem key={idx} value={item}>
-              {item}
-            </SelectItem>
-          ))}
-        </SelectUi>
-      </div>
+const DayField = ({ icon, label, value, onChange }) => (
+  <div className="flex items-center gap-3 group">
+    {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
+    <span className="w-32 text-gray-400">{label}</span>
+    <div className="flex-1 max-w-[360px] flex items-center">
+      <SelectUi
+        placeholder="Select a day"
+        value={value || undefined}
+        onValueChange={onChange}
+      >
+        <SelectLabel>Day</SelectLabel>
+        {dayOrder.map((item) => (
+          <SelectItem key={item} value={item}>
+            {item}
+          </SelectItem>
+        ))}
+      </SelectUi>
     </div>
-  );
-};
+  </div>
+);
 
 const NumberInline = ({ icon, label, value, onChange }) => (
   <div className="flex items-center gap-3 group w-fit">
@@ -185,16 +199,19 @@ const NumberInline = ({ icon, label, value, onChange }) => (
     <div className="flex-1 w-fit">
       <SelectUi
         placeholder="1"
+        value={value === "" || value == null ? undefined : String(value)}
+        onValueChange={(v) => onChange(Number(v))}
         valueClassFn={(val) => {
-          if (val === 2) return "bg-drop-yellow text-yellow px-3";
-          if (val === 1) return "bg-drop-cyan text-cyan px-3";
+          const n = Number(val);
+          if (n === 2) return "bg-drop-yellow text-yellow px-3";
+          if (n === 1) return "bg-drop-cyan text-cyan px-3";
           return "bg-drop-red text-red px-3";
         }}
       >
         <SelectLabel>SKS</SelectLabel>
-        {[1, 2, 3].map((sks) => (
-          <SelectItem key={sks} value={sks}>
-            {sks}
+        {["1", "2", "3"].map((s) => (
+          <SelectItem key={s} value={s}>
+            {s}
           </SelectItem>
         ))}
       </SelectUi>
@@ -209,14 +226,16 @@ const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => (
     <div className="flex items-center gap-2">
       <input
         type="time"
-        placeholder="HH:MM"
-        className="bg-transparent outline-none font-medium w-[72px]"
+        value={start || ""}
+        onChange={(e) => onChangeStart(e.target.value)}
+        className="bg-transparent outline-none font-medium w-[96px]"
       />
       <span className="text-gray-500">/</span>
       <input
         type="time"
-        placeholder="HH:MM"
-        className="bg-transparent outline-none font-medium w-[72px]"
+        value={end || ""}
+        onChange={(e) => onChangeEnd(e.target.value)}
+        className="bg-transparent outline-none font-medium w-[96px]"
       />
     </div>
   </div>
