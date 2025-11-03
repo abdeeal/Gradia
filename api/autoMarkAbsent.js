@@ -6,8 +6,7 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  try {  
-    // Dapatkan tanggal hari ini (WIB)
+  try {
     const now = new Date();
     const utcTime = now.getTime() + 7 * 60 * 60 * 1000; // UTC+7
     const wib = new Date(utcTime);
@@ -15,52 +14,46 @@ export default async function handler(req, res) {
 
     console.log(`🕒 Running auto absent for date: ${today} (WIB)`);
 
-    // Ambil semua workspace
-    const { data: workspaces, error: workspaceError } = await supabase
-      .from("workspace")
-      .select("id_workspace");
+    // Ambil semua course
+    const { data: courses, error: courseError } = await supabase
+      .from("course")
+      .select("id_courses, id_workspace, day");
 
-    if (workspaceError) throw workspaceError;
+    if (courseError) throw courseError;
 
     let totalAbsentAdded = 0;
 
-    // Loop setiap workspace
-    for (const ws of workspaces) {
-      // Ambil user dalam workspace
-      const { data: users, error: userError } = await supabase
-        .from("user_workspace")
-        .select("id_user")
-        .eq("id_workspace", ws.id_workspace);
+    for (const course of courses) {
+      // Cek apakah course-nya hari ini
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const todayName = dayNames[wib.getDay()];
 
-      if (userError) throw userError;
+      if (course.day !== todayName) continue; // skip kalau bukan jadwal hari ini
 
-      for (const u of users) {
-        // Cek apakah user sudah absen hari ini
-        const { data: existing, error: presenceError } = await supabase
-          .from("presence")
-          .select("id_presence")
-          .eq("id_workspace", ws.id_workspace)
-          .eq("id_user", u.id_user)
-          .gte("presences_at", `${today}T00:00:00`)
-          .lte("presences_at", `${today}T23:59:59`);
+      // Cek apakah sudah ada presence untuk course ini hari ini
+      const { data: existing, error: presenceError } = await supabase
+        .from("presence")
+        .select("id_presence")
+        .eq("id_course", course.id_courses)
+        .gte("presences_at", `${today}T00:00:00.000Z`)
+        .lt("presences_at", `${today}T23:59:59.999Z`);
 
-        if (presenceError) throw presenceError;
+      if (presenceError) throw presenceError;
 
-        // Jika belum absen, tambahkan status absent otomatis
-        if (!existing || existing.length === 0) {
-          const { error: insertError } = await supabase.from("presence").insert([
-            {
-              id_workspace: ws.id_workspace,
-              id_user: u.id_user,
-              status: "absent",
-              note: "Auto marked absent by system",
-              presences_at: new Date().toISOString(),
-            },
-          ]);
+      if (!existing || existing.length === 0) {
+        const { error: insertError } = await supabase.from("presence").insert([
+          {
+            id_course: course.id_courses,
+            id_workspace: course.id_workspace,
+            status: "absent",
+            note: "Auto marked absent by system",
+            presences_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          },
+        ]);
 
-          if (insertError) throw insertError;
-          totalAbsentAdded++;
-        }
+        if (insertError) throw insertError;
+        totalAbsentAdded++;
       }
     }
 
