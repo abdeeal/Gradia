@@ -37,7 +37,7 @@ export default async function handler(req, res) {
           .eq("id_workspace", ws.id_workspace)
           .eq("id_user", u.id_user)
           .gte("presences_at", `${today}T00:00:00`)
-          .lte("presences_at", `${today}T12:15:59`);
+          .lte("presences_at", `${today}T12:45:59`);
 
         if (presenceError) throw presenceError;
 
