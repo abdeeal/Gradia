@@ -6,12 +6,7 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  try {
-    // 🔒 Pastikan hanya cron Vercel yang bisa akses (bisa tambahkan secret kalau mau)
-    if (req.method !== "GET" && req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
-
+  try {  
     // Dapatkan tanggal hari ini (WIB)
     const now = new Date();
     const utcTime = now.getTime() + 7 * 60 * 60 * 1000; // UTC+7
