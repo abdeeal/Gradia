@@ -78,6 +78,8 @@ export const Tab = () => {
     setGroupedCourses(grouped);
   }, [courses, searchTerm]);
 
+  console.log(localStorage.getItem("user"))
+
   return (
     <div className="flex flex-col gap-8 relative">
       {refreshing && (

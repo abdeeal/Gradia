@@ -1,19 +1,23 @@
-import { useMatch } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import AppRoutes from "./routes";
 import { Container } from "./components/Container";
 import "./App.css";
 import { Navbar } from "./components/Navbar";
 
 function App() {
-  const match = useMatch("/");
+  const location = useLocation();
+  const hideNavbar = location.pathname.startsWith("/auth");
+
   sessionStorage.setItem("id_workspace", "1");
+
   const msg =
     "Jangan otak atik file ini, kalau mau edit file course ada di /Pages/courses/ buat ngakses halamannya ada di /courses";
+
   return (
     <>
-      {match ? msg : ""}
+      {location.pathname === "/" ? msg : ""}
       <Container>
-        <Navbar />
+        {!hideNavbar && <Navbar />}
         <AppRoutes />
       </Container>
     </>
