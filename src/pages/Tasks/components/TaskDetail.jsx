@@ -1,17 +1,53 @@
 import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import Swal from "sweetalert2";
-
+import axios from "axios";
+import { useAlert } from "@/hooks/useAlert";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
+import DeletePopup from "@/components/Delete";
 
-/* ---------- Title ---------- */
+/* ---------- Helpers: normalisasi input date/time ---------- */
+const toDateInput = (d) => {
+  if (!d) return "";
+  if (typeof d === "string" && d.includes("-")) return d.slice(0, 10);
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toISOString().slice(0, 10);
+};
+const toTimeInput = (d, fallbackTime) => {
+  if (fallbackTime) return fallbackTime;
+  if (!d) return "";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "";
+  const hh = String(dt.getHours()).padStart(2, "0");
+  const mm = String(dt.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+};
+
+/* ---------- Title (selalu dua baris) ---------- */
 const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
   if (!editable) {
     return (
       <div className={`font-inter ${className}`}>
-        <div className="text-[48px] font-bold text-foreground/90 leading-[1.1] break-words">
-          {value || <span className="text-gray-500">Enter Your Task Name</span>}
+        <div
+          className="text-[48px] font-bold text-foreground/90 leading-[1.1] break-words min-h-[2.2em]"
+          style={{
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {value ? (
+            value
+          ) : (
+            <>
+              <span className="text-gray-500">Enter Your Task Name</span>
+              {"\n"}
+              <span>&nbsp;</span>
+            </>
+          )}
         </div>
       </div>
     );
@@ -31,7 +67,7 @@ const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
         }}
         autoFocus
         placeholder="Enter Your Task Name"
-        className="w-full bg-transparent outline-none resize-none text-[48px] font-bold no-scrollbar placeholder:text-gray-500"
+        className="w-full bg-transparent outline-none resize-none text-[48px] font-bold no-scrollbar placeholder:text-gray-500 leading-[1.1] min-h-[2.2em]"
       />
     </div>
   );
@@ -43,7 +79,7 @@ const BADGE_BASE =
 
 const priorityValueClass = (val) => {
   if (val === "High") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
-  if (val === "Medium") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
+  if (val === "Medium") return `${BADGE_BASE} bg-[#EAB308]/20 text-[#FDE047]`;
   if (val === "Low") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
   return BADGE_BASE;
 };
@@ -109,16 +145,26 @@ const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
   </div>
 );
 
-const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
+const TaskDetail = ({
+  task,
+  setDrawer,            // function(bool) → tutup drawer
+  refreshTasks,         // function() → refresh list tasks
+  courses: coursesProp, // optional preload courses
+  onTaskUpdated,        // (optional) function(updatedTask)
+  onTaskDeleted,        // (optional) function(deletedId)
+}) => {
+  const { showAlert } = useAlert();
   const drawerRef = useRef(null);
+  const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [form, setForm] = useState({
     id_task: task?.id_task,
     title: task?.title || "",
     subtitle: task?.description || "",
-    deadline: task?.deadline || "",
-    time: task?.time || "",
-    id_course: task?.id_course ?? null, // pakai id_course
+    deadline: toDateInput(task?.deadline) || "",   // "YYYY-MM-DD"
+    time: toTimeInput(task?.deadline, task?.time) || "", // "HH:MM"
+    id_course: task?.id_course ?? null,
     priority: task?.priority || "High",
     status: task?.status || "Not started",
     score: task?.score ?? "",
@@ -126,40 +172,38 @@ const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
   });
   const [editingKey, setEditingKey] = useState(null);
 
-  // Daftar courses: terima dari prop jika ada, fallback fetch, terakhir static.
-  const [courses, setCourses] = useState(
-    coursesProp && coursesProp.length
-      ? coursesProp
-      : [
-          { id_course: 1, title: "Jaringan Komputer" },
-          { id_course: 2, title: "Pemrograman Web" },
-          { id_course: 3, title: "Analisis Data" },
-          { id_course: 4, title: "Dasar Kecerdasan Artifisial" },
-          { id_course: 5, title: "Manajemen Proyek TIK" },
-          { id_course: 6, title: "Keamanan Siber" },
-        ]
-  );
+  /* ====== RELATED COURSE LOGIC (ONLY) — tanpa ubah UI ====== */
+  // sumber courses: props > ekstrak unik dari /api/tasks > (no static fallback)
+  const [courses, setCourses] = useState(coursesProp && coursesProp.length ? coursesProp : []);
+  const [loadingCourses, setLoadingCourses] = useState(!(coursesProp && coursesProp.length));
 
   useEffect(() => {
-    // jika tidak ada prop, coba fetch
-    if (!coursesProp) {
-      fetch("/api/courses")
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
-        .then((res) => {
-          if (Array.isArray(res) && res.length) {
-            // normalisasi field
-            const mapped = res.map((c) => ({
-              id_course: c.id_course ?? c.id ?? c.course_id,
-              title: c.title ?? c.name ?? c.course_name,
-            }));
-            setCourses(mapped.filter((c) => c.id_course && c.title));
+    if (coursesProp && coursesProp.length) return;
+
+    fetch("/api/tasks")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((tasks) => {
+        if (!Array.isArray(tasks)) return;
+        const map = new Map();
+        tasks.forEach((t) => {
+          const idc = t?.id_course ?? t?.course_id;
+          const name = t?.course?.name ?? t?.relatedCourse ?? t?.course_name;
+          if (idc && name && !map.has(String(idc))) {
+            map.set(String(idc), { id_course: Number(idc), title: name });
           }
-        })
-        .catch(() => {
-          /* keep fallback */
         });
-    }
+        const uniq = Array.from(map.values()).sort((a, b) =>
+          String(a.title).localeCompare(String(b.title))
+        );
+        if (uniq.length) setCourses(uniq);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCourses(false));
   }, [coursesProp]);
+
+  const selectedCourseTitle =
+    courses.find((c) => String(c.id_course) === String(form.id_course))?.title || "";
+  /* ====== END RELATED COURSE LOGIC ====== */
 
   useEffect(() => {
     if (!task) return;
@@ -167,8 +211,8 @@ const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
       id_task: task.id_task,
       title: task.title || "",
       subtitle: task.description || "",
-      deadline: task.deadline || "",
-      time: task.time || "",
+      deadline: toDateInput(task.deadline) || "",
+      time: toTimeInput(task.deadline, task.time) || "",
       id_course: task.id_course ?? null,
       priority: task.priority || "High",
       status: task.status || "Not started",
@@ -185,45 +229,150 @@ const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
 
   const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
-  const notify = (options) =>
-    Swal.fire({
-      ...options,
-      background: "#141414cc",
-      color: "#fff",
-      customClass: { popup: "rounded-xl border border-[#464646] w-[340px] p-6 font-[Inter]" },
-      buttonsStyling: false,
-    });
-
-  const handleSave = () => {
+  /* =========================
+     UPDATE (Optimistic)
+     ========================= */
+  const handleSave = async () => {
     if (!form.title.trim()) {
-      notify({ icon: "info", title: "Title is required" });
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Title is required",
+        desc: "Please enter a task title before saving.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
       return;
     }
-    onSave?.({
-      id_task: form.id_task,
+    if (!task?.id_task) {
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Cannot create here",
+        desc: "Use the Add Task panel to create a new task.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+      return;
+    }
+
+    const combinedDeadline =
+      form.deadline ? new Date(`${form.deadline}T${form.time || "00:00"}`) : null;
+
+    const payload = {
+      id_task: task.id_task,
       title: form.title,
-      description: form.subtitle,
-      deadline: form.deadline || null,
+      description: form.subtitle || null,
+      deadline: combinedDeadline,
       priority: form.priority || null,
       status: form.status || null,
       score: form.score === "" ? null : Number(form.score),
       link: form.link || null,
-      id_course: form.id_course ?? null, // kirim id_course
-    });
+      id_course: form.id_course ?? null,
+    };
 
-    Swal.fire({
-      icon: "success",
-      title: "Task updated!",
-      background: "rgba(20,20,20,.9)",
-      color: "#fff",
-      showConfirmButton: false,
-      timer: 1200,
-      customClass: { popup: "font-[Inter] rounded-2xl py-4 px-6 w-[300px]" },
-    }).then(onClose);
+    const optimisticTask = {
+      ...task,
+      title: payload.title,
+      description: payload.description,
+      deadline: payload.deadline,
+      priority: payload.priority,
+      status: payload.status,
+      score: payload.score,
+      link: payload.link,
+      id_course: payload.id_course,
+    };
+
+    try {
+      setLoading(true);
+      window.dispatchEvent(new CustomEvent("tasks:updated", { detail: { task: optimisticTask } }));
+
+      if (typeof onTaskUpdated === "function") onTaskUpdated(optimisticTask);
+      else if (typeof refreshTasks === "function") refreshTasks();
+
+      axios.put(`/api/tasks`, payload).catch((err) => {
+        console.log(err?.response?.data || err?.message);
+      });
+
+      setTimeout(() => {
+        showAlert({
+          icon: "ri-checkbox-circle-fill",
+          title: "Updated",
+          desc: "Task updated successfully.",
+          variant: "success",
+          width: 676,
+          height: 380,
+        });
+
+        requestAnimationFrame(() => {
+          setDrawer?.(false);
+          if (typeof onTaskUpdated !== "function" && typeof refreshTasks === "function") {
+            refreshTasks();
+          }
+        });
+
+        setLoading(false);
+      }, 1000);
+    } catch (err) {
+      console.log(err?.response?.data || err?.message);
+      if (typeof onTaskUpdated === "function") onTaskUpdated(task);
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Error",
+        desc: "Failed to save task. Please try again.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+      setDrawer?.(true);
+      setLoading(false);
+    }
   };
 
-  const selectedCourseTitle =
-    courses.find((c) => String(c.id_course) === String(form.id_course))?.title || "";
+  /* =========================
+     DELETE (Optimistic)
+     ========================= */
+  const handleDelete = async () => {
+    try {
+      setLoading(true);
+      window.dispatchEvent(new CustomEvent("tasks:deleted", { detail: { id_task: task.id_task } }));
+
+      if (typeof onTaskDeleted === "function") onTaskDeleted(task.id_task);
+      else if (typeof refreshTasks === "function") refreshTasks();
+
+      await axios.delete(`/api/tasks?id=${task.id_task}`);
+
+      showAlert({
+        icon: "ri-delete-bin-2-line",
+        title: "Deleted",
+        desc: `Task "${task.title}" has been deleted successfully.`,
+        variant: "success",
+        width: 676,
+        height: 380,
+      });
+
+      requestAnimationFrame(() => {
+        setDrawer?.(false);
+        if (typeof onTaskDeleted !== "function" && typeof refreshTasks === "function") {
+          refreshTasks();
+        }
+      });
+    } catch (err) {
+      console.log(err?.response?.data || err?.message);
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Error",
+        desc: "Failed to delete task. Please try again.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+      if (typeof refreshTasks === "function") refreshTasks();
+      setDrawer?.(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!task) return null;
 
@@ -243,7 +392,11 @@ const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
       `}</style>
 
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
-        <button onClick={onClose} className="absolute left-3 top-4 text-gray-400 hover:text-white">
+        <button
+          onClick={() => setDrawer?.(false)}
+          className="absolute left-3 top-4 text-gray-400 hover:text-white"
+          disabled={loading}
+        >
           <i className="ri-arrow-right-double-line text-2xl" />
         </button>
 
@@ -257,7 +410,7 @@ const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
           />
         </div>
 
-        <div className="ml-12 mr-12 max-w-[473px] flex flex-col">
+        <div className="ml-12 mr-12 max-w={[473]} flex flex-col">
           <div className="font-inter text-[16px] space-y-6">
             <Row icon="ri-sticky-note-line" label="Description" onClick={() => setEditingKey("subtitle")}>
               {editingKey === "subtitle" ? (
@@ -279,15 +432,25 @@ const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
             <Row icon="ri-calendar-2-line" label="Deadline" onClick={() => setEditingKey("deadline_time")}>
               {editingKey === "deadline_time" ? (
                 <div className="flex items-center gap-2 w-full h-[30px]">
-                  <div className="w-[65%]">
+                  <div className="w/[65%] w-[65%]">
                     <InputBase
                       as="input"
                       type="date"
-                      value={form.deadline ? String(form.deadline).slice(0, 10) : ""}
+                      value={form.deadline}
                       onChange={(e) => setVal("deadline", e.target.value)}
                       onBlur={() => setEditingKey(null)}
                       placeholder="dd/mm/yyyy"
                       autoFocus
+                    />
+                  </div>
+                  <div className="w-[35%]">
+                    <InputBase
+                      as="input"
+                      type="time"
+                      value={form.time}
+                      onChange={(e) => setVal("time", e.target.value)}
+                      onBlur={() => setEditingKey(null)}
+                      placeholder="--:--"
                     />
                   </div>
                 </div>
@@ -295,34 +458,38 @@ const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
                 <div className="w-full flex items-center gap-2 h-[30px]">
                   <div className="w-[65%] truncate">
                     {form.deadline ? (
-                      <span className="text-gray-200">{String(form.deadline).slice(0, 10)}</span>
+                      <span className="text-gray-200">{form.deadline}</span>
                     ) : (
                       <span className="text-gray-500">dd/mm/yyyy</span>
+                    )}
+                  </div>
+                  <div className="w-[35%] truncate">
+                    {form.time ? (
+                      <span className="text-gray-200">{form.time}</span>
+                    ) : (
+                      <span className="text-gray-500">--:--</span>
                     )}
                   </div>
                 </div>
               )}
             </Row>
 
-            {/* Related Course — value = id_course, label = title */}
+            {/* Related Course — value = id_course, label = title (UI tidak diubah) */}
             <Row icon="ri-links-line" label="Related Course">
               <div className="flex items-center h-[30px] w-full">
                 <SelectUi
                   value={form.id_course !== null ? String(form.id_course) : undefined}
                   onValueChange={(val) => setVal("id_course", val ? Number(val) : null)}
-                  placeholder={selectedCourseTitle || "Select Course"}
+                  placeholder={loadingCourses ? "Loading..." : (selectedCourseTitle || "Select Course")}
                   className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
                   valueClassFn={() => ""}
+                  disabled={loading || loadingCourses}
                 >
                   <SelectLabel className="text-[14px] font-inter text-gray-400 px-2 py-1">
                     Related Course
                   </SelectLabel>
                   {courses.map((c) => (
-                    <SelectItem
-                      key={c.id_course}
-                      value={String(c.id_course)}
-                      className="text-[16px] font-inter"
-                    >
+                    <SelectItem key={c.id_course} value={String(c.id_course)} className="text-[16px] font-inter">
                       {c.title}
                     </SelectItem>
                   ))}
@@ -388,7 +555,7 @@ const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
                   href={form.link}
                   target="_blank"
                   rel="noreferrer"
-                  className="truncate text-gray-200 underline decoration-dotted underline-offset-4"
+                  className="truncate text-[#60A5FA] underline decoration-[#60A5FA] underline-offset-4"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {form.link}
@@ -399,17 +566,41 @@ const TaskDetail = ({ task, onClose, onSave, courses: coursesProp }) => {
             </Row>
           </div>
 
-          <div className="mt-12 flex justify-end items-center gap-3 font-inter">
+          {/* Actions */}
+          <div className="mt-12 flex justify-end items-center gap-[15px] font-inter">
+            <button
+              onClick={() => setShowConfirm(true)}
+              aria-label="Delete Task"
+              title="Delete Task"
+              className="w-[44px] h-[36px] rounded-md bg-[#830404] flex items-center justify-center hover:brightness-110 active:scale-95 transition disabled:opacity-60"
+              disabled={loading || !task?.id_task}
+            >
+              <i className="ri-delete-bin-2-line text-white text-[16px]" />
+            </button>
+
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] transition-all"
+              className="flex items-center gap-2 px-5 h-[36px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] transition-all disabled:opacity-60"
+              disabled={loading || !task?.id_task}
             >
-              <i className="ri-save-3-line text-foreground text-[18px]" />
-              <span className="text-[15px] font-medium">Save Changes</span>
+              <i className="ri-save-3-line text-foreground text-[16px]" />
+              <span className="text-[15px] font-medium">{loading ? "Saving..." : "Save Changes"}</span>
             </button>
           </div>
         </div>
       </div>
+
+      {showConfirm && (
+        <DeletePopup
+          title="Delete Task"
+          warning={`Are you sure you want to delete "${task.title}"?`}
+          onCancel={() => setShowConfirm(false)}
+          onDelete={() => {
+            setShowConfirm(false);
+            handleDelete();
+          }}
+        />
+      )}
     </div>
   );
 };

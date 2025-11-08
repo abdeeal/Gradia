@@ -1,7 +1,8 @@
+// 📄 AddCourse.jsx
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
 import React, { useState } from "react";
-import Swal from "sweetalert2";
+import { useAlert } from "@/hooks/useAlert";
 
 /**
  * Drawer Add Course
@@ -10,6 +11,8 @@ import Swal from "sweetalert2";
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 const AddCourse = ({ onClose, onAdd }) => {
+  const { showAlert } = useAlert();
+
   const [formData, setFormData] = useState({
     title: "",
     alias: "",
@@ -27,13 +30,13 @@ const AddCourse = ({ onClose, onAdd }) => {
 
   const handleAdd = () => {
     if (!formData.title?.trim() || !formData.alias?.trim()) {
-      Swal.fire({
-        icon: "warning",
+      showAlert({
+        icon: "ri-error-warning-fill",
         title: "Incomplete Data",
-        text: "Please fill Title and Alias.",
-        background: "rgba(20,20,20,.9)",
-        color: "#fff",
-        confirmButtonColor: "#9457FF",
+        desc: "Please fill Title and Alias.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
       });
       return;
     }
@@ -47,20 +50,16 @@ const AddCourse = ({ onClose, onAdd }) => {
 
     if (typeof onAdd === "function") onAdd(newCourse);
 
-    Swal.fire({
-      icon: "success",
-      title: "Course Added!",
-      text: `${newCourse.title || newCourse.alias} has been created.`,
-      background: "rgba(20,20,20,.9)",
-      color: "#fff",
-      confirmButtonColor: "#9457FF",
-      customClass: {
-        popup: "font-[Montserrat] rounded-2xl py-4 px-6 w-[300px]",
-        title: "text-[16px] font-semibold text-white mb-1",
-        htmlContainer: "text-sm text-gray-300",
-        confirmButton: "text-xs rounded-md px-4 py-1.5 mt-2",
-      },
-    }).then(onClose);
+    showAlert({
+      icon: "ri-checkbox-circle-fill",
+      title: "Success",
+      desc: `${newCourse.title || newCourse.alias} has been created.`,
+      variant: "success",
+      width: 676,
+      height: 380,
+    });
+
+    onClose?.();
   };
 
   return (
@@ -178,11 +177,7 @@ const DayField = ({ icon, label, value, onChange }) => (
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400">{label}</span>
     <div className="flex-1 max-w-[360px] flex items-center">
-      <SelectUi
-        placeholder={"Select a day"}
-        value={value || undefined}
-        onValueChange={onChange}
-      >
+      <SelectUi placeholder={"Select a day"} value={value || undefined} onValueChange={onChange}>
         <SelectLabel>Day</SelectLabel>
         {dayOrder.map((item) => (
           <SelectItem key={item} value={item}>

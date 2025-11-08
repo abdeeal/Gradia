@@ -28,7 +28,7 @@ export default function AppRoutes() {
       <Route path="/calendar" element={<Calendar />} /> {/* ✅ perbaiki ejaan */}
       <Route path="/courses" element={<Courses />} />
       <Route path="/tasks" element={<Tasks />} />
-      <Route path="/presence" element={<Presence />} />
+      <Route path="/presences" element={<Presence />} />
 
       {/* ===== LOGIN & FORGOT PASSWORD FLOW ===== */}
       <Route path="/login" element={<Login />} />

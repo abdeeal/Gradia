@@ -37,9 +37,13 @@ const Tasks = () => {
   // daftar courses (id_course + title) untuk dropdown & display
   const [courses, setCourses] = useState([]);
 
+  // ===== Loading state (sesuai permintaan) =====
+  const [loading, setLoading] = useState(true);
+
   // === LOAD Courses & Tasks from API ===
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       try {
         // 1) Courses
         try {
@@ -70,6 +74,8 @@ const Tasks = () => {
         setTasksByCol(grouped);
       } catch (e) {
         console.error("Initial load failed:", e);
+      } finally {
+        setLoading(false);
       }
     };
     load();
@@ -111,7 +117,6 @@ const Tasks = () => {
 
   const addTask = async (payload) => {
     try {
-      // payload dari AddTask sudah berisi id_course
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,7 +131,6 @@ const Tasks = () => {
 
   const updateTask = async (updated) => {
     try {
-      // updated dari TaskDetail sudah berisi id_course
       const res = await fetch("/api/tasks", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -153,6 +157,7 @@ const Tasks = () => {
       }));
     } catch (e) {
       console.error("DELETE /api/tasks failed:", e);
+      throw e; // biar TaskDetail bisa nunjukin error
     }
   };
 
@@ -173,6 +178,71 @@ const Tasks = () => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
   if (isMobile || isTablet) return <Mobile />;
+
+  /* ========= LISTEN to optimistic events (langsung terlihat) ========= */
+  useEffect(() => {
+    const placeTask = (prevCols, task) => {
+      const key = normalizeStatusKey(task.status || "");
+      const next = { ...prevCols };
+      // pastikan tidak ada duplikat di semua kolom
+      Object.keys(next).forEach(k => {
+        next[k] = next[k].filter((t) => t.id_task !== task.id_task);
+      });
+      // masukkan ke kolom yang sesuai (prepend)
+      next[key] = [task, ...next[key]];
+      return next;
+    };
+
+    const onCreated = (e) => {
+      const { task } = e.detail || {};
+      if (!task) return;
+      setTasksByCol((prev) => placeTask(prev, task));
+    };
+
+    const onReconcile = (e) => {
+      const { temp_id, task } = e.detail || {};
+      if (!temp_id || !task) return;
+      setTasksByCol((prev) => {
+        // ganti temp_id dengan id real, jaga kolom sesuai status terbaru
+        const cleaned = Object.fromEntries(
+          Object.entries(prev).map(([k, arr]) => [k, arr.filter((t) => t.id_task !== temp_id)])
+        );
+        return placeTask(cleaned, task);
+      });
+    };
+
+    const onUpdated = (e) => {
+      const { task } = e.detail || {};
+      if (!task) return;
+      setTasksByCol((prev) => placeTask(prev, task));
+      // jika panel detail sedang buka di task yg sama, sinkronkan
+      setSelectedTask((curr) => (curr && curr.id_task === task.id_task ? { ...curr, ...task } : curr));
+    };
+
+    const onDeleted = (e) => {
+      const { id_task } = e.detail || {};
+      if (!id_task) return;
+      setTasksByCol((prev) => ({
+        notStarted: prev.notStarted.filter((t) => t.id_task !== id_task),
+        inProgress: prev.inProgress.filter((t) => t.id_task !== id_task),
+        completed: prev.completed.filter((t) => t.id_task !== id_task),
+        overdue: prev.overdue.filter((t) => t.id_task !== id_task),
+      }));
+      setSelectedTask((curr) => (curr && curr.id_task === id_task ? null : curr));
+    };
+
+    window.addEventListener("tasks:created", onCreated);
+    window.addEventListener("tasks:reconcile", onReconcile);
+    window.addEventListener("tasks:updated", onUpdated);
+    window.addEventListener("tasks:deleted", onDeleted);
+
+    return () => {
+      window.removeEventListener("tasks:created", onCreated);
+      window.removeEventListener("tasks:reconcile", onReconcile);
+      window.removeEventListener("tasks:updated", onUpdated);
+      window.removeEventListener("tasks:deleted", onDeleted);
+    };
+  }, []);
 
   return (
     <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
@@ -225,44 +295,49 @@ const Tasks = () => {
         <div className="border-t border-[#464646] mb-[14px] mr-6"></div>
 
         <div className="bg-background-secondary p-5 rounded-2xl mr-6 border border-[#2c2c2c]">
-          <div className="grid grid-cols-4 gap-2">
-            <TaskCategory
-              title="Not Started"
-              icon="ri-file-edit-line"
-              iconBg="bg-[#6B7280]/20"
-              iconColor="#D4D4D8"
-              tasks={tasksByCol.notStarted}
-              onCardClick={handleCardClick}
-              courses={courses}
-            />
-            <TaskCategory
-              title="In Progress"
-              icon="ri-progress-2-line"
-              iconBg="bg-[#06B6D4]/20"
-              iconColor="#22D3EE"
-              tasks={tasksByCol.inProgress}
-              onCardClick={handleCardClick}
-              courses={courses}
-            />
-            <TaskCategory
-              title="Completed"
-              icon="ri-checkbox-circle-line"
-              iconBg="bg-[#22C55E]/20"
-              iconColor="#4ADE80"
-              tasks={tasksByCol.completed}
-              onCardClick={handleCardClick}
-              courses={courses}
-            />
-            <TaskCategory
-              title="Overdue"
-              icon="ri-alarm-warning-line"
-              iconBg="bg-[#EF4444]/20"
-              iconColor="#F87171"
-              tasks={tasksByCol.overdue}
-              onCardClick={handleCardClick}
-              courses={courses}
-            />
-          </div>
+          {/* ====== Conditional render loading (sesuai snippet) ====== */}
+          {loading ? (
+            <div className="text-gray-400 text-sm">Loading tasks…</div>
+          ) : (
+            <div className="grid grid-cols-4 gap-2">
+              <TaskCategory
+                title="Not Started"
+                icon="ri-file-edit-line"
+                iconBg="bg-[#6B7280]/20"
+                iconColor="#D4D4D8"
+                tasks={tasksByCol.notStarted}
+                onCardClick={handleCardClick}
+                courses={courses}
+              />
+              <TaskCategory
+                title="In Progress"
+                icon="ri-progress-2-line"
+                iconBg="bg-[#06B6D4]/20"
+                iconColor="#22D3EE"
+                tasks={tasksByCol.inProgress}
+                onCardClick={handleCardClick}
+                courses={courses}
+              />
+              <TaskCategory
+                title="Completed"
+                icon="ri-checkbox-circle-line"
+                iconBg="bg-[#22C55E]/20"
+                iconColor="#4ADE80"
+                tasks={tasksByCol.completed}
+                onCardClick={handleCardClick}
+                courses={courses}
+              />
+              <TaskCategory
+                title="Overdue"
+                icon="ri-alarm-warning-line"
+                iconBg="bg-[#EF4444]/20"
+                iconColor="#F87171"
+                tasks={tasksByCol.overdue}
+                onCardClick={handleCardClick}
+                courses={courses}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -277,6 +352,10 @@ const Tasks = () => {
             task={selectedTask}
             onClose={closeAllDrawer}
             onSave={updateTask}
+            onDelete={async (id) => {
+              await deleteTask(id);   // panggil API DELETE /api/tasks?id=...
+              closeAllDrawer();       // tutup drawer setelah sukses
+            }}
             courses={courses}
           />
         </div>
@@ -285,11 +364,7 @@ const Tasks = () => {
       {/* Drawer Add */}
       {showAddPanel && (
         <div className="drawer-panel fixed top-0 right-0 h-full z-50">
-          <AddTask
-            onClose={closeAllDrawer}
-            onSubmit={addTask}
-            courses={courses}
-          />
+          <AddTask onClose={closeAllDrawer} onSubmit={addTask} courses={courses} />
         </div>
       )}
     </div>
@@ -312,7 +387,7 @@ const TaskCategory = ({ title, icon, iconBg, iconColor, tasks, onCardClick, cour
 
   return (
     <div ref={sectionRef} className="flex flex-col w-full gap-2">
-      <div className="flex justify-between items-center bg-[#0a0a0a] px-3 py-2 rounded-lg min-h-[42px] w-full">
+      <div className="flex justify-between items-center bg-[#0a0a0a] px-3 py-2 rounded-lg min-h=[42px] w-full">
         <span className="font-semibold text-[16px] text-white capitalize">{title}</span>
         <div className={`${iconBg} w-8 h-8 rounded-md flex items-center justify-center`}>
           <i className={`${icon} text-[20px]`} style={{ color: iconColor }} />
@@ -323,11 +398,7 @@ const TaskCategory = ({ title, icon, iconBg, iconColor, tasks, onCardClick, cour
         {tasks.map((task) => {
           const course_title = task.course_title || getCourseTitle(courses, task.id_course);
           return (
-            <div
-              key={task.id_task}
-              onClick={() => onCardClick(task)}
-              className="w-full cursor-pointer"
-            >
+            <div key={task.id_task} onClick={() => onCardClick(task)} className="w-full cursor-pointer">
               <TaskCard {...task} course_title={course_title} />
             </div>
           );

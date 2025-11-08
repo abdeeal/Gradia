@@ -1,5 +1,5 @@
 import Badges from "@/components/Bagdes";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import Card from "../components/Card";
 import { Search } from "@/components/Search";
 import Pagination from "../components/Pagination";
@@ -12,14 +12,24 @@ const Mobile = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Popup state
-  const [selectedPresence, setSelectedPresence] = useState(null);
+  const [popupData, setPopupData] = useState(null);
+  const [popupMode, setPopupMode] = useState(null);
 
+  // Klik card (add presence baru)
+  const handleCardClick = (course) => {
+    setPopupData(course);
+    setPopupMode("add");
+  };
+
+  // Klik row (edit presence)
   const handleRowClick = (presence) => {
-    setSelectedPresence(presence);
+    setPopupData(presence);
+    setPopupMode("edit");
   };
 
   const handleClosePopup = () => {
-    setSelectedPresence(null);
+    setPopupData(null);
+    setPopupMode(null);
   };
 
   // Courses today
@@ -40,50 +50,76 @@ const Mobile = () => {
   const [presences, setPresences] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [attendedCourseIds, setAttendedCourseIds] = useState([]);
 
-  useEffect(() => {
-    const fetchPresences = async () => {
-      try {
-        const res = await fetch("/api/presences");
-        const data = await res.json();
+  const fetchPresences = useCallback(async (showSkeleton = true) => {
+    if (showSkeleton) setLoading(true);
+    try {
+      const res = await fetch("/api/presences");
+      const data = await res.json();
 
-        const formatted = data.map((item) => {
-          const dateObj = new Date(item.presences_at);
-          const date = dateObj.toLocaleDateString("id-ID", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          });
-          const time = dateObj.toLocaleTimeString("en-GB", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-
-          return {
-            id: item.id_presence,
-            date,
-            course: item.course_name,
-            time,
-            status: item.status,
-            note: item.note,
-            created_at: item.created_at,
-            room : item.course_room,
-            sks: item.course_sks,
-            start: item.course_start,
-            end: item.course_end
-          };
+      const formatted = data.map((item) => {
+        const dateObj = new Date(item.presences_at);
+        const date = dateObj.toLocaleDateString("id-ID", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+        const time = dateObj.toLocaleTimeString("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
         });
 
-        setPresences(formatted);
-      } catch (error) {
-        console.error("Error fetching presences:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+        return {
+          id: item.id_presence,
+          date,
+          id_courses: item.id_course,
+          course: item.course_name,
+          time,
+          status: item.status,
+          note: item.note,
+          created_at: item.created_at,
+          room: item.course_room,
+          sks: item.course_sks,
+          start: item.course_start,
+          end: item.course_end,
+        };
+      });
 
-    fetchPresences();
+      setPresences(formatted);
+
+      const now = new Date();
+      const todayDate = now.getDate();
+      const todayMonth = now.getMonth();
+      const todayYear = now.getFullYear();
+
+      const attended = formatted
+        .filter((p) => {
+          const d = new Date(p.created_at || p.presences_at);
+          return (
+            d.getDate() === todayDate &&
+            d.getMonth() === todayMonth &&
+            d.getFullYear() === todayYear
+          );
+        })
+        .map((p) => p.id_courses);
+
+      setAttendedCourseIds(attended);
+    } catch (error) {
+      console.error("Error fetching presences:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchPresences();
+  }, [fetchPresences]);
+
+  // fungsi refresh tanpa skeleton
+  const refreshPresences = useCallback(() => {
+    fetchPresences(false);
+  }, [fetchPresences]);
 
   // Summary counts
   const totalPresence = presences.filter((p) => p.status === "Present").length;
@@ -103,11 +139,22 @@ const Mobile = () => {
     [filtered, start, end]
   );
 
+  useEffect(() => {
+    console.log("Courses Today:", courses);
+    console.log("Attended IDs:", attendedCourseIds);
+  }, [courses, attendedCourseIds]);
+
   return (
     <div className="flex flex-col gap-8">
-      {/* Popup muncul hanya jika ada data yang dipilih */}
-      {selectedPresence && (
-        <Popup key={selectedPresence.id} data={selectedPresence} onClose={handleClosePopup} />
+      {/* Popup */}
+      {popupData && (
+        <Popup
+          key={popupData.id || popupData.id_courses}
+          data={popupData}
+          mode={popupMode}
+          onClose={handleClosePopup}
+          onSuccess={refreshPresences} // ⬅️ ini trigger refresh tanpa skeleton
+        />
       )}
 
       {/* Header */}
@@ -156,19 +203,31 @@ const Mobile = () => {
             <Skeleton className="w-full md:w-[95%] h-[184px] rounded-[12px]" />
           ) : courses.length > 0 ? (
             <div className="flex overflow-x-auto gap-4 pb-4">
-              {courses.map((item, idx) => (
-                <Card
-                  key={idx}
-                  end={item.end.slice(0, 5)}
-                  start={item.start.slice(0, 5)}
-                  room={item.room}
-                  sks={item.sks}
-                  title={item.name}
-                  className={`shrink-0 ${
-                    courses.length > 1 ? "w-[90%]" : "w-full"
-                  } md:w-[269px]`}
-                />
-              ))}
+              {courses.map((item, idx) => {
+                const isAttended = attendedCourseIds.includes(item.id_courses);
+
+                return (
+                  <Card
+                    key={idx}
+                    onClick={() => {
+                      if (!isAttended) handleCardClick(item);
+                    }}
+                    end={item.end.slice(0, 5)}
+                    start={item.start.slice(0, 5)}
+                    room={item.room}
+                    sks={item.sks}
+                    title={item.name}
+                    disabled={isAttended}
+                    className={`shrink-0 ${
+                      courses.length > 1 ? "w-[90%]" : "w-full"
+                    } md:w-[269px] ${
+                      isAttended
+                        ? "opacity-50 cursor-not-allowed pointer-events-none"
+                        : ""
+                    }`}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="w-full md:w-[95%] h-[184px] flex justify-center items-center border border-border/50 bg-gradient-to-t from-[#141414] to-[#070707] rounded-[12px]">
