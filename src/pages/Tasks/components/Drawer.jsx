@@ -430,6 +430,7 @@ const Drawer = ({
             }
             onClick={handleSubmit}
             disabled={!isFormValid || loading}
+            icon={loading ? "ri-loader-4-line animate-spin" : "ri-add-line"}
             className={`transition-opacity duration-200 ${
               !isFormValid || loading
                 ? "opacity-50 cursor-not-allowed"

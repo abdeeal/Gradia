@@ -78,6 +78,11 @@ export const Tab = () => {
     setGroupedCourses(grouped);
   }, [courses, searchTerm]);
 
+  useEffect(() => {
+    const user = localStorage.getItem("user");
+    console.log("dashboard user:", user);
+  }, []);
+
   return (
     <div className="flex flex-col gap-8 relative">
       {refreshing && (

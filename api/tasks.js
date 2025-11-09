@@ -64,7 +64,7 @@ if (req.method === "GET") {
     req.on("data", (chunk) => (body += chunk.toString()));
     req.on("end", async () => {
       try {
-        const { id_task, id_course, title, description, deadline, status } =
+        const { id_task, id_course, title, description, deadline, status, priority } =
           JSON.parse(body);
 
         if (!id_task) {
@@ -73,7 +73,7 @@ if (req.method === "GET") {
             .json({ error: "Parameter id_task wajib diisi untuk update." });
         }
 
-        const updateData = { id_course, title, description, deadline, status };
+        const updateData = { id_course, title, description, deadline, status, priority };
 
         const { data, error } = await supabase
           .from("task")

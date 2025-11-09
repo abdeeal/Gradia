@@ -4,7 +4,7 @@
   ],
   "crons": [
     {
-      "path": "/api/autoMarkAbsent",
+       "path": "/api/autoMarkOverdue",
       "schedule": "59 23 * * *"
     }
   ]

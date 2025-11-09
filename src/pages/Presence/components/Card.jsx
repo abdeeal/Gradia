@@ -1,7 +1,17 @@
 import { Button } from "@/components/Button";
 import React from "react";
 
-const Card = ({ sks, start, end, title, room, className, btn = true }) => {
+const Card = ({
+  sks,
+  start,
+  end,
+  title,
+  room,
+  className,
+  btn = true,
+  onClick,
+  disabled,
+}) => {
   let dotColor;
   if (sks == "3") {
     dotColor = "bg-red";
@@ -13,7 +23,7 @@ const Card = ({ sks, start, end, title, room, className, btn = true }) => {
 
   return (
     <div
-      className={`bg-gradient-to-t from-[#141414] to-[#070707] rounded-[8px] p-3 group focus-within:border focus-within:border-border border border-[#464646]/50 ${className} flex flex-col justify-between`}
+      className={`bg-gradient-to-t from-[#141414] to-[#070707] rounded-[8px] p-3 group focus-within:border focus-within:border-border border border-[#464646]/50 ${className} flex flex-col justify-between ${disabled ? " cursor-not-allowed" : "cursor-pointer"}`}
     >
       <div className="flex flex-col justify-between md:gap-2 gap-4 md:w-full w-[90%]">
         <div className="flex gap-[10px] items-center">
@@ -33,11 +43,15 @@ const Card = ({ sks, start, end, title, room, className, btn = true }) => {
       </div>
       {btn ? (
         <Button
-        className={"w-fit flex-row-reverse px-3 mt-4"}
-        title="Log presence"
-        icon="ri-login-circle-line"
-      />
-      ) : ""}
+          onClick={!disabled ? onClick : undefined}
+          disabled={disabled}
+          className={"w-fit flex-row-reverse px-3 mt-4"}
+          title={`${disabled ? "Presenced" : "Log presence"}`}
+          icon={`${disabled ? "" : "ri-login-circle-line"}`}
+        />
+      ) : (
+        ""
+      )}
     </div>
   );
 };

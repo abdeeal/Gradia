@@ -7,12 +7,26 @@ const supabase = createClient(
 
 export default async function handler(req, res) {
   try {
+    
     const now = new Date();
-    const utcTime = now.getTime() + 7 * 60 * 60 * 1000; 
+    const utcTime = now.getTime() + 7 * 60 * 60 * 1000; // UTC+7
     const wib = new Date(utcTime);
     const today = wib.toISOString().split("T")[0];
+    const hour = wib.getHours();
+    const minute = wib.getMinutes();
 
-    console.log(`🕒 Running auto absent for date: ${today} (WIB)`);
+    console.log(`🕒 Checking auto absent at ${hour}:${minute} WIB on ${today}`);
+
+  
+    if (hour !== 23 || minute !== 59) {
+      return res.status(200).json({
+        message: "⏳ Not yet time for auto-mark absent (run only at 23:59 WIB)",
+        current_time: `${hour}:${minute}`,
+        date: today,
+      });
+    }
+
+    console.log(`🚀 Running auto absent for date: ${today} (23:59 WIB)`);
 
     
     const { data: courses, error: courseError } = await supabase
@@ -24,11 +38,20 @@ export default async function handler(req, res) {
     let totalAbsentAdded = 0;
 
     for (const course of courses) {
-      
-      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const dayNames = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
       const todayName = dayNames[wib.getDay()];
 
-      if (course.day !== todayName) continue; 
+      if (course.day !== todayName) continue;
+
+  
       const { data: existing, error: presenceError } = await supabase
         .from("presence")
         .select("id_presence")
@@ -38,6 +61,7 @@ export default async function handler(req, res) {
 
       if (presenceError) throw presenceError;
 
+    
       if (!existing || existing.length === 0) {
         const { error: insertError } = await supabase.from("presence").insert([
           {

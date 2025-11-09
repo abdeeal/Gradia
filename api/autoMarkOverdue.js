@@ -7,12 +7,28 @@ const supabase = createClient(
 
 export default async function handler(req, res) {
   try {
+  
     const now = new Date();
-    const utcTime = now.getTime() + 7 * 60 * 60 * 1000; 
+    const utcTime = now.getTime() + 7 * 60 * 60 * 1000; // UTC+7
     const wib = new Date(utcTime);
     const today = wib.toISOString().split("T")[0];
 
-    console.log(`🕒 Running auto overdue for date: ${today} (WIB)`);
+    const hour = wib.getHours();
+    const minute = wib.getMinutes();
+
+    console.log(`🕒 Checking auto overdue at ${hour}:${minute} WIB on ${today}`);
+
+  
+    if (hour !== 23 || minute !== 59) {
+      return res.status(200).json({
+        message: "⏳ Not yet time for auto-mark overdue (run only at 23:59 WIB)",
+        current_time: `${hour}:${minute}`,
+        date: today,
+      });
+    }
+
+    console.log(`🚀 Running auto overdue for date: ${today} (23:59 WIB)`);
+
 
     const { data: tasks, error: taskError } = await supabase
       .from("task")
@@ -28,7 +44,6 @@ export default async function handler(req, res) {
       if (!task.deadline) continue;
 
       const taskDeadline = new Date(task.deadline);
-
       if (wib > taskDeadline) {
         const { error: updateError } = await supabase
           .from("task")
@@ -40,7 +55,6 @@ export default async function handler(req, res) {
           .eq("id_task", task.id_task);
 
         if (updateError) throw updateError;
-
         totalOverdueAdded++;
       }
     }
