@@ -7,48 +7,53 @@ const supabase = createClient(
 
 export default async function handler(req, res) {
   try {
-  
+    // ==== Waktu WIB (UTC+7) ====
     const now = new Date();
-    const utcTime = now.getTime() + 7 * 60 * 60 * 1000; // UTC+7
+    const utcTime = now.getTime() + 7 * 60 * 60 * 1000; // UTC → WIB
     const wib = new Date(utcTime);
-    const today = wib.toISOString().split("T")[0];
 
+    const today = wib.toISOString().split("T")[0];
     const hour = wib.getHours();
     const minute = wib.getMinutes();
 
     console.log(`🕒 Checking auto overdue at ${hour}:${minute} WIB on ${today}`);
 
-  
-    if (hour !== 23 || minute !== 59) {
+    // ==== FIX: jangan terlalu ketat ====
+    // Vercel Cron *sering telat beberapa detik atau menit*
+    // Kita kasih range waktu aman: 23:55 → 23:59 WIB
+    if (hour !== 23 || minute < 55) {
       return res.status(200).json({
-        message: "⏳ Not yet time for auto-mark overdue (run only at 23:59 WIB)",
+        message:
+          "⏳ Not yet time for auto-mark overdue (runs only between 23:55–23:59 WIB)",
         current_time: `${hour}:${minute}`,
         date: today,
       });
     }
 
-    console.log(`🚀 Running auto overdue for date: ${today} (23:59 WIB)`);
+    console.log(`🚀 Running auto overdue for date: ${today} (23:55–23:59 WIB)`);
 
-
+    // ==== Ambil task yang belum selesai ====
     const { data: tasks, error: taskError } = await supabase
       .from("task")
       .select("id_task, id_workspace, title, deadline, status")
-      .neq("status", "completed")
-      .neq("status", "overdue");
+      .neq("status", "Completed")
+      .neq("status", "Overdue");
 
     if (taskError) throw taskError;
 
     let totalOverdueAdded = 0;
 
+    // ==== Loop update ====
     for (const task of tasks) {
       if (!task.deadline) continue;
 
       const taskDeadline = new Date(task.deadline);
+
       if (wib > taskDeadline) {
         const { error: updateError } = await supabase
           .from("task")
           .update({
-            status: "overdue",
+            status: "Overdue",
             note: "Auto marked overdue by system",
             updated_at: new Date().toISOString(),
           })
@@ -59,10 +64,12 @@ export default async function handler(req, res) {
       }
     }
 
-    console.log(`✅ Auto overdue complete. Total tasks updated: ${totalOverdueAdded}`);
+    console.log(
+      `✅ Auto overdue complete. Total tasks updated: ${totalOverdueAdded}`
+    );
 
     return res.status(200).json({
-      message: "✅ Auto-mark overdue complete at 23:59 WIB",
+      message: "✅ Auto-mark overdue complete",
       total_overdue_added: totalOverdueAdded,
       date: today,
     });
