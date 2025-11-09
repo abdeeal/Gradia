@@ -28,10 +28,10 @@ const Mobile = () => {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/registration", {
+      const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, username, password }),
+        body: JSON.stringify({ email, username, password, action:"register" }),
       });
 
       const data = await res.json();
