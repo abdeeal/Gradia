@@ -81,6 +81,21 @@ export const Navbar = () => {
     };
   }, [drawer]);
 
+  const handleLogout = async () => {
+    try {
+      const res = await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+
+      if (!res.ok) throw new Error("Failed to logout");
+      localStorage.removeItem("user");
+
+      window.location.href = "/auth/login";
+    } catch (err) {
+      console.error("Logout failed:", err.message);
+    }
+  };
+
   return (
     <nav className="sticky top-0 bg-black py-[22px] z-[90] xl:hidden">
       {(isTablet || isMobile) && (
@@ -148,16 +163,23 @@ export const Navbar = () => {
 
             <div className="flex flex-col font-inter font-semibold text-[32px] px-4 pt-5 pb-8 gap-5">
               {navItemsSide.map((item, idx) => (
-                <div key={idx} className={`flex gap-4 items-center`}>
+                <div key={idx} className="flex gap-4 items-center">
                   <div className="w-2 h-2 bg-current rounded-full" />
-                  <Link
-                    onClick={() => {
-                      setDrawer(false);
-                    }}
-                    to={item.href}
-                  >
-                    {item.name}
-                  </Link>
+                  {item.name === "Logout" ? (
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setDrawer(false);
+                      }}
+                      className="text-left"
+                    >
+                      {item.name}
+                    </button>
+                  ) : (
+                    <Link onClick={() => setDrawer(false)} to={item.href}>
+                      {item.name}
+                    </Link>
+                  )}
                 </div>
               ))}
             </div>

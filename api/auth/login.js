@@ -59,16 +59,13 @@ export default async function handleLogin(req, res) {
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-        // hapus otp lama (opsional)
-        await supabase.from("otp").delete().eq("id_user", user.id_user);
-
         const { error: otpError } = await supabase.from("otp").insert([
           {
             id_user: user.id_user,
             otp_code: otpCode,
             expires_at: expiresAt,
             is_used: false,
-            purpose: "register",
+            purpose: "verification",
           },
         ]);
 
@@ -92,7 +89,9 @@ export default async function handleLogin(req, res) {
               <h3>Hello ${user.username || user.email},</h3>
               <p>Your OTP code is:</p>
               <h2 style="letter-spacing: 4px; color: #007bff;">${otpCode}</h2>
-              <p>This code will expire at <b>${new Date(expiresAt).toLocaleString()}</b>.</p>
+              <p>This code will expire at <b>${new Date(
+                expiresAt
+              ).toLocaleString()}</b>.</p>
               <br/>
               <p>Please use this code to verify your account.<br/>Thank you,<br/>The Gradia Team</p>
             </div>
@@ -107,6 +106,12 @@ export default async function handleLogin(req, res) {
             message:
               "Account not verified. OTP has been sent to your email address.",
             otp_required: true,
+            user: {
+              id_user: user.id_user,
+              username: user.username,
+              email: user.email,
+            },
+            expires_at: expiresAt,
           })
         );
       }
