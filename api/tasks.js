@@ -6,58 +6,73 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-if (req.method === "GET") {
-  const { data, error } = await supabase
-    .from("task")
-    .select(`
-      *,
-      course:id_course ( name )
-    `)
-    .order("deadline", { ascending: true });
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
+ 
+  try {
+    const now = new Date().toISOString();
+    await supabase
+      .from("task")
+      .update({ status: "overdue" })
+      .lt("deadline", now)
+      .neq("status", "completed");
+  } catch (err) {
+    console.error("Failed to update overdue tasks:", err.message);
   }
 
-  const formatted = data.map((task) => ({
-    ...task,
-    relatedCourse: task.course?.name || null,
-  }));
 
-  return res.status(200).json(formatted);
-}
+  if (req.method === "GET") {
+    const { data, error } = await supabase
+      .from("task")
+      .select(`
+        *,
+        course:id_course ( name )
+      `)
+      .order("deadline", { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const formatted = data.map((task) => ({
+      ...task,
+      relatedCourse: task.course?.name || null,
+    }));
+
+    return res.status(200).json(formatted);
+  }
+
 
   if (req.method === "POST") {
-  let body = "";
-  req.on("data", (chunk) => {
-    body += chunk.toString();
-  });
-  req.on("end", async () => {
-    try {
-      const task = JSON.parse(body);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const task = JSON.parse(body);
 
-      const { data, error } = await supabase
-        .from("task")
-        .insert([task])
-        .select();
+        const { data, error } = await supabase
+          .from("task")
+          .insert([task])
+          .select();
 
-      if (error) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: error.message }));
-      } else {
-        res.writeHead(201, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({ message: "Task berhasil ditambahkan!", data })
-        );
+        if (error) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: error.message }));
+        } else {
+          res.writeHead(201, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({ message: "Task successfully added!", data })
+          );
+        }
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to process data." }));
       }
-    } catch (e) {
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Gagal memproses data" }));
-    }
-  });
+    });
 
-  return;
-}
+    return;
+  }
+
 
   if (req.method === "PUT") {
     let body = "";
@@ -70,7 +85,7 @@ if (req.method === "GET") {
         if (!id_task) {
           return res
             .status(400)
-            .json({ error: "Parameter id_task wajib diisi untuk update." });
+            .json({ error: "Parameter id_task is required for updating." });
         }
 
         const updateData = { id_course, title, description, deadline, status };
@@ -84,22 +99,23 @@ if (req.method === "GET") {
         if (error) return res.status(400).json({ error: error.message });
 
         return res.status(200).json({
-          message: `Task dengan id_task ${id_task} berhasil diperbarui.`,
+          message: `Task with id_task ${id_task} successfully updated.`,
           data,
         });
       } catch (err) {
-        return res.status(500).json({ error: "Gagal memproses data update." });
+        return res.status(500).json({ error: "Failed to process update data." });
       }
     });
     return;
   }
+
   if (req.method === "DELETE") {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const id = url.searchParams.get("id");
 
     if (!id) {
       return res.status(400).json({
-        error: "Parameter 'id' (id_task) diperlukan untuk menghapus task.",
+        error: "Parameter 'id' (id_task) is required to delete a task.",
       });
     }
 
@@ -111,8 +127,8 @@ if (req.method === "GET") {
 
     return res
       .status(200)
-      .json({ message: `Task dengan id_task ${id} berhasil dihapus.` });
+      .json({ message: `Task with id_task ${id} successfully deleted.` });
   }
 
-  res.status(405).json({ error: "Method not allowed " });
+  res.status(405).json({ error: "Method not allowed." });
 }
