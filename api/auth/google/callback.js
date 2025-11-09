@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import bcrypt from "bcrypt";
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -58,12 +59,13 @@ export default async function handler(req, res) {
       resultUser = updatedUser;
     } else {
       // insert user baru
+      const hashedPassword = await bcrypt.hash(randomPassword(), 10);
       const { data: newUser, error: insertError } = await supabase
         .from("users")
         .insert({
           username: displayName,
           email,
-          password: randomPassword(),
+          password: hashedPassword,
           is_verified: true,
         })
         .select()
