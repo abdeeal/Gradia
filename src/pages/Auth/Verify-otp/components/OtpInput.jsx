@@ -44,7 +44,7 @@ const OtpInput = ({ length = 6, onChange }) => {
 
   return (
     <div
-      className="grid grid-cols-6 gap-2"
+      className="grid grid-cols-6 gap-2 md:gap-4"
       onPaste={handlePaste}
     >
       {otp.map((digit, idx) => (

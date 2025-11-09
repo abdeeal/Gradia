@@ -66,10 +66,10 @@ const Mobile = () => {
             <Logo />
           </div>
           <div className="flex flex-col items-center mt-4">
-            <p className="font-montserrat font-bold text-[32px] bg-gradient-to-t from-[#949494] to-[#FAFAFA] bg-clip-text text-transparent">
+            <p className="font-montserrat font-bold text-[32px] bg-gradient-to-t from-[#949494] to-[#FAFAFA] bg-clip-text text-transparent md:text-[48px]">
               Let's Register
             </p>
-            <p className="text-center text-foreground-secondary mt-3 px-4">
+            <p className="text-center text-foreground-secondary mt-3 px-4 md:text-[20px] md:w-[75%]">
               Join Gradia and take control of your goals, time, and mindset — all in one app.
             </p>
           </div>
@@ -78,7 +78,7 @@ const Mobile = () => {
         {/* Body section */}
         <div
           id="body-section"
-          className="flex-1 flex flex-col w-full py-9 bg-white/5 px-3 gap-4 rounded-[12px] mt-8 justify-between"
+          className="flex-1 flex flex-col w-full py-9 bg-white/5 px-3 gap-4 rounded-[12px] mt-8 justify-between md:w-[75%] md:px-12 md:flex-none"
         >
           <div className="flex flex-col gap-6">
             <Input

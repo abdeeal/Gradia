@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Background from "../../Login/components/Background";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/Button";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import OtpInput from "../components/OtpInput";
 import SuccessMsg from "../../Success-msg/SuccessMsg";
 
@@ -16,6 +16,9 @@ const Mobile = ({
   const [timeLeft, setTimeLeft] = useState("");
   const [otp, setOtp] = useState("");
   const [success, setSuccess] = useState("");
+  const [errorMsg, setErrorMsg] = useState(""); // <--- state untuk error
+
+  const navigate = useNavigate();
 
   // Hitung mundur waktu
   useEffect(() => {
@@ -46,10 +49,11 @@ const Mobile = ({
     return () => clearInterval(timer);
   }, [expiredAt]);
 
-  //Fungsi handle verify OTP (belum dihubungkan ke API, nanti bisa ditambahkan)
   const handleVerify = async () => {
+    setErrorMsg(""); // reset error sebelum verifikasi
+
     if (!otp || otp.length < 6) {
-      alert("Please enter a valid 6-digit OTP");
+      setErrorMsg("Please enter a valid 6-digit OTP");
       return;
     }
 
@@ -64,7 +68,8 @@ const Mobile = ({
 
       if (res.ok) {
         if (from === "login") {
-          localStorage.setItem("user", JSON.stringify(data.user));
+          console.log("user before storage:", user); // cek dulu, harus object
+          localStorage.setItem("user", JSON.stringify(user));
           navigate("/dashboard");
         } else if (from === "verification") {
           setSuccess("verification");
@@ -72,11 +77,11 @@ const Mobile = ({
           setSuccess("reset-password");
         }
       } else {
-        alert(data.error || "Failed to verify OTP");
+        setErrorMsg(data.error || "Failed to verify OTP");
       }
     } catch (err) {
       console.error("VERIFY ERROR:", err);
-      alert("An error occurred while verifying OTP.");
+      setErrorMsg("An error occurred while verifying OTP.");
     }
   };
 
@@ -95,10 +100,10 @@ const Mobile = ({
       >
         <div className="w-full">
           <div className="flex flex-col items-center mt-4">
-            <p className="font-montserrat font-bold text-[32px] text-center bg-gradient-to-t from-[#949494] to-[#FAFAFA] bg-clip-text text-transparent w-[70%]">
+            <p className="font-montserrat font-bold text-[32px] text-center bg-gradient-to-t from-[#949494] to-[#FAFAFA] bg-clip-text text-transparent w-[70%] md:text-[48px] md:w-[50%]">
               {title}
             </p>
-            <p className="text-center text-foreground-secondary mt-3 px-4">
+            <p className="text-center text-foreground-secondary mt-3 px-4 md:text-[20px]">
               Enter the 6-digits code sent to your email{" "}
             </p>
           </div>
@@ -106,9 +111,19 @@ const Mobile = ({
 
         <div
           id="body-section"
-          className="flex flex-col w-full py-9 bg-white/5 px-3 gap-8 rounded-[12px] mt-8"
+          className="flex flex-col w-full py-9 bg-white/5 px-3 gap-8 rounded-[12px] mt-8 md:w-[75%] md:px-12"
         >
-          <OtpInput length={6} onChange={(code) => setOtp(code)} />
+          <div>
+            <OtpInput length={6} onChange={(code) => setOtp(code)} />
+            <p
+              id="errormsg"
+              className={`text-[14px] text-red-400 mt-2 transition-all duration-200 ${
+                errorMsg ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              {errorMsg || "error"}
+            </p>
+          </div>
 
           <div className="w-full text-center">
             <span id="countdown" className="text-foreground-secondary">
@@ -116,7 +131,7 @@ const Mobile = ({
             </span>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 md:gap-8">
             <span className="text-[14px] text-foreground-secondary">
               Didn’t receive the code?{" "}
               <Link to={"/auth/register"} className="underline text-logo">
