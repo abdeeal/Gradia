@@ -6,12 +6,18 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "GET")
+    return res.status(405).json({ error: "Method not allowed" });
+
+  const baseUrl =
+    process.env.VERCEL_ENV === "production"
+      ? "https://gradia-three.vercel.app"
+      : "http://localhost:5173";
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `http://localhost:5173/auth/login`, // redirect kembali ke front-end
+      redirectTo: `${baseUrl}/auth/login`, // redirect kembali ke front-end
     },
   });
 

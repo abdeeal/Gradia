@@ -76,7 +76,7 @@ export default async function verifyResetOtp(req, res) {
         .eq("id_otp", otp.id_otp);
 
     
-      if (otp.purpose === "reset_password") {
+      if (otp.purpose === "reset-password") {
         await supabase
           .from("users")
           .update({ reset_verified: true })
