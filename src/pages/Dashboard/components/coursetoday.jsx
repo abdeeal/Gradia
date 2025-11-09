@@ -1,73 +1,90 @@
-import React, { useEffect, useState } from "react";
+// 📄 src/components/CoursesToday.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import "remixicon/fonts/remixicon.css";
 
 function parseHM(hm) {
-  const [h, m] = hm.split(".").map((x) => parseInt(x, 10));
+  if (!hm) return null;
+  const cleaned = String(hm).replace(":", ".");
+  const [h, m] = cleaned.split(".").map((x) => parseInt(x, 10));
   const d = new Date();
-  d.setHours(h || 0, m || 0, 0, 0);
+  d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
   return d;
 }
-
 function computeStatus(now, start, end) {
-  if (now >= start && now <= end) return "On Going";
-  if (now < start) return "Upcoming";
+  if (start && end && now >= start && now <= end) return "On Going";
+  if (start && now < start) return "Upcoming";
   return "Done";
 }
+function toHM(d) {
+  if (!d) return "";
+  if (typeof d === "string") {
+    const s = d.replace(":", ".");
+    if (/^\d{2}.\d{2}$/.test(s)) return s;
+    const dt = new Date(d);
+    if (!isNaN(dt)) {
+      const hh = String(dt.getHours()).padStart(2, "0");
+      const mm = String(dt.getMinutes()).padStart(2, "0");
+      return `${hh}.${mm}`;
+    }
+  }
+  const dt = new Date(d);
+  const hh = String(dt.getHours()).padStart(2, "0");
+  const mm = String(dt.getMinutes()).padStart(2, "0");
+  return `${hh}.${mm}`;
+}
 
-export default function CoursesToday({
-  items = [
-    {
-      start: "08.30",
-      end: "10.30",
-      title: "Rekayasa Perangkat Lunak",
-      room: "Rek - 303",
-      lecturer: "Aulia Dwi Utomo",
-    },
-    {
-      start: "13.30",
-      end: "16.30",
-      title: "Dasar Kecerdasan Artifisial",
-      room: "Rek - 303",
-      lecturer: "Dany Chandra",
-    },
-  ],
-}) {
+export default function CoursesToday({ apiUrl = "/api/courses/today" }) {
   const [now, setNow] = useState(new Date());
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60 * 1000);
+    const t = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
 
-  const h = now.getHours();
-  const m = now.getMinutes();
-  const isNight = h > 18 || (h === 18 && m >= 1) || h < 6;
-  const isDay = !isNight;
+  useEffect(() => {
+    let active = true;
+    async function fetchCourses() {
+      setLoading(true);
+      try {
+        const res = await fetch(apiUrl);
+        const json = await res.json();
+        const arr = Array.isArray(json) ? json : json.data || [];
+        const normalized = arr.map((c) => ({
+          start: toHM(c.start || c.start_time || c.time_start || c.time?.split("-")[0]),
+          end: toHM(c.end || c.end_time || c.time_end || c.time?.split("-")[1]),
+          title: c.title || c.name || c.course_title || "",
+          room: c.room || c.room_name || c.location || "",
+          lecturer: c.lecturer || c.lecturer_name || c.teacher || "",
+        }));
+        if (active) setItems(normalized);
+      } catch (e) {
+        if (active) setItems([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    fetchCourses();
+    return () => {
+      active = false;
+    };
+  }, [apiUrl]);
 
-  const withComputed = items.map((c) => {
-    const start = parseHM(c.start);
-    const end = parseHM(c.end);
-    return { ...c, _status: computeStatus(now, start, end) };
-  });
+  const withComputed = useMemo(() => {
+    return items.map((c) => {
+      const start = parseHM(c.start);
+      const end = parseHM(c.end);
+      return { ...c, _status: computeStatus(now, start, end) };
+    });
+  }, [items, now]);
 
-  const palette = {
-    day: {
-      ongoing: "bg-[#059E0B]/20 text-[#FB923C] font-semibold",
-      upcoming: "bg-[#EF4444]/20 text-[#F87171] font-semibold",
-      done: "bg-[#22C55E]/20 text-[#4ADE80] font-semibold",
-    },
-    night: {
-      ongoing: "bg-[#059E0B] text-black font-semibold",
-      upcoming: "bg-[#EF4444] text-black font-semibold",
-      done: "bg-[#22C55E] text-black font-semibold",
-    },
-  };
-
-  const statusClass = (s) => {
-    const theme = isDay ? palette.day : palette.night;
-    if (s === "On Going") return theme.ongoing;
-    if (s === "Upcoming") return theme.upcoming;
-    if (s === "Done") return theme.done;
-    return "";
+  const statusStyle = (s) => {
+    if (s === "On Going")
+      return { backgroundColor: "#eab30840", color: "#fde047", fontWeight: 600 };
+    if (s === "Upcoming")
+      return { backgroundColor: "#6b728033", color: "#d4d4d8", fontWeight: 600 };
+    return { backgroundColor: "#22C55E33", color: "#4ADE80", fontWeight: 600 };
   };
 
   return (
@@ -77,47 +94,37 @@ export default function CoursesToday({
       style={{
         width: 479,
         height: 246,
-        // ⬇️ pakai gradasi vertikal (atas ke bawah)
         backgroundImage: "linear-gradient(180deg, #070707 0%, #141414 100%)",
-        paddingLeft: 16,
-        paddingRight: 16,
-        paddingTop: 16,
-        paddingBottom: 16,
+        padding: 16,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
       }}
     >
       <style>{`
-        #id_course .hide-scrollbar { -ms-overflow-style:none; scrollbar-width:none; overscroll-behavior-x:contain; }
-        #id_course .hide-scrollbar::-webkit-scrollbar { width:0; height:0; display:none; background:transparent; }
+        #id_course .hide-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
+        #id_course .hide-scrollbar::-webkit-scrollbar { width:0; height:0; display:none; }
       `}</style>
 
       {/* Header */}
-      <div className="flex items-center justify-between" style={{ marginBottom: 18 }}>
+      <div className="flex items-center justify-between mb-[18px]">
         <h2
           className="text-white"
           style={{
             fontFamily: "Montserrat, sans-serif",
             fontSize: 20,
             fontWeight: 600,
-            lineHeight: "20px",
           }}
         >
           Courses Today
         </h2>
 
-        {/* tombol panah jadi link ke /course */}
         <a
           href="/courses"
           aria-label="Lihat semua course"
           title="See all"
           className="flex items-center justify-center rounded-full border border-white hover:bg-white/10"
-          style={{
-            width: 32,
-            height: 32,
-            background: "transparent",
-          }}
+          style={{ width: 32, height: 32 }}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -134,7 +141,7 @@ export default function CoursesToday({
       </div>
 
       {/* Content */}
-      {withComputed.length === 0 ? (
+      {loading ? (
         <div
           className="flex items-center justify-center flex-1"
           style={{
@@ -143,7 +150,36 @@ export default function CoursesToday({
             fontSize: 14,
           }}
         >
-          Tidak ada jadwal course untuk hari ini.
+          Loading...
+        </div>
+      ) : withComputed.length === 0 ? (
+        <div
+          className="flex items-center justify-center flex-1"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            flex: 1,
+          }}
+        >
+          {/* No Courses Box */}
+          <div
+            className="rounded-2xl shadow"
+            style={{
+              width: 500,
+              height: 162,
+              background: "#181818",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "Inter, sans-serif",
+              fontSize: 18,
+              fontWeight: 700,
+              color: "#FAFAFA",
+            }}
+          >
+            No Courses For Today
+          </div>
         </div>
       ) : (
         <div
@@ -166,63 +202,35 @@ export default function CoursesToday({
                 justifyContent: "flex-start",
               }}
             >
-              {/* time */}
-              <p
-                className="text-gray-300 flex items-center gap-2"
-                style={{
-                  fontSize: 14,
-                  lineHeight: "18px",
-                }}
-              >
-                <i
-                  className="ri-time-line text-[#643EB2]"
-                  style={{
-                    fontSize: 16,
-                    marginLeft: -3,
-                  }}
-                ></i>
+              <p className="text-gray-300 flex items-center gap-2" style={{ fontSize: 14 }}>
+                <i className="ri-time-line text-[#643EB2]" style={{ fontSize: 16, marginLeft: -3 }} />
                 {c.start} - {c.end}
               </p>
 
-              {/* title */}
-              <h3
-                className="text-white font-semibold leading-snug"
-                style={{
-                  fontSize: 16,
-                  lineHeight: "20px",
-                  marginTop: 8,
-                }}
-              >
+              <h3 className="text-white font-semibold leading-snug" style={{ fontSize: 16, marginTop: 8 }}>
                 {c.title}
               </h3>
 
-              {/* room */}
-              <p
-                className="text-gray-300"
-                style={{ fontSize: 14, lineHeight: "18px", marginTop: 4 }}
-              >
-                {c.room}
-              </p>
+              {c.room && (
+                <p className="text-gray-300" style={{ fontSize: 14, marginTop: 4 }}>
+                  {c.room}
+                </p>
+              )}
+              {c.lecturer && (
+                <p className="text-gray-300" style={{ fontSize: 14, marginTop: 4 }}>
+                  {c.lecturer}
+                </p>
+              )}
 
-              {/* lecturer */}
-              <p
-                className="text-gray-300"
-                style={{ fontSize: 14, lineHeight: "18px", marginTop: 4 }}
-              >
-                {c.lecturer}
-              </p>
-
-              {/* separator + status */}
               <div className="mt-2 pt-2 border-t border-white/30">
                 <span
-                  className={`inline-block rounded ${statusClass(c._status)}`}
+                  className="inline-block rounded"
                   style={{
+                    ...statusStyle(c._status),
                     fontSize: 14,
-                    lineHeight: "20px",
                     height: 22,
                     padding: "0 12px",
                     borderRadius: 4,
-                    alignSelf: "flex-start",
                   }}
                 >
                   {c._status}

@@ -353,8 +353,8 @@ const Tasks = () => {
             onClose={closeAllDrawer}
             onSave={updateTask}
             onDelete={async (id) => {
-              await deleteTask(id);   // panggil API DELETE /api/tasks?id=...
-              closeAllDrawer();       // tutup drawer setelah sukses
+              await deleteTask(id);
+              closeAllDrawer();
             }}
             courses={courses}
           />

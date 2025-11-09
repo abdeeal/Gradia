@@ -6,7 +6,7 @@ import Dashboard from "../pages/Dashboard/dashboard.jsx";
 import Courses from "../pages/Courses/Courses.jsx";
 import Tasks from "../pages/Tasks/Tasks.jsx";
 import Presence from "../pages/Presence/Presence.jsx";
-import Calendar from "../pages/Calendar/calendar.jsx"; // ✅ perbaiki ejaan dan default import
+import Calendar from "../pages/Calendar/calendar.jsx"; // ✅ ejaan & default import
 
 // === LOGIN & FORGOT PASSWORD PAGES ===
 import Login from "../pages/Loginpage/loginpage.jsx";
@@ -25,10 +25,14 @@ export default function AppRoutes() {
     <Routes>
       {/* ===== MAIN APP PAGES ===== */}
       <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/calendar" element={<Calendar />} /> {/* ✅ perbaiki ejaan */}
+      <Route path="/calendar" element={<Calendar />} />
       <Route path="/courses" element={<Courses />} />
       <Route path="/tasks" element={<Tasks />} />
-      <Route path="/presences" element={<Presence />} />
+      <Route path="/presence" element={<Presence />} />
+
+      {/* ===== AUTH ===== */}
+      <Route path="/auth/login" element={<Login />} />
+      <Route path="/auth/register" element={<Register />} /> {/* ✅ tadinya <Registration /> */}
 
       {/* ===== LOGIN & FORGOT PASSWORD FLOW ===== */}
       <Route path="/login" element={<Login />} />
@@ -42,8 +46,10 @@ export default function AppRoutes() {
       <Route path="/register/otp" element={<RegisterOTP />} />
       <Route path="/register/success" element={<RegisterSuccess />} />
 
-      {/* ===== REDIRECTS ===== */}
+      {/* ===== REDIRECTS (legacy) ===== */}
       <Route path="/presences" element={<Navigate to="/presence" replace />} />
+
+      {/* ===== DEFAULT ===== */}
       <Route path="/" element={<Navigate to="/login" replace />} />
 
       {/* ===== CATCH-ALL ===== */}

@@ -1,3 +1,4 @@
+// src/pages/Tasks/components/TaskDetail.jsx
 import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import axios from "axios";
@@ -6,7 +7,7 @@ import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
 import DeletePopup from "@/components/Delete";
 
-/* ---------- Helpers: normalisasi input date/time ---------- */
+/* ---------- Helpers: date/time ---------- */
 const toDateInput = (d) => {
   if (!d) return "";
   if (typeof d === "string" && d.includes("-")) return d.slice(0, 10);
@@ -23,8 +24,18 @@ const toTimeInput = (d, fallbackTime) => {
   const mm = String(dt.getMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
 };
+/* dd/mm/yyyy (untuk view) */
+const formatDateDDMMYYYY = (iso) => {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+};
 
-/* ---------- Title (selalu dua baris) ---------- */
+/* ---------- Small timing helper ---------- */
+const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+
+/* ---------- Title (2 baris) ---------- */
 const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
   if (!editable) {
     return (
@@ -91,7 +102,7 @@ const statusValueClass = (val) => {
   return BADGE_BASE;
 };
 
-/* ---------- Row Wrapper ---------- */
+/* ---------- Row & Inputs ---------- */
 const Row = ({ icon, label, children, onClick, className = "" }) => (
   <div
     className={`flex items-center gap-3 group h-[30px] ${onClick ? "cursor-pointer" : ""} ${className}`}
@@ -105,7 +116,6 @@ const Row = ({ icon, label, children, onClick, className = "" }) => (
   </div>
 );
 
-/* ---------- Input ---------- */
 const InputBase = ({ as = "input", className = "", onBlur, ...rest }) => {
   const Comp = as;
   return (
@@ -117,7 +127,6 @@ const InputBase = ({ as = "input", className = "", onBlur, ...rest }) => {
   );
 };
 
-/* ---------- BadgeSelect (controlled) ---------- */
 const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
   <div className="flex items-center h-[30px] w-full">
     <SelectUi
@@ -145,26 +154,65 @@ const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
   </div>
 );
 
+/* ---------- Courses helpers ---------- */
+const normalizeCourses = (list = []) =>
+  list
+    .map((c) => ({
+      id_courses:
+        c?.id_courses ?? c?.id_course ?? c?.id ?? c?.course_id ?? c?.courseId,
+      name:
+        c?.name ??
+        c?.title ??
+        c?.course_name ??
+        c?.course?.name ??
+        c?.label ??
+        null,
+    }))
+    .filter((c) => c.id_courses && c.name);
+
+const uniqBy = (arr, keyFn) => {
+  const m = new Map();
+  for (const x of arr) m.set(keyFn(x), x);
+  return Array.from(m.values());
+};
+
+/* Seed dari task agar label trigger langsung muncul (tanpa nunggu fetch) */
+const seedCoursesFromTask = (task) => {
+  const id =
+    task?.id_course ?? task?.course_id ?? task?.relatedCourse ?? task?.course?.id;
+  const name = task?.course?.name ?? task?.relatedCourse ?? task?.course_name;
+  if (!id || !name) return [];
+  return [{ id_courses: String(id), name }];
+};
+
 const TaskDetail = ({
   task,
-  setDrawer,            // function(bool) → tutup drawer
-  refreshTasks,         // function() → refresh list tasks
-  courses: coursesProp, // optional preload courses
-  onTaskUpdated,        // (optional) function(updatedTask)
-  onTaskDeleted,        // (optional) function(deletedId)
+  setDrawer,          // opsional (backward compat)
+  refreshTasks,       // opsional
+  courses: coursesProp,
+  onTaskUpdated,      // opsional
+  onTaskDeleted,      // opsional
+  onClose,            // opsional
+  onSave,             // opsional
 }) => {
   const { showAlert } = useAlert();
   const drawerRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  /* ---------- Form state ---------- */
   const [form, setForm] = useState({
     id_task: task?.id_task,
     title: task?.title || "",
     subtitle: task?.description || "",
-    deadline: toDateInput(task?.deadline) || "",   // "YYYY-MM-DD"
-    time: toTimeInput(task?.deadline, task?.time) || "", // "HH:MM"
-    id_course: task?.id_course ?? null,
+    deadline: toDateInput(task?.deadline) || "",
+    time: toTimeInput(task?.deadline, task?.time) || "",
+    id_course:
+      task?.id_course != null
+        ? String(task.id_course)
+        : task?.relatedCourse != null
+        ? String(task.relatedCourse)
+        : null,
     priority: task?.priority || "High",
     status: task?.status || "Not started",
     score: task?.score ?? "",
@@ -172,56 +220,86 @@ const TaskDetail = ({
   });
   const [editingKey, setEditingKey] = useState(null);
 
-  /* ====== RELATED COURSE LOGIC (ONLY) — tanpa ubah UI ====== */
-  // sumber courses: props > ekstrak unik dari /api/tasks > (no static fallback)
-  const [courses, setCourses] = useState(coursesProp && coursesProp.length ? coursesProp : []);
-  const [loadingCourses, setLoadingCourses] = useState(!(coursesProp && coursesProp.length));
+  /* ---------- Courses state ---------- */
+  const [courses, setCourses] = useState(() => {
+    const fromTask = seedCoursesFromTask(task);     // label langsung ada
+    const fromProp = normalizeCourses(coursesProp || []);
+    return uniqBy([...fromTask, ...fromProp], (c) => String(c.id_courses));
+  });
 
+  // Fetch control (fetch hanya saat dropdown dibuka)
+  const [coursesFetching, setCoursesFetching] = useState(false);
+  const [coursesFetched, setCoursesFetched] = useState(false);
+  const [isCourseOpen, setIsCourseOpen] = useState(false);
+
+  const fetchCoursesOnce = async () => {
+    if (coursesFetched || coursesFetching) return;
+    setCoursesFetching(true);
+    const t0 = Date.now();
+    try {
+      const r = await fetch("/api/courses", { cache: "no-store" });
+      if (!r.ok) throw new Error("courses request failed");
+      const raw = await r.json();
+      const list = normalizeCourses(raw);
+
+      setCourses((prev) =>
+        uniqBy([...prev, ...list], (c) => String(c.id_courses)).sort((a, b) =>
+          String(a.name).localeCompare(String(b.name))
+        )
+      );
+
+      // kalau form.id_course bukan ID valid (data lama simpan nama), coba cocokan by name
+      const hasId = list.some((c) => String(c.id_courses) === String(form.id_course));
+      if (!hasId && form.id_course) {
+        const byName = list.find((c) => String(c.name) === String(form.id_course));
+        if (byName) setForm((p) => ({ ...p, id_course: String(byName.id_courses) }));
+      }
+
+      setCoursesFetched(true);
+    } catch {
+      // (opsional) bisa tambah fallback dari /api/tasks bila perlu
+    } finally {
+      const elapsed = Date.now() - t0;
+      if (elapsed < 1000) await wait(1000 - elapsed); // min 1s untuk UX mulus
+      setCoursesFetching(false);
+    }
+  };
+
+  /* Prefetch on mount (tidak ubah logic lain) */
   useEffect(() => {
-    if (coursesProp && coursesProp.length) return;
+    fetchCoursesOnce();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    fetch("/api/tasks")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((tasks) => {
-        if (!Array.isArray(tasks)) return;
-        const map = new Map();
-        tasks.forEach((t) => {
-          const idc = t?.id_course ?? t?.course_id;
-          const name = t?.course?.name ?? t?.relatedCourse ?? t?.course_name;
-          if (idc && name && !map.has(String(idc))) {
-            map.set(String(idc), { id_course: Number(idc), title: name });
-          }
-        });
-        const uniq = Array.from(map.values()).sort((a, b) =>
-          String(a.title).localeCompare(String(b.title))
-        );
-        if (uniq.length) setCourses(uniq);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingCourses(false));
-  }, [coursesProp]);
-
-  const selectedCourseTitle =
-    courses.find((c) => String(c.id_course) === String(form.id_course))?.title || "";
-  /* ====== END RELATED COURSE LOGIC ====== */
-
+  /* Sinkron saat task berubah (tetap seed agar label aman) */
   useEffect(() => {
     if (!task) return;
-    setForm({
+    setForm((prev) => ({
+      ...prev,
       id_task: task.id_task,
       title: task.title || "",
       subtitle: task.description || "",
       deadline: toDateInput(task.deadline) || "",
       time: toTimeInput(task.deadline, task.time) || "",
-      id_course: task.id_course ?? null,
+      id_course:
+        task?.id_course != null
+          ? String(task.id_course)
+          : task?.relatedCourse != null
+          ? String(task.relatedCourse)
+          : null,
       priority: task.priority || "High",
       status: task.status || "Not started",
       score: task.score ?? "",
       link: task.link || "",
-    });
+    }));
     setEditingKey(null);
+
+    setCourses((prev) =>
+      uniqBy([...prev, ...seedCoursesFromTask(task)], (c) => String(c.id_courses))
+    );
   }, [task]);
 
+  /* Animasi drawer */
   useEffect(() => {
     gsap.fromTo(drawerRef.current, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
     return () => gsap.to(drawerRef.current, { x: "100%", duration: 0.4, ease: "power2.in" });
@@ -230,8 +308,13 @@ const TaskDetail = ({
   const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   /* =========================
-     UPDATE (Optimistic)
+     SAVE (Optimistic, capped 1s, lalu success)
      ========================= */
+  const closeDrawer = () => {
+    if (onClose) onClose();
+    else setDrawer?.(false);
+  };
+
   const handleSave = async () => {
     if (!form.title.trim()) {
       showAlert({
@@ -268,7 +351,10 @@ const TaskDetail = ({
       status: form.status || null,
       score: form.score === "" ? null : Number(form.score),
       link: form.link || null,
-      id_course: form.id_course ?? null,
+      id_course:
+        form.id_course != null && form.id_course !== ""
+          ? Number(form.id_course)
+          : null,
     };
 
     const optimisticTask = {
@@ -285,56 +371,53 @@ const TaskDetail = ({
 
     try {
       setLoading(true);
+
+      // Update optimistik (list & detail) langsung
       window.dispatchEvent(new CustomEvent("tasks:updated", { detail: { task: optimisticTask } }));
-
       if (typeof onTaskUpdated === "function") onTaskUpdated(optimisticTask);
-      else if (typeof refreshTasks === "function") refreshTasks();
 
-      axios.put(`/api/tasks`, payload).catch((err) => {
-        console.log(err?.response?.data || err?.message);
-      });
-
-      setTimeout(() => {
-        showAlert({
-          icon: "ri-checkbox-circle-fill",
-          title: "Updated",
-          desc: "Task updated successfully.",
-          variant: "success",
-          width: 676,
-          height: 380,
-        });
-
-        requestAnimationFrame(() => {
-          setDrawer?.(false);
-          if (typeof onTaskUpdated !== "function" && typeof refreshTasks === "function") {
-            refreshTasks();
+      // Fire-and-forget request (tidak memblok UI > 1s)
+      const req = axios.put(`/api/tasks`, payload)
+        .then(async () => {
+          if (typeof onSave === "function") {
+            try { await onSave(payload); } catch (_) {}
           }
+        })
+        .catch((err) => {
+          // sengaja tidak menampilkan error alert (sesuai permintaan),
+          // cukup log agar bisa diinspeksi di devtools
+          console.log(err?.response?.data || err?.message);
         });
 
-        setLoading(false);
-      }, 1000);
-    } catch (err) {
-      console.log(err?.response?.data || err?.message);
-      if (typeof onTaskUpdated === "function") onTaskUpdated(task);
+      // Batasi proses saving di UI: tepat 1 detik lalu tampilkan success
+      await wait(1000);
+
       showAlert({
-        icon: "ri-error-warning-fill",
-        title: "Error",
-        desc: "Failed to save task. Please try again.",
-        variant: "destructive",
+        icon: "ri-checkbox-circle-fill",
+        title: "Updated",
+        desc: "Task updated successfully.",
+        variant: "success",
         width: 676,
         height: 380,
       });
-      setDrawer?.(true);
+
+      // Drawer tetap terbuka
+      setEditingKey(null);
+      // (opsional) tidak menunggu req selesai
+      void req;
+    } finally {
       setLoading(false);
     }
   };
 
   /* =========================
-     DELETE (Optimistic)
+     DELETE (Optimistic) — tetap seperti sebelumnya (min 1s)
      ========================= */
   const handleDelete = async () => {
+    const t0 = Date.now();
     try {
       setLoading(true);
+
       window.dispatchEvent(new CustomEvent("tasks:deleted", { detail: { id_task: task.id_task } }));
 
       if (typeof onTaskDeleted === "function") onTaskDeleted(task.id_task);
@@ -351,14 +434,10 @@ const TaskDetail = ({
         height: 380,
       });
 
-      requestAnimationFrame(() => {
-        setDrawer?.(false);
-        if (typeof onTaskDeleted !== "function" && typeof refreshTasks === "function") {
-          refreshTasks();
-        }
-      });
+      requestAnimationFrame(() => closeDrawer());
     } catch (err) {
       console.log(err?.response?.data || err?.message);
+
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Error",
@@ -367,12 +446,21 @@ const TaskDetail = ({
         width: 676,
         height: 380,
       });
+
       if (typeof refreshTasks === "function") refreshTasks();
-      setDrawer?.(true);
     } finally {
+      const elapsed = Date.now() - t0;
+      if (elapsed < 1000) await wait(1000 - elapsed); // min 1s agar UX konsisten
       setLoading(false);
     }
   };
+
+  /* ---------- Derived: selected course label ---------- */
+  const selectedCourseName =
+    courses.find((c) => String(c.id_courses) === String(form.id_course))?.name || "";
+
+  /* Lock dropdown sampai fetch pertama selesai */
+  const isCourseLocked = !coursesFetched;
 
   if (!task) return null;
 
@@ -389,11 +477,23 @@ const TaskDetail = ({
           height:30px!important;min-height:30px!important;max-height:30px!important;
           line-height:30px!important;padding-top:0!important;padding-bottom:0!important;margin:0!important;width:auto!important}
         [data-slot="select-value"]{display:inline-flex!important;align-items:center!important;margin:0!important}
+
+        /* util: sembunyikan scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Dropdown: fixed & nudge ke kanan */
+        .course-select [data-slot="select-content"]{
+          max-width: calc(100vw - 24px);
+          transform: translateX(8px);
+        }
+        .course-select [data-slot="select-trigger"]{ padding-right: 0 !important; }
+        .course-select [data-slot="select-value"]{ padding-right: 0 !important; }
       `}</style>
 
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
         <button
-          onClick={() => setDrawer?.(false)}
+          onClick={closeDrawer}
           className="absolute left-3 top-4 text-gray-400 hover:text-white"
           disabled={loading}
         >
@@ -410,7 +510,7 @@ const TaskDetail = ({
           />
         </div>
 
-        <div className="ml-12 mr-12 max-w={[473]} flex flex-col">
+        <div className="ml-12 mr-12 max-w-[473px] flex flex-col">
           <div className="font-inter text-[16px] space-y-6">
             <Row icon="ri-sticky-note-line" label="Description" onClick={() => setEditingKey("subtitle")}>
               {editingKey === "subtitle" ? (
@@ -432,7 +532,7 @@ const TaskDetail = ({
             <Row icon="ri-calendar-2-line" label="Deadline" onClick={() => setEditingKey("deadline_time")}>
               {editingKey === "deadline_time" ? (
                 <div className="flex items-center gap-2 w-full h-[30px]">
-                  <div className="w/[65%] w-[65%]">
+                  <div className="w-[65%]">
                     <InputBase
                       as="input"
                       type="date"
@@ -458,7 +558,7 @@ const TaskDetail = ({
                 <div className="w-full flex items-center gap-2 h-[30px]">
                   <div className="w-[65%] truncate">
                     {form.deadline ? (
-                      <span className="text-gray-200">{form.deadline}</span>
+                      <span className="text-gray-200">{formatDateDDMMYYYY(form.deadline)}</span>
                     ) : (
                       <span className="text-gray-500">dd/mm/yyyy</span>
                     )}
@@ -474,25 +574,66 @@ const TaskDetail = ({
               )}
             </Row>
 
-            {/* Related Course — value = id_course, label = title (UI tidak diubah) */}
+            {/* Related Course — label langsung tampil; fetch saat dibuka */}
             <Row icon="ri-links-line" label="Related Course">
-              <div className="flex items-center h-[30px] w-full">
+              <div className={`flex items-center h-[30px] w-full ${isCourseLocked ? "pointer-events-none opacity-70" : ""}`}>
                 <SelectUi
-                  value={form.id_course !== null ? String(form.id_course) : undefined}
-                  onValueChange={(val) => setVal("id_course", val ? Number(val) : null)}
-                  placeholder={loadingCourses ? "Loading..." : (selectedCourseTitle || "Select Course")}
-                  className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
+                  value={form.id_course != null ? String(form.id_course) : undefined}
+                  onValueChange={(val) => setVal("id_course", val ? String(val) : null)}
+                  placeholder={selectedCourseName || "select course"}
+                  className="course-select !w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
                   valueClassFn={() => ""}
-                  disabled={loading || loadingCourses}
+                  align="start"
+                  strategy="fixed"
+                  sideOffset={6}
+                  alignOffset={8}
+                  open={isCourseOpen && !isCourseLocked}                 /* tetap tertutup saat locked */
+                  onOpenChange={(o) => {
+                    if (isCourseLocked) return;                          /* blokir buka saat locked */
+                    setIsCourseOpen(o);
+                    if (o) fetchCoursesOnce();
+                  }}
                 >
                   <SelectLabel className="text-[14px] font-inter text-gray-400 px-2 py-1">
                     Related Course
+                    {!coursesFetched && coursesFetching && (
+                      <i className="ri-loader-4-line animate-spin ml-2 text-gray-500" />
+                    )}
                   </SelectLabel>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id_course} value={String(c.id_course)} className="text-[16px] font-inter">
-                      {c.title}
-                    </SelectItem>
-                  ))}
+
+                  {coursesFetching && !coursesFetched ? (
+                    <>
+                      {/* Sisipkan item terpilih saat ini supaya label trigger aman */}
+                      {form.id_course && (() => {
+                        const cur = courses.find((c) => String(c.id_courses) === String(form.id_course));
+                        if (!cur) return null;
+                        return (
+                          <SelectItem
+                            key={`__current_${cur.id_courses}`}
+                            value={String(cur.id_courses)}
+                            className="text-[16px] font-inter"
+                          >
+                            {cur.name}
+                          </SelectItem>
+                        );
+                      })()}
+                      <SelectItem value="__loading__" disabled className="text-[16px] font-inter">
+                        Loading...
+                      </SelectItem>
+                    </>
+                  ) : (
+                    <div className="max-h-[160px] overflow-y-auto no-scrollbar">
+                      {courses.map((c) => (
+                        <SelectItem
+                          key={String(c.id_courses)}
+                          value={String(c.id_courses)}
+                          className="text-[16px] font-inter"
+                        >
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  )}
                 </SelectUi>
               </div>
             </Row>

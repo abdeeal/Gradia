@@ -4,6 +4,7 @@ import { SelectItem, SelectLabel } from "@/components/ui/select";
 import React, { useEffect, useState } from "react";
 import { useAlert } from "@/hooks/useAlert";
 import DeletePopup from "@/components/Delete";
+import axios from "axios";
 
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -11,6 +12,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
   const { showAlert } = useAlert();
   const [formData, setFormData] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!course) return;
@@ -47,11 +49,26 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
     });
   };
 
+  /* =========================
+     DELETE — nyontek ke /api/courses
+     ========================= */
+  const handleDelete = () => setShowConfirm(true); // sama: hanya buka popup
+
   const doDelete = async () => {
+    const courseId =
+      course?.id_courses ?? course?.id_course ?? course?.id ?? course?.course_id;
+
     try {
-      const res = await fetch(`/api/courses?id=${course.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete course");
-      if (typeof onDelete === "function") onDelete(course.id);
+      setLoading(true);
+
+      // Optimistic update (opsional)
+      window.dispatchEvent(
+        new CustomEvent("courses:deleted", { detail: { id_course: courseId } })
+      );
+
+      await axios.delete(`/api/courses?id=${courseId}`);
+
+      if (typeof onDelete === "function") onDelete(courseId);
 
       showAlert({
         icon: "ri-delete-bin-2-line",
@@ -61,6 +78,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
         width: 676,
         height: 380,
       });
+
       onClose?.();
     } catch (e) {
       console.error(e);
@@ -73,16 +91,19 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
         height: 380,
       });
     } finally {
-      setShowConfirm(false);
+      setShowConfirm(false); // tutup popup di finally (pola sama)
+      setLoading(false);
     }
   };
-
-  const handleDelete = () => setShowConfirm(true);
 
   return (
     <>
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
-        <button onClick={onClose} className="absolute left-3 top-4 text-gray-400">
+        <button
+          onClick={onClose}
+          className="absolute left-3 top-4 text-gray-400"
+          disabled={loading}
+        >
           <i className="ri-arrow-right-double-line text-2xl" />
         </button>
 
@@ -167,18 +188,23 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
           </div>
 
           <div className="mt-[24px] flex justify-end items-center gap-3 pt-8 font-inter">
+            {/* tombol delete -> sama: buka popup */}
             <button
               onClick={handleDelete}
-              className="flex items-center justify-center w-[44px] h-[44px] rounded-lg bg-[#830404] hover:bg-[#9b0a0a] shadow-md shadow-red-900/40 transition-all"
+              className="flex items-center justify-center w-[44px] h-[44px] rounded-lg bg-[#830404] hover:bg-[#9b0a0a] shadow-md shadow-red-900/40 transition-all disabled:opacity-60"
+              disabled={loading}
+              aria-label="Delete Course"
+              title="Delete Course"
             >
               <i className="ri-delete-bin-2-line text-foreground text-[20px]" />
             </button>
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] cursor-pointer transition-all"
+              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] cursor-pointer transition-all disabled:opacity-60"
+              disabled={loading}
             >
               <i className="ri-edit-line text-foreground text-[18px]" />
-              <span className="text-[15px] font-medium">Save changes</span>
+              <span className="text-[15px] font-medium">{loading ? "Saving..." : "Save changes"}</span>
             </button>
           </div>
         </div>
@@ -189,7 +215,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
           title="Delete Course"
           warning={`Are you sure you want to delete "${course.title}"?`}
           onCancel={() => setShowConfirm(false)}
-          onDelete={doDelete}
+          onDelete={doDelete} // <-- persis seperti pola yang diminta
         />
       )}
     </>

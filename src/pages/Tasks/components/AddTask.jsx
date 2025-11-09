@@ -1,3 +1,4 @@
+// src/pages/Tasks/components/AddTask.jsx
 import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import axios from "axios";
@@ -41,7 +42,7 @@ const Row = ({ icon, label, children }) => (
   <div className="flex items-center gap-3 group h-[30px]">
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400 whitespace-nowrap">{label}</span>
-    <div className="flex-1 min-w-0 flex items-center">{children}</div>
+    <div className="flex-1 min-w-0 flex items-center h-[30px]">{children}</div>
   </div>
 );
 
@@ -72,6 +73,7 @@ const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => {
           {label}
         </SelectLabel>
 
+        {/* daftar opsi */}
         {options.map((opt) => (
           <SelectItem
             key={opt}
@@ -88,11 +90,33 @@ const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => {
   );
 };
 
+/* ---------- Helpers ---------- */
+const normalizeCourses = (list = []) =>
+  list
+    .map((c) => ({
+      id_courses:
+        c?.id_courses ?? c?.id_course ?? c?.id ?? c?.course_id ?? c?.courseId,
+      name:
+        c?.name ??
+        c?.title ??
+        c?.course_name ??
+        c?.course?.name ??
+        c?.label ??
+        null,
+    }))
+    .filter((c) => c.id_courses && c.name);
+
+const uniqBy = (arr, keyFn) => {
+  const m = new Map();
+  for (const x of arr) m.set(keyFn(x), x);
+  return Array.from(m.values());
+};
+
 const AddTask = ({
   onClose,
-  refreshTasks,     // function()
-  setDrawer,        // function(bool)
-  courses: coursesProp
+  refreshTasks, // function()
+  setDrawer, // function(bool)
+  courses: coursesProp, // optional preload
 }) => {
   const { showAlert } = useAlert();
   const drawerRef = useRef(null);
@@ -101,55 +125,108 @@ const AddTask = ({
   const [form, setForm] = useState({
     title: "",
     subtitle: "",
-    deadline: "",    // "YYYY-MM-DD"
-    time: "",        // "HH:MM"
-    id_course: null,
+    deadline: "", // "YYYY-MM-DD"
+    time: "", // "HH:MM"
+    id_course: null, // keep as string/null in UI; cast to number when sending
     priority: "",
     status: "",
     score: "",
     link: "",
   });
 
-  /* ====== RELATED COURSE LOGIC (ONLY) — tanpa ubah UI ====== */
-  // sumber courses: props > ekstrak unik dari /api/tasks > (no static fallback)
-  const [courses, setCourses] = useState(coursesProp && coursesProp.length ? coursesProp : []);
-  const [loadingCourses, setLoadingCourses] = useState(!(coursesProp && coursesProp.length));
-
-  useEffect(() => {
-    if (coursesProp && coursesProp.length) return;
-
-    fetch("/api/tasks")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((tasks) => {
-        if (!Array.isArray(tasks)) return;
-        const map = new Map();
-        tasks.forEach((t) => {
-          const idc = t?.id_course ?? t?.course_id;
-          const name = t?.course?.name ?? t?.relatedCourse ?? t?.course_name;
-          if (idc && name && !map.has(String(idc))) {
-            map.set(String(idc), { id_course: Number(idc), title: name });
-          }
-        });
-        const uniq = Array.from(map.values()).sort((a, b) =>
-          String(a.title).localeCompare(String(b.title))
-        );
-        if (uniq.length) setCourses(uniq);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingCourses(false));
-  }, [coursesProp]);
-
-  const selectedCourseTitle =
-    courses.find((c) => String(c.id_course) === String(form.id_course))?.title || "";
-  /* ====== END RELATED COURSE LOGIC ====== */
+  // Course list: merge (prop + /api/courses + /api/tasks extract)
+  const [courses, setCourses] = useState(
+    coursesProp && coursesProp.length ? normalizeCourses(coursesProp) : []
+  );
+  const [loadingCourses, setLoadingCourses] = useState(
+    !(coursesProp && coursesProp.length)
+  );
 
   const priorities = ["High", "Medium", "Low"];
   const statuses = ["Not started", "In Progress", "Completed", "Overdue"];
 
   useEffect(() => {
-    gsap.fromTo(drawerRef.current, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
-    return () => gsap.to(drawerRef.current, { x: "100%", duration: 0.4, ease: "power2.in" });
+    gsap.fromTo(
+      drawerRef.current,
+      { x: "100%" },
+      { x: 0, duration: 0.5, ease: "power3.out" }
+    );
+    return () =>
+      gsap.to(drawerRef.current, {
+        x: "100%",
+        duration: 0.4,
+        ease: "power2.in",
+      });
   }, []);
+
+  useEffect(() => {
+    let abort = false;
+
+    (async () => {
+      setLoadingCourses(true);
+
+      const fromProp = normalizeCourses(coursesProp || []);
+
+      // 1) coba /api/courses
+      let fromApiCourses = [];
+      try {
+        const r = await fetch("/api/courses");
+        if (r.ok) {
+          const raw = await r.json();
+          if (Array.isArray(raw)) {
+            fromApiCourses = normalizeCourses(raw);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+
+      // 2) ekstrak dari /api/tasks
+      let fromTasks = [];
+      try {
+        const r = await fetch("/api/tasks?limit=1000");
+        if (r.ok) {
+          const tasks = await r.json();
+          if (Array.isArray(tasks)) {
+            const raw = tasks
+              .map((t) => ({
+                id_courses:
+                  t?.id_course ??
+                  t?.course_id ??
+                  t?.course?.id ??
+                  t?.id_courses ??
+                  t?.courseId,
+                name:
+                  t?.course?.name ??
+                  t?.course?.title ??
+                  t?.relatedCourse ??
+                  t?.course_name ??
+                  t?.label ??
+                  null,
+              }))
+              .filter((c) => c.id_courses && c.name);
+            fromTasks = uniqBy(raw, (c) => String(c.id_courses));
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+
+      if (abort) return;
+
+      const merged = uniqBy(
+        [...fromProp, ...fromApiCourses, ...fromTasks],
+        (c) => String(c.id_courses)
+      ).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+      setCourses(merged);
+      setLoadingCourses(false);
+    })();
+
+    return () => {
+      abort = true;
+    };
+  }, [coursesProp]);
 
   const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -170,27 +247,35 @@ const AddTask = ({
     const payload = {
       title: form.title,
       description: form.subtitle || null,
-      deadline: form.deadline ? new Date(`${form.deadline}T${form.time || "00:00"}`) : null,
+      deadline: form.deadline
+        ? new Date(`${form.deadline}T${form.time || "00:00"}`)
+        : null,
       priority: form.priority || null,
       status: form.status || null,
       score: form.score === "" ? null : Number(form.score),
       link: form.link || null,
-      id_course: form.id_course ?? null,
+      // kirim number
+      id_course:
+        form.id_course != null && form.id_course !== ""
+          ? Number(form.id_course)
+          : null,
       id_workspace,
     };
 
+    // Optimistic add
     const tempId = `temp-${Date.now()}`;
     const optimisticTask = { id_task: tempId, ...payload };
     window.dispatchEvent(
-      new CustomEvent("tasks:created", { detail: { task: optimisticTask, optimistic: true } })
+      new CustomEvent("tasks:created", {
+        detail: { task: optimisticTask, optimistic: true },
+      })
     );
 
     try {
       setLoading(true);
       const axiosPromise = axios.post(`/api/tasks`, payload);
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
+      // popup sukses dulu
       showAlert({
         icon: "ri-checkbox-circle-fill",
         title: "Success",
@@ -200,12 +285,14 @@ const AddTask = ({
         height: 380,
       });
 
+      // tutup & refresh
       requestAnimationFrame(() => {
         if (typeof refreshTasks === "function") refreshTasks();
         if (typeof setDrawer === "function") setDrawer(false);
         else onClose?.();
       });
 
+      // reconcile ketika respons datang
       axiosPromise
         .then((res) => {
           const createdTask = res?.data?.task ?? res?.data ?? null;
@@ -218,15 +305,21 @@ const AddTask = ({
           } else {
             window.dispatchEvent(
               new CustomEvent("tasks:updated", {
-                detail: { task: { ...optimisticTask, ...(createdTask || {}) }, fromTemp: true },
+                detail: {
+                  task: { ...optimisticTask, ...(createdTask || {}) },
+                  fromTemp: true,
+                },
               })
             );
           }
         })
         .catch((err) => {
           console.log(err?.response?.data || err?.message);
+          // rollback optimistic
           window.dispatchEvent(
-            new CustomEvent("tasks:deleted", { detail: { id_task: tempId, optimisticRollback: true } })
+            new CustomEvent("tasks:deleted", {
+              detail: { id_task: tempId, optimisticRollback: true },
+            })
           );
           showAlert({
             icon: "ri-error-warning-fill",
@@ -237,15 +330,14 @@ const AddTask = ({
             height: 380,
           });
         })
-        .finally(() => {
-          setLoading(false);
-        });
+        .finally(() => setLoading(false));
     } catch (err) {
       console.log(err?.response?.data || err?.message);
       window.dispatchEvent(
-        new CustomEvent("tasks:deleted", { detail: { id_task: tempId, optimisticRollback: true } })
+        new CustomEvent("tasks:deleted", {
+          detail: { id_task: tempId, optimisticRollback: true },
+        })
       );
-
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Error",
@@ -257,6 +349,11 @@ const AddTask = ({
       setLoading(false);
     }
   };
+
+  // label terpilih
+  const selectedCourseName =
+    courses.find((c) => String(c.id_courses) === String(form.id_course))?.name ||
+    "";
 
   return (
     <div
@@ -271,6 +368,18 @@ const AddTask = ({
           height:30px!important;min-height:30px!important;max-height:30px!important;
           line-height:30px!important;padding-top:0!important;padding-bottom:0!important;width:auto!important}
         [data-slot="select-value"]{display:inline-flex!important;align-items:center!important;margin:0!important}
+
+        /* util: sembunyikan scrollbar tapi tetap bisa scroll */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* >>> samain posisi dropdown kaya di Detail Task <<< */
+        .course-select [data-slot="select-content"]{
+          max-width: calc(100vw - 24px);
+          transform: translateX(8px);
+        }
+        .course-select [data-slot="select-trigger"]{ padding-right: 0 !important; }
+        .course-select [data-slot="select-value"]{ padding-right: 0 !important; }
       `}</style>
 
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
@@ -283,7 +392,11 @@ const AddTask = ({
         </button>
 
         <div className="ml-12 mr-12">
-          <Title value={form.title} onChange={(v) => setVal("title", v)} className="max-w-[473px] mb-12" />
+          <Title
+            value={form.title}
+            onChange={(v) => setVal("title", v)}
+            className="max-w-[473px] mb-12"
+          />
         </div>
 
         <div className="ml-12 mr-12 max-w-[473px] flex flex-col">
@@ -307,7 +420,7 @@ const AddTask = ({
                     placeholder="dd/mm/yyyy"
                   />
                 </div>
-                <div className="w-[35%]">
+                <div className="w/[35%] w-[35%]">
                   <InputBase
                     as="input"
                     type="time"
@@ -319,29 +432,43 @@ const AddTask = ({
               </div>
             </Row>
 
-            {/* Related Course — value = id_course, label = title (UI tidak diubah) */}
+            {/* Related Course — samain letak/posisi dropdown dgn Detail Task */}
             <Row icon="ri-links-line" label="Related Course">
               <div className="flex items-center h-[30px] pl-2 w-full">
                 <SelectUi
-                  value={form.id_course !== null ? String(form.id_course) : undefined}
-                  onValueChange={(val) => setVal("id_course", val ? Number(val) : null)}
-                  placeholder={loadingCourses ? "Loading..." : (selectedCourseTitle || "Select Course")}
-                  className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
+                  value={
+                    form.id_course !== null && form.id_course !== undefined
+                      ? String(form.id_course)
+                      : undefined
+                  }
+                  onValueChange={(val) =>
+                    setVal("id_course", val ? String(val) : null)
+                  }
+                  placeholder={selectedCourseName || "Select Course"}
+                  className="course-select !w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
                   valueClassFn={() => ""}
+                  align="start"
+                  strategy="fixed"
+                  sideOffset={6}
+                  alignOffset={8}
                   disabled={loadingCourses}
                 >
                   <SelectLabel className="text-[14px] font-inter text-gray-400 px-2 py-1">
                     Related Course
                   </SelectLabel>
-                  {courses.map((c) => (
-                    <SelectItem
-                      key={c.id_course}
-                      value={String(c.id_course)}
-                      className="text-[16px] font-inter"
-                    >
-                      {c.title}
-                    </SelectItem>
-                  ))}
+
+                  {/* ⬇️ Maksimal 4 item terlihat, scroll aktif, scrollbar hidden */}
+                  <div className="max-h-[160px] overflow-y-auto no-scrollbar">
+                    {courses.map((c) => (
+                      <SelectItem
+                        key={String(c.id_courses)}
+                        value={String(c.id_courses)}
+                        className="text-[16px] font-inter"
+                      >
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </div>
                 </SelectUi>
               </div>
             </Row>

@@ -93,7 +93,7 @@ export default async function verifyResetOtp(req, res) {
           );
       }
 
-      if (otp.purpose === "register") {
+      if (otp.purpose === "registration" || otp.purpose === "verification") {
         await supabase
           .from("users")
           .update({ is_verified: true })

@@ -1,24 +1,192 @@
-import React, { useMemo } from "react";
+// src/components/taskprogress.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell } from "recharts";
 
 export default function TaskProgress({
-  completed = 200,
-  inProgress = 100,
-  pending = 50,
+  completed = 0,
+  inProgress = 0,
+  pending = 0,
   title = "Task Progress",
+
+  tasks = null,
+  apiUrl = "/api/tasks",
+  queryParams = null,
+  taskIds = null,
+  useCountsDirect = false,
 }) {
-  const data = useMemo(
-    () => [
-      { name: "Completed", value: completed, color: "#673AB7" },
-      { name: "In Progress", value: inProgress, color: "#341D5C" },
-      { name: "Pending", value: pending, color: "#D9CEED" },
-    ],
-    [completed, inProgress, pending]
+  const [remoteTasks, setRemoteTasks] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  // === NEW: Ambil data dari TaskSummary (via event global) ===
+  const [summaryCounts, setSummaryCounts] = useState(null);
+  useEffect(() => {
+    const handler = (e) => setSummaryCounts(e.detail);
+    window.addEventListener("taskSummaryUpdate", handler);
+    return () => window.removeEventListener("taskSummaryUpdate", handler);
+  }, []);
+
+  // ===== Normalisasi status & ID =====
+  const keyfy = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = typeof v === "number" ? String(v) : String(v);
+    return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "");
+  };
+
+  const extractStatus = (t) => {
+    if (!t) return "";
+    if (t.status && typeof t.status === "object" && "name" in t.status) return t.status.name;
+    if (t.status !== undefined) return t.status;
+    if (t.statusId !== undefined) return t.statusId;
+    if (t.state && typeof t.state === "object" && "name" in t.state) return t.state.name;
+    if (t.state !== undefined) return t.state;
+    if (t.status_name !== undefined) return t.status_name;
+    return "";
+  };
+
+  const extractId = (t) => t?.id?.task ?? t?.id_task ?? t?.task_id ?? t?.id ?? null;
+
+  const NOT_STARTED_KEYS = new Set(
+    ["not started","not_started","not-started","todo","to do","pending","backlog","new","open","ready","queued","created","belummulai",0,"0"].map(keyfy)
+  );
+  const INPROGRESS_KEYS = new Set(
+    ["in progress","in_progress","in-progress","on progress","ongoing","processing","doing","wip","progress","started","active","sedangdikerjakan",1,"1"].map(keyfy)
+  );
+  const COMPLETED_KEYS = new Set(
+    ["completed","complete","done","finished","closed","resolved","selesai",2,"2"].map(keyfy)
+  );
+  const OVERDUE_KEYS = new Set(
+    ["overdue","late","terlambat","jatuhtempo","lewatjatuhtempo",3,"3"].map(keyfy)
   );
 
-  const total = Math.max(1, completed + inProgress + pending);
-  const pct = Math.round((completed / total) * 100);
+  // ===== Fetch jika tasks kosong =====
+  useEffect(() => {
+    const local = Array.isArray(tasks) ? tasks : [];
+    if (local.length > 0 || useCountsDirect || summaryCounts) {
+      setRemoteTasks(null);
+      setLoading(false);
+      setErr("");
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setErr("");
+        const qs = queryParams
+          ? "?" + Object.entries(queryParams)
+              .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+              .join("&")
+          : "";
+        const resp = await fetch(`${apiUrl}${qs}`, { headers: { Accept: "application/json" } });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const arr = Array.isArray(data) ? data : data?.data || [];
+        if (!cancelled) setRemoteTasks(arr);
+      } catch (e) {
+        if (!cancelled) setErr(e?.message || "Gagal memuat tasks");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [tasks, apiUrl, JSON.stringify(queryParams), useCountsDirect, summaryCounts]);
+
+  // ===== Pilih sumber data =====
+  const sourceTasks = useMemo(() => {
+    if (summaryCounts) return [];
+    if (useCountsDirect) return [];
+    const base = (Array.isArray(tasks) && tasks.length > 0) ? tasks : (remoteTasks || []);
+    if (!taskIds || taskIds.length === 0) return base;
+    const allow = new Set(taskIds.map((x) => String(x)));
+    return base.filter((t) => {
+      const id = extractId(t);
+      return id != null && allow.has(String(id));
+    });
+  }, [tasks, remoteTasks, taskIds, useCountsDirect, summaryCounts]);
+
+  // ===== Hitung angka untuk diagram =====
+  const derived = useMemo(() => {
+    // 1️⃣ Utamakan hasil dari TaskSummary
+    if (summaryCounts) {
+      return {
+        pending: Number(summaryCounts.pending) || 0,
+        inProgress: Number(summaryCounts.inProgress) || 0,
+        completed: Number(summaryCounts.completed) || 0,
+      };
+    }
+
+    // 2️⃣ Kalau pakai angka langsung
+    if (useCountsDirect) {
+      return { pending, inProgress, completed };
+    }
+
+    // 3️⃣ Hitung manual dari tasks
+    let pend = 0, prog = 0, comp = 0;
+    const seen = new Set();
+    for (const t of sourceTasks) {
+      const id = extractId(t);
+      if (id != null) {
+        const sid = String(id);
+        if (seen.has(sid)) continue;
+        seen.add(sid);
+      }
+      const k = keyfy(extractStatus(t));
+      if (COMPLETED_KEYS.has(k)) comp++;
+      else if (INPROGRESS_KEYS.has(k)) prog++;
+      else if (OVERDUE_KEYS.has(k)) pend++;
+      else if (NOT_STARTED_KEYS.has(k)) pend++;
+      else pend++;
+    }
+    return { pending: pend, inProgress: prog, completed: comp };
+  }, [sourceTasks, useCountsDirect, pending, inProgress, completed, summaryCounts]);
+
+  const chartCompleted = derived.completed;
+  const chartInProgress = derived.inProgress;
+  const chartPending = derived.pending;
+
+  const data = useMemo(
+    () => [
+      { name: "Completed", value: chartCompleted, color: "#673AB7" },
+      { name: "In Progress", value: chartInProgress, color: "#341D5C" },
+      { name: "Pending", value: chartPending, color: "#D9CEED" },
+    ],
+    [chartCompleted, chartInProgress, chartPending]
+  );
+
+  const total = Math.max(1, chartCompleted + chartInProgress + chartPending);
+  const pct = Math.round((chartCompleted / total) * 100);
   const pctClamped = Math.max(0, Math.min(100, pct));
+
+  // ===== UI tetap sama persis =====
+  if (loading) {
+    return (
+      <div
+        className="relative rounded-2xl p-4 text-white animate-pulse"
+        style={{ width: 308, height: 347, backgroundImage: "linear-gradient(to right, #000000, #211832)" }}
+      >
+        <div className="mb-2" style={{ fontFamily: "Montserrat, ui-sans-serif", fontSize: 20, fontWeight: 700 }}>
+          {title}
+        </div>
+        <div className="h-[200px] flex items-center justify-center text-[#C4B5FD]">Loading…</div>
+      </div>
+    );
+  }
+  if (err) {
+    return (
+      <div
+        className="relative rounded-2xl p-4 text-white"
+        style={{ width: 308, height: 347, backgroundImage: "linear-gradient(to right, #000000, #211832)" }}
+      >
+        <div className="mb-2" style={{ fontFamily: "Montserrat, ui-sans-serif", fontSize: 20, fontWeight: 700 }}>
+          {title}
+        </div>
+        <div className="h-[200px] flex items-center justify-center text-red-400">Gagal memuat: {err}</div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -29,21 +197,14 @@ export default function TaskProgress({
         backgroundImage: "linear-gradient(to right, #000000, #211832)",
       }}
     >
-      {/* Title */}
       <div
         className="mb-2"
-        style={{
-          fontFamily: "Montserrat, ui-sans-serif",
-          fontSize: 20,
-          fontWeight: 700,
-        }}
+        style={{ fontFamily: "Montserrat, ui-sans-serif", fontSize: 20, fontWeight: 700 }}
       >
         {title}
       </div>
 
-      {/* Diagram area */}
       <div className="relative" style={{ width: "100%", height: 200 }}>
-        {/* Chart - sedikit turun */}
         <div
           style={{
             width: "100%",
@@ -75,25 +236,17 @@ export default function TaskProgress({
           </PieChart>
         </div>
 
-        {/* LABEL - center tepat di bawah tengah donut */}
         <div
           style={{
             position: "absolute",
             top: "50%",
             left: "50%",
-            transform: "translate(-50%, -50%) translateY(50px)", // <- ini bener, turunin sedikit
+            transform: "translate(-50%, -50%) translateY(50px)",
             zIndex: 99,
             textAlign: "center",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "center",
-              gap: 0,
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 0 }}>
             <span
               style={{
                 fontFamily: "Montserrat, ui-sans-serif",
@@ -118,7 +271,6 @@ export default function TaskProgress({
               %
             </span>
           </div>
-
           <div
             style={{
               fontFamily: "Inter, ui-sans-serif",
@@ -132,25 +284,12 @@ export default function TaskProgress({
         </div>
       </div>
 
-      {/* Legend */}
       <div className="absolute left-4 right-4 text-sm" style={{ bottom: 20 }}>
-        <div
-          className="flex items-center justify-between"
-          style={{ marginTop: 24 }}
-        >
+        <div className="flex items-center justify-between" style={{ marginTop: 24 }}>
           {data.map((d) => (
-            <div
-              key={`legend-${d.name}`}
-              className="flex items-center gap-2"
-            >
-              <span
-                className="inline-block w-3.5 h-3.5 rounded-full"
-                style={{ background: d.color }}
-              />
-              <span
-                style={{ fontFamily: "Inter, ui-sans-serif" }}
-                className="text-gray-200 text-xs"
-              >
+            <div key={`legend-${d.name}`} className="flex items-center gap-2">
+              <span className="inline-block w-3.5 h-3.5 rounded-full" style={{ background: d.color }} />
+              <span style={{ fontFamily: "Inter, ui-sans-serif" }} className="text-gray-200 text-xs">
                 {d.name}
               </span>
             </div>

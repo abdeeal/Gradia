@@ -1,52 +1,39 @@
+// src/pages/Presence/components/AddPresence.jsx
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import Swal from "sweetalert2";
+// ⬇️ ganti SweetAlert2 dengan useAlert seperti di AddTask
+import { useAlert } from "@/hooks/useAlert";
+import { getRoom, peekRoom, setRoom as cacheSetRoom } from "@/utils/coursesRoomCache";
 
-/* ======== SweetAlert dark (stabil, via customClass) ======== */
-export const showCustomAlert = (options) => {
-  Swal.fire({
-    ...options,
-    background: "#141414cc",
-    color: "#fff",
-    backdrop: "rgba(0,0,0,0.4)",
-    customClass: {
-      popup: "rounded-xl border border-[#464646] w-[340px] p-6 font-[Inter]",
-      title: "font-[Inter] text-[18px]",
-      htmlContainer: "text-[13px] text-foreground-secondary mt-2",
-      confirmButton:
-        "font-[Inter] text-[13px] px-4 py-2 rounded-md bg-[#830404] hover:brightness-125 transition-all",
-      cancelButton:
-        "font-[Inter] text-[13px] px-4 py-2 rounded-md bg-[#4b4b4b] hover:brightness-125 transition-all text-white",
-    },
-    buttonsStyling: false,
-    zIndex: 99999,
-  });
+// (HAPUS: showCustomAlert & import Swal)
+
+// Parse "HH:MM - HH:MM" jadi window hari ini
+const windowTodayFromRange = (rangeStr) => {
+  if (!rangeStr) return null;
+  const [s, e] = rangeStr.split("-").map((x) => x?.trim());
+  if (!s || !e) return null;
+  const [sh, sm] = s.split(":").map((x) => parseInt(x, 10));
+  const [eh, em] = e.split(":").map((x) => parseInt(x, 10));
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(sh || 0, sm || 0, 0, 0);
+  const end = new Date(now);
+  end.setHours(eh || 0, em || 0, 0, 0);
+  return { start, end };
 };
-const parseToFields = (dtStr) => {
-  if (!dtStr) return { dateStr: "", timeStr: "" };
-  // Format yang kita mau: "DD/MM/YY HH:MM:SS"
-  // Terima juga "DD/MM/YYYY HH:MM(:SS)" dan ISO-ish
-  const hasSlash = dtStr.includes("/");
-  if (hasSlash) {
-    const [dPart, tPart = ""] = dtStr.split(" ");
-    return {
-      dateStr: normalizeDateInput(dPart),
-      timeStr: tPart.includes(":")
-        ? (() => {
-            const [h = "00", m = "00", s = "00"] = tPart.split(":");
-            return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
-          })()
-        : "",
-    };
-  }
-  // fallback ISO-ish
-  try {
-    const d = new Date(dtStr.replace(" ", "T"));
-    if (isNaN(d)) throw new Error("invalid");
-    return { dateStr: toDDMMYY(d), timeStr: toHHMMSS(d) };
-  } catch {
-    return { dateStr: "", timeStr: "" };
-  }
+
+const timeState = (timeRange) => {
+  const w = windowTodayFromRange(timeRange);
+  if (!w) return "unknown";
+  const now = new Date();
+  if (now < w.start) return "upcoming";
+  if (now <= w.end) return "ongoing";
+  return "overdue";
+};
+
+const normStatus = (s) => {
+  const v = String(s || "").trim().toLowerCase();
+  return v === "presence" ? "present" : v;
 };
 
 const AddPresence = ({
@@ -57,13 +44,59 @@ const AddPresence = ({
   onAppendLog,
   contentPaddingLeft = 272,
 }) => {
+  const { showAlert } = useAlert(); // ⬅️ pakai useAlert seperti AddTask
+
   const [status, setStatus] = useState(course?.statusSelection || "");
   const [note, setNote] = useState(course?.note || "");
+
+  // ===== Room handling — cache + background fetch
+  const idForCourse = course?.id ?? null;
+  const [courseRoom, setCourseRoom] = useState(
+    () => course?.room ?? (idForCourse ? peekRoom(idForCourse) : "") ?? ""
+  );
+  const [loadingCourse, setLoadingCourse] = useState(!courseRoom && !!idForCourse);
 
   useEffect(() => {
     setStatus(course?.statusSelection || "");
     setNote(course?.note || "");
+
+    // refresh room state from incoming course / cache
+    const fresh = course?.room ?? (idForCourse ? peekRoom(idForCourse) : "") ?? "";
+    setCourseRoom(fresh);
+    setLoadingCourse(!fresh && !!idForCourse);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [course?.id]);
+
+  // Revalidate room silently
+  useEffect(() => {
+    if (idForCourse == null) {
+      setCourseRoom("");
+      setLoadingCourse(false);
+      return;
+    }
+    let ignore = false;
+    const ac = new AbortController();
+
+    const cached = peekRoom(idForCourse);
+    if (cached != null) {
+      setCourseRoom(cached);
+      setLoadingCourse(false);
+    }
+
+    getRoom(idForCourse, { signal: ac.signal })
+      .then((room) => {
+        if (!ignore) setCourseRoom(room || "");
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!ignore) setLoadingCourse(false);
+      });
+
+    return () => {
+      ignore = true;
+      ac.abort();
+    };
+  }, [idForCourse]);
 
   useEffect(() => {
     if (!course) return;
@@ -75,70 +108,103 @@ const AddPresence = ({
   }, [status, note]);
 
   const submit = () => {
-    if (!status) {
-      showCustomAlert({
-        icon: "warning",
+    // ⬇️ validasi ala AddTask: gunakan showAlert (destructive)
+    const normalized = normStatus(status);
+    if (normalized !== "present" && normalized !== "absent") {
+      showAlert({
+        icon: "ri-error-warning-fill",
         title: "Pilih status dulu",
-        timer: 1200,
-        showConfirmButton: false,
+        desc: "Silakan pilih Present atau Absent sebelum menyimpan.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
       });
       return;
     }
 
-    const payload = {
-      courseId: course?.id,
-      courseTitle: course?.title,
-      timeRange: course?.time,
-      room: course?.room || "",
-      status,
-      note,
-    };
-
-    onSubmit?.(payload);
-
-    if (typeof onAppendLog === "function") {
-      const now = new Date();
-      onAppendLog({
-        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        loggedAt: now.toISOString(),
-        loggedAtReadable: `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}`,
-        ...payload,
-      });
+    // Save resolved room into cache
+    if (course?.id != null) {
+      cacheSetRoom(course.id, courseRoom);
     }
 
-    showCustomAlert({
-      icon: "success",
-      title: "Presence Submitted",
-      html: `<p>${course?.title || ""} marked as <b>${status}</b></p>`,
-      timer: 1200,
-      showConfirmButton: false,
-    });
+    const finalStatus = normalized === "absent" ? "Absent" : "Present";
 
-    onClose?.();
+    const payload = {
+      courseId: course?.id,
+      status: finalStatus,
+      note,
+      room: courseRoom, // disimpan untuk rekonsiliasi di parent/table
+    };
+
+    try {
+      onSubmit?.(payload);
+
+      if (typeof onAppendLog === "function") {
+        const now = new Date();
+        onAppendLog({
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          loggedAt: now.toISOString(),
+          loggedAtReadable: `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`,
+          courseId: course?.id,
+          courseTitle: course?.title,
+          room: courseRoom,
+          status: finalStatus,
+          note,
+          timeRange: course?.time,
+        });
+      }
+
+      // ⬇️ success ala AddTask
+      showAlert({
+        icon: "ri-checkbox-circle-fill",
+        title: "Success",
+        desc: `${course?.title || "Course"} marked as ${finalStatus}.`,
+        variant: "success",
+        width: 676,
+        height: 380,
+      });
+
+      onClose?.();
+    } catch (e) {
+      // (opsional) fallback error ala AddTask
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Error",
+        desc: "Failed to submit presence. Please try again.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+    }
   };
 
-  const isPresence = status === "Presence";
-  const isAbsent = status === "Absent";
+  const isPresence = normStatus(status) === "present";
+  const isAbsent = normStatus(status) === "absent";
 
-  const lowerStatus = (course?.status || "").toLowerCase();
-  const circleColor =
-    lowerStatus.includes("not")
-      ? "bg-gray-500"
-      : lowerStatus.includes("overdue")
-      ? "bg-red-500"
-      : lowerStatus.includes("on") || lowerStatus.includes("going")
-      ? "bg-[#FFD75A]"
-      : "bg-blue-400";
+  // ======== Waktu & Status visual (hanya "On Going" & "Upcoming") ========
+  const tstate = timeState(course?.time);
+  const isOngoing = tstate === "ongoing";
+  const isUpcoming = tstate === "upcoming";
+
+  const labelText = isOngoing ? "On Going" : isUpcoming ? "Upcoming" : "";
+  const labelClass = isOngoing
+    ? "bg-[#EAB308]/20 text-[#FDE047]"
+    : isUpcoming
+    ? "bg-zinc-700/30 text-zinc-400"
+    : "hidden";
+
+  const circleClass = isOngoing
+    ? "bg-[#FDE047]" // kuning
+    : isUpcoming
+    ? "bg-zinc-400" // abu (eks “Not Started”)
+    : tstate === "overdue"
+    ? "bg-red-500"
+    : "bg-gray-500";
 
   if (!course) return null;
-
-  const rekText =
-    (course?.rek && `rek - ${course.rek}`) ||
-    (course?.room && `rek - ${course.room}`) ||
-    "rek - —";
 
   return createPortal(
     <>
@@ -159,7 +225,7 @@ const AddPresence = ({
             className="pointer-events-auto w-[520px] h-[430px] rounded-2xl bg-[#15171A] border border-[#2c2c2c] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header — vertikal center + sejajar kiri-kanan dgn body */}
+            {/* Header */}
             <div className="mx-auto mt-[12px] w-[498px] h-10 flex items-center justify-between px-3">
               <h2 className="font-inter text-[18px] text-foreground leading-none">
                 Log Presence
@@ -173,51 +239,35 @@ const AddPresence = ({
               </button>
             </div>
 
-            {/* Frame — jarak atas disamakan dengan jarak header ke tepi atas */}
+            {/* Frame */}
             <div className="mx-auto mt-[12px] w-[498px] h-[340px] rounded-xl border border-[#2c2c2c] bg-[#0f0f10] p-4 pb-5 flex flex-col">
               {/* waktu + status */}
               <div className="flex items-center gap-3 text-sm text-zinc-300">
-                <span className={`inline-block w-2.5 h-2.5 rounded-full ${circleColor}`} />
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${circleClass}`} />
                 <span className="tabular-nums">{course?.time || "—"}</span>
 
-                <span
-                  className={`inline-flex items-center justify-center h-[26px] px-3 rounded-sm text-xs font-medium ml-3
-                    ${
-                      lowerStatus.includes("on") || lowerStatus.includes("going")
-                        ? "bg-[#3A2F04] text-[#FFD75A]"
-                        : lowerStatus.includes("overdue")
-                        ? "bg-[#3F0909] text-[#FF8F8F]"
-                        : "bg-[#2E2E2E] text-zinc-400"
-                    }`}
-                >
-                  {course?.status || "On Going"}
-                </span>
+                {labelText && (
+                  <span className={`inline-flex items-center justify-center h-[26px] px-3 rounded-sm text-xs font-medium ml-3 ${labelClass}`}>
+                    {labelText}
+                  </span>
+                )}
               </div>
 
-              {/* nama & rek */}
+              {/* nama course + ROOM (ditampilkan) */}
               <div className="mt-3">
                 <h3 className="text-foreground font-medium leading-snug truncate">
                   {course?.title || "—"}
                 </h3>
-                <p className="text-sm text-foreground-secondary">
-                    {course?.rek
-                        ? course.rek.toString().includes("-")
-                        ? course.rek // sudah lengkap: misal "IOT-201"
-                        : `Rek - ${course.rek}` // hanya angka
-                        : course?.room
-                        ? course.room.toString().includes("-")
-                        ? course.room
-                        : `Rek - ${course.room}`
-                        : "Rek - —"}
+                <p className="text-[14px] text-foreground-secondary mt-0.5">
+                  {course?.room ?? courseRoom ?? "—"}
                 </p>
               </div>
 
-              {/* tombol Presence / Absent */}
+              {/* tombol Present / Absent */}
               <div className="mt-4 flex gap-3 justify-start">
-                {/* Presence */}
                 <button
                   type="button"
-                  onClick={() => setStatus("Presence")}
+                  onClick={() => setStatus("Present")}
                   className={`flex items-center ${
                     isPresence ? "justify-start pl-2.5" : "justify-center"
                   } gap-1.5 px-2.5 h-[34px] rounded-lg border transition-colors font-inter text-[14px] min-w-[120px]
@@ -231,11 +281,10 @@ const AddPresence = ({
                     <i className="ri-check-line text-sm" style={{ color: "#00A13E" }} />
                   )}
                   <span className={`${isPresence ? "text-[#4ADE80]" : "text-zinc-300"} leading-none`}>
-                    Presence
+                    Present
                   </span>
                 </button>
 
-                {/* Absent */}
                 <button
                   type="button"
                   onClick={() => setStatus("Absent")}
