@@ -20,7 +20,7 @@ export default function AppRoutes() {
       <Route path="/auth/reset-password" element={<ResetPassword />} />
 
       {/* optional: redirect root & typo plural */}
-      <Route path="/" element={<Navigate to="/courses" replace />} />
+      <Route path="/" element={<Navigate to="/auth/login" replace />} />
       <Route path="*" element={<Navigate to="/courses" replace />} />
     </Routes>
   );
