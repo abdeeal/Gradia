@@ -2,7 +2,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 
 // === MAIN APP PAGES ===
-import Dashboard from "@/pages/Presence/Dashboard.jsx";
 import Courses from "@/pages/Courses/Courses.jsx";
 import Tasks from "@/pages/Tasks/Tasks.jsx";
 import Presence from "@/pages/Presence/Presence.jsx";
@@ -14,11 +13,10 @@ import Login from "@/pages/Auth/Login/Login.jsx";
 import VerifyOtp from "@/pages/Auth/Verify-otp/VerifyOtp.jsx";
 import SuccessMsg from "@/pages/Auth/Success-msg/SuccessMsg.jsx";
 import ResetPassword from "@/pages/Auth/Reset-Password/ResetPassword.jsx";
-import Workspaces from "@/pages/Workspaces/Workspaces.jsx";
 import Dashboard from "@/pages/Dashboard/Dashboard.jsx";
 
 // === WORKSPACE PAGE ===
-import WorkspacesPage from "@/pages/Workspace/Workspace.jsx";
+import WorkspacesPage from "@/pages/Workspaces/Workspaces";
 
 export default function AppRoutes() {
   return (

@@ -1,8 +1,21 @@
 // src/pages/Workspaces/index.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { $1 } from "react";
 import Mobile from "./Layout/Mobile";
 import { useMediaQuery } from "react-responsive";
-import DeletePopup from "@/components/Delete";
+$1
+// === API CONFIG ===
+const API_URL = "/api/workspace"; // point this to your deployed API route
+
+// If you already have auth, replace this with your real user-id source
+const getCurrentUserId = () => {
+  try {
+    // example: persisted from your auth flow
+    const v = localStorage.getItem("gradia_user_id");
+    return v ? JSON.parse(v) : null;
+  } catch (e) {
+    return null;
+  }
+};
 
 export default function Workspaces() {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -34,12 +47,13 @@ function GradiaWorkspacePage() {
     color: "transparent",
   };
 
+  // ==== ALERTS ====
+  const { showAlert } = useAlert();
+
   // ==== STATE ====
-  const [workspaces, setWorkspaces] = useState([
-    { id: 1, name: "Semester 5" },
-    { id: 2, name: "Semester 6" },
-    { id: 3, name: "Semester 7" },
-  ]);
+  const [workspaces, setWorkspaces] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
 
   const [openMenuId, setOpenMenuId] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -53,6 +67,39 @@ function GradiaWorkspacePage() {
 
   const pageRef = useRef(null);
   const createRowRef = useRef(null);
+
+  // Fetch list from API
+  useEffect(() => {
+    const fetchWorkspaces = async () => {
+      setIsLoading(true);
+      try {
+        const id_user = getCurrentUserId();
+        const qs = id_user ? `?id_user=${encodeURIComponent(id_user)}` : "";
+        const res = await fetch(`${API_URL}${qs}`);
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+        const data = await res.json();
+        // map backend fields -> UI shape
+        const mapped = (Array.isArray(data) ? data : []).map((w) => ({
+          id: w.id_workspace ?? w.id ?? w.id_workspace_id ?? Math.random(),
+          name: w.name ?? w.nama ?? w.workspace_name ?? "Untitled",
+          __raw: w,
+        }));
+        setWorkspaces(mapped);
+      } catch (err) {
+        showAlert({
+          icon: "ri-error-warning-fill",
+          title: "Failed to load workspaces",
+          desc: String(err?.message || err),
+          variant: "destructive",
+          width: 676,
+          height: 380,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchWorkspaces();
+  }, []);
 
   // Close dropdown + create ketika klik di luar
   useEffect(() => {
@@ -94,6 +141,7 @@ function GradiaWorkspacePage() {
   }, [createMode, openMenuId]);
 
   const onEnter = (name) => {
+    // TODO: navigate ke halaman workspace yang dipilih
     console.log("Enter:", name);
   };
 
@@ -109,12 +157,58 @@ function GradiaWorkspacePage() {
     setDraftName("");
   };
 
-  const saveEdit = (id) => {
+  const saveEdit = async (id) => {
     const next = draftName.trim();
-    if (!next) return;
-    setWorkspaces((prev) => prev.map((w) => (w.id === id ? { ...w, name: next } : w)));
-    setEditingId(null);
-    setDraftName("");
+    if (!next) {
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Workspace name is required",
+        desc: "Please enter a workspace name before saving.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+      return;
+    }
+
+    const prevName = workspaces.find((w) => w.id === id)?.name;
+
+    try {
+      // find raw id_workspace
+      const target = workspaces.find((w) => w.id === id);
+      const id_workspace = target?.__raw?.id_workspace ?? id;
+      const res = await fetch(API_URL, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_workspace, name: next }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || `Failed to update: ${res.status}`);
+      }
+
+      setWorkspaces((prev) => prev.map((w) => (w.id === id ? { ...w, name: next } : w)));
+      setEditingId(null);
+      setDraftName("");
+
+      showAlert({
+        icon: "ri-checkbox-circle-fill",
+        title: "Workspace updated",
+        desc: prevName && prevName !== next ? `"${prevName}" → "${next}"` : "Changes saved successfully.",
+        variant: "success",
+        width: 676,
+        height: 380,
+      });
+    } catch (err) {
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Update failed",
+        desc: String(err?.message || err),
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+    }
   };
 
   const askDelete = (ws) => {
@@ -123,10 +217,42 @@ function GradiaWorkspacePage() {
     setOpenMenuId(null);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!targetWs) return;
-    setWorkspaces((prev) => prev.filter((w) => w.id !== targetWs.id));
-    setTargetWs(null);
+    try {
+      const id_workspace = targetWs?.__raw?.id_workspace ?? targetWs.id;
+      const res = await fetch(API_URL, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_workspace }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || `Failed to delete: ${res.status}`);
+      }
+
+      setWorkspaces((prev) => prev.filter((w) => w.id !== targetWs.id));
+      const deleted = targetWs;
+      setTargetWs(null);
+
+      showAlert({
+        icon: "ri-delete-bin-2-line",
+        title: "Workspace deleted",
+        desc: `Workspace "${deleted.name}" has been deleted successfully.`,
+        variant: "success",
+        width: 676,
+        height: 380,
+      });
+    } catch (err) {
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Delete failed",
+        desc: String(err?.message || err),
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+    }
   };
 
   const startCreate = () => {
@@ -134,13 +260,62 @@ function GradiaWorkspacePage() {
     setCreateName("");
   };
 
-  const commitCreate = () => {
+  const commitCreate = async () => {
     const name = createName.trim();
-    if (!name) return;
-    const nextId = workspaces.length ? Math.max(...workspaces.map((w) => w.id)) + 1 : 1;
-    setWorkspaces((prev) => [...prev, { id: nextId, name }]);
-    setCreateMode(false);
-    setCreateName("");
+    if (!name) {
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Workspace name is required",
+        desc: "Please enter a workspace name before creating.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+      return;
+    }
+
+    try {
+      const id_user = getCurrentUserId();
+      const payload = { name };
+      if (id_user) payload.id_user = id_user;
+
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || `Failed to create: ${res.status}`);
+
+      // API returns { message, data: [row] }
+      const created = Array.isArray(j?.data) ? j.data[0] : j?.data ?? {};
+      const mapped = {
+        id: created.id_workspace ?? created.id ?? Math.random(),
+        name: created.name ?? name,
+        __raw: created,
+      };
+      setWorkspaces((prev) => [...prev, mapped]);
+      setCreateMode(false);
+      setCreateName("");
+
+      showAlert({
+        icon: "ri-checkbox-circle-fill",
+        title: "Workspace created",
+        desc: `Workspace "${mapped.name}" has been created successfully.`,
+        variant: "success",
+        width: 676,
+        height: 380,
+      });
+    } catch (err) {
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Create failed",
+        desc: String(err?.message || err),
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+    }
   };
 
   const cancelCreate = () => {
@@ -313,7 +488,7 @@ function GradiaWorkspacePage() {
       {showConfirm && targetWs && (
         <DeletePopup
           title="Delete Workspace"
-          warning={`Are you sure you want to delete "${targetWs.name}"?`}
+          warning={`Are you sure you want to delete \"${targetWs.name}\"?`}
           onCancel={() => {
             setShowConfirm(false);
             setTargetWs(null);

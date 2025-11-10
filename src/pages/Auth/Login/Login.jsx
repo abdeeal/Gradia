@@ -15,8 +15,8 @@ const Login = () => {
 function DesktopLoginPage() {
   const navigate = useNavigate();
 
-  // (optional) state; tidak mengubah UI
-  const [username, setUsername] = useState("");
+  // ✅ Perbaikan: gunakan email, bukan username
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`;
@@ -69,7 +69,7 @@ function DesktopLoginPage() {
   // === Handler: submit login -> ke /dashboard ===
   const handleLogin = (e) => {
     e.preventDefault();
-    // TODO: panggil API auth
+    // TODO: panggil API auth pakai email dan password
     navigate("/dashboard");
   };
 
@@ -181,27 +181,28 @@ function DesktopLoginPage() {
                 Welcome Back
               </h1>
               <p className="text-[18px] leading-snug">
-                Gradia helps you organize, Login and turn your self-
+                Gradia helps you organize, login and turn your self-
                 management into real results.
               </p>
             </header>
 
             {/* FORM */}
             <form onSubmit={handleLogin}>
-              {/* Username */}
+              {/* ✅ Email */}
               <div className="mb-[12px]">
                 <div className="flex items-center gap-2 mb-[4px]">
-                  <i className="ri-account-circle-2-line text-[16px]" />
-                  <span className="text-[14px]">Username</span>
+                  <i className="ri-mail-line text-[16px]" />
+                  <span className="text-[14px]">Email</span>
                 </div>
                 <div style={gradientBorderWrapper}>
                   <div style={gradientBorderOverlay} />
                   <input
-                    type="text"
+                    type="email"
                     style={inputStyle}
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    autoComplete="username"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    required
                   />
                 </div>
               </div>
@@ -220,6 +221,7 @@ function DesktopLoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
+                    required
                   />
                 </div>
               </div>

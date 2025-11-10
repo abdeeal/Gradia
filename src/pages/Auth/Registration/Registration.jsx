@@ -14,11 +14,9 @@ const Registration = () => {
 
 export default Registration;
 
-// === Desktop Register (isi sama seperti file login.jsx-mu, hanya ubah route OTP & login) ===
 function RegisterDesktop() {
   const navigate = useNavigate();
 
-  // ---- NEW: form state & loading/error (tidak mempengaruhi UI layout) ----
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -67,7 +65,6 @@ function RegisterDesktop() {
     outline: "none",
   };
 
-  // ---- NEW: handler submit register ----
   const handleRegister = async () => {
     try {
       setErrMsg("");
@@ -77,7 +74,6 @@ function RegisterDesktop() {
       }
       setLoading(true);
 
-      // (opsional) panggil API register
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,11 +87,13 @@ function RegisterDesktop() {
         return;
       }
 
-      // Simpan email sementara (opsional untuk dipakai di OTP)
-      sessionStorage.setItem("registerEmail", email);
+      // Simpan email untuk verify
+      try {
+        sessionStorage.setItem("registerEmail", email);
+      } catch {}
 
-      // Arahkan ke halaman OTP (STATE: flow 'register')
-      navigate("/auth/verify-otp", { state: { email, flow: "register" } });
+      // Arahkan ke Verify OTP (mode register)
+      navigate("/auth/verify-otp", { state: { email, type: "register" } });
     } catch (e) {
       setErrMsg(e?.message || "Terjadi kesalahan. Coba lagi.");
     } finally {
@@ -105,7 +103,7 @@ function RegisterDesktop() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black text-white">
-      {/* === BACKGROUND === */}
+      {/* BACKGROUND */}
       <div className="absolute inset-0 pointer-events-none select-none">
         <img
           src="/Asset 1.svg"
@@ -147,20 +145,16 @@ function RegisterDesktop() {
         />
       </div>
 
-      {/* === CONTENT (LEFT + RIGHT) === */}
+      {/* CONTENT */}
       <div className="relative z-20 flex h-full w-full">
-        {/* LEFT SIDE */}
+        {/* LEFT */}
         <div className="flex h-full grow flex-col pt-[50px] pl:[52px] pl-[52px]">
           <div
             className="inline-flex items-baseline gap-1 leading-none"
             style={{ fontFamily: "'Genos', sans-serif", fontWeight: 700 }}
           >
-            <span className="text-[128px] tracking-tight text-[#9457FF]">
-              GRA
-            </span>
-            <span className="text-[128px] tracking-tight text-white">
-              DIA
-            </span>
+            <span className="text-[128px] tracking-tight text-[#9457FF]">GRA</span>
+            <span className="text-[128px] tracking-tight text-white">DIA</span>
           </div>
 
           <p
@@ -170,8 +164,7 @@ function RegisterDesktop() {
             <span
               style={{
                 display: "inline-block",
-                background:
-                  "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
+                background: "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 color: "transparent",
@@ -204,17 +197,12 @@ function RegisterDesktop() {
           }}
         >
           <div>
-            {/* HEADER */}
             <header className="text-center mb-[10px]">
-              <h1
-                className="text-[48px] font-extrabold leading-tight mb-2"
-                style={gradientText}
-              >
+              <h1 className="text-[48px] font-extrabold leading-tight mb-2" style={gradientText}>
                 Let’s Register
               </h1>
               <p className="text-[18px] leading-snug mb:[32px] mb-[32px]">
-                Join Gradia and take control of your goals, time, and mindset —
-                all in one app.
+                Join Gradia and take control of your goals, time, and mindset — all in one app.
               </p>
             </header>
 
@@ -274,10 +262,7 @@ function RegisterDesktop() {
                 </div>
               </div>
 
-              {/* OPTIONAL: Error text kecil */}
-              {errMsg ? (
-                <p className="text-red-400 text-[12px] mb-[8px]">{errMsg}</p>
-              ) : null}
+              {errMsg ? <p className="text-red-400 text-[12px] mb-[8px]">{errMsg}</p> : null}
 
               {/* REGISTER BUTTON */}
               <div className="flex justify-end mb-[16px]">
@@ -287,16 +272,14 @@ function RegisterDesktop() {
                   disabled={loading}
                   className="w-1/2 px-4 py-3 text-[16px] font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{
-                    background:
-                      "linear-gradient(90deg, #4C1D95 0%, #2D0A49 100%)",
+                    background: "linear-gradient(90deg, #4C1D95 0%, #2D0A49 100%)",
                     border: "none",
                     borderRadius: 8,
                   }}
                 >
                   <span
                     style={{
-                      background:
-                        "linear-gradient(180deg, #FAFAFA 0%, #949494 100%)",
+                      background: "linear-gradient(180deg, #FAFAFA 0%, #949494 100%)",
                       WebkitBackgroundClip: "text",
                       backgroundClip: "text",
                       WebkitTextFillColor: "transparent",
@@ -315,19 +298,12 @@ function RegisterDesktop() {
                   <button
                     onClick={() => navigate("/auth/login")}
                     className="hover:underline"
-                    style={{
-                      color: "#643EB2",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                    }}
+                    style={{ color: "#643EB2", background: "none", border: "none", cursor: "pointer" }}
                   >
                     Login
                   </button>
                 </p>
-                <p className="text-[12px] leading-none">
-                  © {new Date().getFullYear()} Gradia. All rights reserved.
-                </p>
+                <p className="text-[12px] leading-none">© {new Date().getFullYear()} Gradia. All rights reserved.</p>
               </div>
             </div>
           </div>

@@ -1,25 +1,12 @@
 import React from "react";
 
-/**
- * WeatherCard – tema Day/Night otomatis sesuai jam lokal.
- * Day: 06:00–17:59, Night: 18:00–05:59.
- *
- * Spesifikasi posisi/ukuran (container 754×161):
- *  - Kotak info (171×48) @ left: 347.5, top: 56.5, border-left #FAFAFA, padding-left 8, font 16.
- *    PAGI: baris-1 = Monday, 14 January ; baris-2 = City
- *    MALAM: baris-1 = Monday, 14 January ; baris-2 = 2025
- *  - SUHU (PAGI) 32px @ left: 280.5, right: 416.5, top: 61, bottom: 61
- *  - JAM (MALAM) 32px @ left: 235.5, right: 416.5, top: 61, bottom: 61
- */
-export default function WeatherCard({
-  temp = 32,
-  city = "Purwokerto",
-  dateText,
-  now,
-}) {
+export default function WeatherCard({ dateText, now }) {
+  // Dummy city
+  const city = "Purwokerto";
+
   const refDate = now ? new Date(now) : new Date();
 
-  // Format "Monday, 14 January"
+  // Format tanggal "Monday, 14 January"
   const fallbackDate = refDate.toLocaleDateString("en-GB", {
     weekday: "long",
     day: "2-digit",
@@ -27,7 +14,7 @@ export default function WeatherCard({
   });
   const dateLabel = dateText ?? fallbackDate;
 
-  // Day/Night 18:00–05:59
+  // Tentukan siang/malam
   const hour = refDate.getHours();
   const isNight = hour >= 18 || hour < 6;
 
@@ -36,18 +23,17 @@ export default function WeatherCard({
   const mm = String(refDate.getMinutes()).padStart(2, "0");
   const timeHM = `${hh}:${mm}`;
 
-  // Background gradient
+  // Gradient latar
   const containerGradient = isNight
     ? "bg-gradient-to-bl from-[#000000] to-[#272727]"
     : "bg-gradient-to-bl from-[#164A7B] to-[#539DB8]";
 
-  // Decorative circles
+  // Warna dekorasi
   const circleAColor = isNight ? "bg-[#656565]/[0.22]" : "bg-[#50D0F4]/[0.22]";
   const circleBColor = isNight ? "bg-[#656565]/[0.13]" : "bg-[#50D0F4]/[0.13]";
   const circleCColor = isNight ? "bg-[#656565]/[0.39]" : "bg-[#50D0F4]/[0.39]";
   const circleDColor = isNight ? "bg-[#656565]/[0.67]" : "bg-[#50D0F4]/[0.67]";
   const circleEGradient = "bg-gradient-to-b from-[#FFE478] to-[#DFA62B]";
-
   const montserrat = { fontFamily: '"Montserrat", sans-serif' };
 
   return (
@@ -62,15 +48,13 @@ export default function WeatherCard({
       <div className={`absolute rounded-full ${circleDColor}`} style={{ left: 643, top: -97, width: 218, height: 218 }} />
       <div className={`absolute rounded-full ${circleEGradient}`} style={{ left: 691, top: -27, width: 1100, height: 100 }} />
 
-      {/* ===== Konten sesuai koordinat ===== */}
-
-      {/* 1) Kotak 171×48 */}
-      <div className="absolute" style={{ left: 347.5, top: 56.5, width: 171, height: 48 }}>
+      {/* ===== Konten ===== */}
+      <div className="absolute" style={{ left: 347.5, top: 56.5, width: 200, height: 48 }}>
         <div
           className="h-full flex flex-col justify-center"
           style={{
             ...montserrat,
-            fontSize: 16,               // <- sesuai spek
+            fontSize: 16,
             lineHeight: 1.2,
             borderLeft: "1px solid #FAFAFA",
             paddingLeft: 8,
@@ -83,43 +67,23 @@ export default function WeatherCard({
         </div>
       </div>
 
-      {/* 2) Elemen besar 32px: SUHU (pagi) atau JAM (malam) */}
-      {isNight ? (
-        // JAM: left 235.5, right 416.5, top 61, bottom 61
-        <div
-          className="absolute flex items-center tabular-nums"
-          style={{
-            left: 235.5,
-            top: 61,
-            width: 754 - 235.5 - 416.5,
-            height: 161 - 61 - 61,
-            ...montserrat,
-            fontSize: 32,              // <- 32px
-            fontWeight: 600,
-            lineHeight: 1,
-          }}
-        >
-          {timeHM}
-        </div>
-      ) : (
-        // SUHU: left 280.5, right 416.5, top 61, bottom 61
-        <div
-          className="absolute flex items-center tabular-nums"
-          style={{
-            left: 280.5,
-            top: 61,
-            width: 754 - 280.5 - 416.5,
-            height: 161 - 61 - 61,
-            ...montserrat,
-            fontSize: 32,              // <- 32px
-            fontWeight: 600,
-            lineHeight: 1,
-          }}
-        >
-          {temp}
-          <span style={{ fontSize: 24, lineHeight: 1, marginLeft: 4 }}>°</span>
-        </div>
-      )}
+      {/* Elemen besar 32px: selalu JAM (baik siang maupun malam) */}
+      <div
+        className="absolute flex items-center tabular-nums"
+        style={{
+          // Pakai posisi yang sama seperti versi malam
+          left: 235.5,
+          top: 61,
+          width: 754 - 235.5 - 416.5,
+          height: 161 - 61 - 61,
+          ...montserrat,
+          fontSize: 32,
+          fontWeight: 600,
+          lineHeight: 1,
+        }}
+      >
+        {timeHM}
+      </div>
     </div>
   );
 }

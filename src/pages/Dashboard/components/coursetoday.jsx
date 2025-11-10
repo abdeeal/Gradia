@@ -2,19 +2,32 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "remixicon/fonts/remixicon.css";
 
+/**
+ * Utility: parse a "HH:mm" or "HH.mm" string to a Date anchored to today
+ */
 function parseHM(hm) {
   if (!hm) return null;
   const cleaned = String(hm).replace(":", ".");
   const [h, m] = cleaned.split(".").map((x) => parseInt(x, 10));
   const d = new Date();
-  d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
+  d.setSeconds(0, 0);
+  d.setMinutes(Number.isFinite(m) ? m : 0);
+  d.setHours(Number.isFinite(h) ? h : 0);
   return d;
 }
+
+/**
+ * Compute course status relative to \"now\"
+ */
 function computeStatus(now, start, end) {
-  if (start && end && now >= start && now <= end) return "On Going";
+  if (start && end && now >= start && now < end) return "On Going"; // end-exclusive
   if (start && now < start) return "Upcoming";
   return "Done";
 }
+
+/**
+ * Normalize various time inputs into "HH.mm"
+ */
 function toHM(d) {
   if (!d) return "";
   if (typeof d === "string") {
@@ -33,22 +46,46 @@ function toHM(d) {
   return `${hh}.${mm}`;
 }
 
-export default function CoursesToday({ apiUrl = "/api/courses/today" }) {
+/**
+ * CoursesToday
+ *
+ * This version calls `/api/courses?q=today` so it matches your backend snippet:
+ *   if (q === "today") { const today = new Date().toLocaleString("en-US", { weekday: "long" }) ... }
+ *
+ * Props:
+ * - apiBase: base path of the API (default: "/api/courses")
+ * - query: query string value for `q` (default: "today")
+ */
+export default function CoursesToday({ apiBase = "/api/courses", query = "today" }) {
   const [now, setNow] = useState(new Date());
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // Tick every 60s for status freshness
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60000);
+    const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
 
+  // Build URL with q=today by default
+  const endpoint = useMemo(() => {
+    const url = new URL(apiBase, typeof window !== "undefined" ? window.location.origin : "http://localhost");
+    const sp = new URLSearchParams({ q: query });
+    url.search = sp.toString();
+    // If running server-side, return pathname+search only
+    return typeof window !== "undefined" ? url.toString() : `${url.pathname}${url.search}`;
+  }, [apiBase, query]);
+
+  // Fetch courses
   useEffect(() => {
     let active = true;
     async function fetchCourses() {
       setLoading(true);
+      setError(null);
       try {
-        const res = await fetch(apiUrl);
+        const res = await fetch(endpoint, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const arr = Array.isArray(json) ? json : json.data || [];
         const normalized = arr.map((c) => ({
@@ -60,7 +97,10 @@ export default function CoursesToday({ apiUrl = "/api/courses/today" }) {
         }));
         if (active) setItems(normalized);
       } catch (e) {
-        if (active) setItems([]);
+        if (active) {
+          setItems([]);
+          setError(e?.message || "Failed to load");
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -69,8 +109,9 @@ export default function CoursesToday({ apiUrl = "/api/courses/today" }) {
     return () => {
       active = false;
     };
-  }, [apiUrl]);
+  }, [endpoint]);
 
+  // Compose with computed status
   const withComputed = useMemo(() => {
     return items.map((c) => {
       const start = parseHM(c.start);
@@ -110,11 +151,7 @@ export default function CoursesToday({ apiUrl = "/api/courses/today" }) {
       <div className="flex items-center justify-between mb-[18px]">
         <h2
           className="text-white"
-          style={{
-            fontFamily: "Montserrat, sans-serif",
-            fontSize: 20,
-            fontWeight: 600,
-          }}
+          style={{ fontFamily: "Montserrat, sans-serif", fontSize: 20, fontWeight: 600 }}
         >
           Courses Today
         </h2>
@@ -126,15 +163,7 @@ export default function CoursesToday({ apiUrl = "/api/courses/today" }) {
           className="flex items-center justify-center rounded-full border border-white hover:bg-white/10"
           style={{ width: 32, height: 32 }}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="2"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M7 7h10v10" />
           </svg>
         </a>
@@ -142,66 +171,24 @@ export default function CoursesToday({ apiUrl = "/api/courses/today" }) {
 
       {/* Content */}
       {loading ? (
-        <div
-          className="flex items-center justify-center flex-1"
-          style={{
-            fontFamily: "Inter, sans-serif",
-            color: "#9CA3AF",
-            fontSize: 14,
-          }}
-        >
+        <div className="flex items-center justify-center flex-1" style={{ fontFamily: "Inter, sans-serif", color: "#9CA3AF", fontSize: 14 }}>
           Loading...
         </div>
+      ) : error ? (
+        <div className="flex items-center justify-center flex-1" style={{ fontFamily: "Inter, sans-serif", color: "#ef4444", fontSize: 14 }}>
+          Failed to load: {error}
+        </div>
       ) : withComputed.length === 0 ? (
-        <div
-          className="flex items-center justify-center flex-1"
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            flex: 1,
-          }}
-        >
+        <div className="flex items-center justify-center flex-1" style={{ display: "flex", justifyContent: "center", alignItems: "center", flex: 1 }}>
           {/* No Courses Box */}
-          <div
-            className="rounded-2xl shadow"
-            style={{
-              width: 500,
-              height: 162,
-              background: "#181818",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontFamily: "Inter, sans-serif",
-              fontSize: 18,
-              fontWeight: 700,
-              color: "#FAFAFA",
-            }}
-          >
+          <div className="rounded-2xl shadow" style={{ width: 500, height: 162, background: "#181818", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 700, color: "#FAFAFA" }}>
             No Courses For Today
           </div>
         </div>
       ) : (
-        <div
-          className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar"
-          style={{ gap: 10, alignItems: "flex-start", flex: 1 }}
-        >
+        <div className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar" style={{ gap: 10, alignItems: "flex-start", flex: 1 }}>
           {withComputed.map((c, idx) => (
-            <article
-              key={idx}
-              className="snap-start rounded-2xl px-4 py-3 shadow"
-              style={{
-                minWidth: 245,
-                width: 245,
-                height: 162,
-                background: "#242424",
-                fontFamily: "Inter, ui-sans-serif, system-ui",
-                flexShrink: 0,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "flex-start",
-              }}
-            >
+            <article key={idx} className="snap-start rounded-2xl px-4 py-3 shadow" style={{ minWidth: 245, width: 245, height: 162, background: "#242424", fontFamily: "Inter, ui-sans-serif, system-ui", flexShrink: 0, display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
               <p className="text-gray-300 flex items-center gap-2" style={{ fontSize: 14 }}>
                 <i className="ri-time-line text-[#643EB2]" style={{ fontSize: 16, marginLeft: -3 }} />
                 {c.start} - {c.end}
@@ -223,16 +210,7 @@ export default function CoursesToday({ apiUrl = "/api/courses/today" }) {
               )}
 
               <div className="mt-2 pt-2 border-t border-white/30">
-                <span
-                  className="inline-block rounded"
-                  style={{
-                    ...statusStyle(c._status),
-                    fontSize: 14,
-                    height: 22,
-                    padding: "0 12px",
-                    borderRadius: 4,
-                  }}
-                >
+                <span className="inline-block rounded" style={{ ...statusStyle(c._status), fontSize: 14, height: 22, padding: "0 12px", borderRadius: 4 }}>
                   {c._status}
                 </span>
               </div>
@@ -243,3 +221,4 @@ export default function CoursesToday({ apiUrl = "/api/courses/today" }) {
     </div>
   );
 }
+
