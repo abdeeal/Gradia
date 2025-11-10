@@ -1,15 +1,23 @@
-// ✅ src/pages/Register/register.jsx
-import { useState, useMemo } from "react";
+// src/pages/Loginpage/login.jsx
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function RegisterPage() {
+export default function LoginPage() {
+  const navigate = useNavigate();
+
+  // ---- NEW: form state & loading/error (tidak mempengaruhi UI layout) ----
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
+
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`;
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
 
-  // === CONSTANTS UI ===
   const DRAWER_W = 694;
   const PAD_X = 77;
-  const TOP_HEADER = 100;
+  const TOP_HEADER = 80;
 
   const BORDER_GRADIENT =
     "linear-gradient(90deg, #656565 0%, #CBCBCB 52%, #989898 98%)";
@@ -21,86 +29,66 @@ export default function RegisterPage() {
     color: "transparent",
   };
 
-  // === LOGIC STATE ===
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const navigate = useNavigate();
+  const gradientBorderWrapper = { position: "relative", borderRadius: 8 };
+  const gradientBorderOverlay = {
+    content: '""',
+    position: "absolute",
+    inset: 0,
+    borderRadius: 8,
+    padding: "1px",
+    background: BORDER_GRADIENT,
+    WebkitMask:
+      "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+    WebkitMaskComposite: "xor",
+    maskComposite: "exclude",
+  };
+  const inputStyle = {
+    position: "relative",
+    zIndex: 1,
+    width: "100%",
+    padding: "12px 16px",
+    border: "none",
+    borderRadius: 7,
+    background: "rgba(0,0,0,0.35)",
+    color: "white",
+    outline: "none",
+  };
 
-  // === Validasi ringan ===
-  const canSubmit = useMemo(() => {
-    return (
-      email.trim().length > 3 &&
-      username.trim().length >= 3 &&
-      password.trim().length >= 6 &&
-      !loading
-    );
-  }, [email, username, password, loading]);
-
-  // === Helper: aman parsing JSON ===
-  async function safeJson(res) {
-    if (res.status === 204) return null;
-    const ct = res.headers.get("content-type") || "";
-    if (ct.includes("application/json")) return await res.json();
-    const text = await res.text();
-    throw new Error(
-      `Unexpected response (${res.status} ${res.statusText}): ${text.slice(0, 200)}`
-    );
-  }
-
-  // === Fetch ke API register ===
-  async function registerApi({ email, username, password }) {
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, username, password }),
-    });
-
-    if (res.type === "opaque" || res.status === 0) {
-      throw new Error("Gagal memuat (CORS/opaque). Periksa backend.");
-    }
-
-    const data = await safeJson(res);
-
-    if (!res.ok) {
-      const msg = data?.error || data?.message || `HTTP ${res.status}`;
-      throw new Error(msg);
-    }
-
-    return data;
-  }
-
-  // === Submit handler ===
-  async function onSubmit(e) {
-    e.preventDefault();
-    setErrorMsg("");
-
-    if (!canSubmit) {
-      setErrorMsg("Lengkapi semua isian dengan benar.");
-      return;
-    }
-
+  // ---- NEW: handler submit register ----
+  const handleRegister = async () => {
     try {
+      setErrMsg("");
+      if (!email || !username || !password) {
+        setErrMsg("Username, email, dan password wajib diisi.");
+        return;
+      }
       setLoading(true);
-      await registerApi({ email, username, password });
 
-      // jika sukses ke halaman OTP
-      navigate("/register/otp", {
-        replace: true,
-        state: { email },
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email, password }),
       });
-    } catch (err) {
-      console.error("REGISTER ERR:", err);
-      setErrorMsg(err?.message || "Register gagal. Coba lagi.");
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrMsg(data?.error || "Registrasi gagal.");
+        return;
+      }
+
+      // Simpan email sementara untuk halaman OTP (bisa dibaca di /register/otp)
+      sessionStorage.setItem("registerEmail", email);
+
+      // Arahkan ke halaman OTP
+      navigate("/register/otp", { state: { email } });
+    } catch (e) {
+      setErrMsg(e?.message || "Terjadi kesalahan. Coba lagi.");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  // === UI ===
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black text-white">
       {/* === BACKGROUND === */}
@@ -110,138 +98,229 @@ export default function RegisterPage() {
           alt="Asset 1"
           className="absolute z-0"
           style={{
-            width: vw(1410.82),
-            height: vh(1185.82),
-            left: vw(300.13),
-            top: vh(-20),
-            transform: "rotate(-360deg)",
+            width: vw(1224.58),
+            height: vh(739.76),
+            left: vw(0.13),
+            top: vh(200),
+            transform: "rotate(4deg)",
             opacity: 0.9,
           }}
         />
         <img
           src="/Asset 2.svg"
           alt="Asset 2"
-          className="absolute z-0"
+          className="absolute z-10"
           style={{
-            width: vw(778),
-            height: vh(871),
-            left: vw(58),
-            bottom: vh(114),
+            width: vw(526),
+            height: vh(589),
+            left: vw(456),
+            bottom: vh(400),
+            opacity: 1,
           }}
         />
         <img
           src="/Asset 4.svg"
           alt="Asset 3"
-          className="absolute z-0"
+          className="absolute z-10"
           style={{
-            width: vw(861),
-            height: vh(726),
-            right: vw(140),
-            top: vh(322),
+            width: vw(632),
+            height: vh(538),
+            right: vw(1125),
+            top: vh(100),
+            transform: "rotate(-4deg)",
+            opacity: 0.9,
           }}
         />
       </div>
 
-      {/* === BODY === */}
-      <div
-        className="relative mx-auto flex flex-col items-start justify-center"
-        style={{
-          width: vw(DRAWER_W),
-          paddingLeft: vw(PAD_X),
-          paddingRight: vw(PAD_X),
-          marginTop: vh(TOP_HEADER),
-        }}
-      >
-        <h1
-          className="text-[40px] font-bold"
-          style={gradientText}
-        >
-          Create your account
-        </h1>
-        <p className="text-[#B9B9B9] text-[18px] mt-[10px] mb-[40px]">
-          Please fill in the details below to register
-        </p>
+      {/* === CONTENT (LEFT + RIGHT) === */}
+      <div className="relative z-20 flex h-full w-full">
+        {/* LEFT SIDE */}
+        <div className="flex h-full grow flex-col pt-[50px] pl-[52px]">
+          <div
+            className="inline-flex items-baseline gap-1 leading-none"
+            style={{ fontFamily: "'Genos', sans-serif", fontWeight: 700 }}
+          >
+            <span className="text-[128px] tracking-tight text-[#9457FF]">
+              GRA
+            </span>
+            <span className="text-[128px] tracking-tight text-white">
+              DIA
+            </span>
+          </div>
 
-        {/* === FORM === */}
-        <form
-          onSubmit={onSubmit}
-          className="flex flex-col gap-[22px] w-full"
+          <p
+            className="ml-2 mt-[-10px] font-[Inter] font-semibold leading-[1.2]"
+            style={{ fontSize: 36 }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                background:
+                  "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              Manage Smarter,
+              <br />
+              Achieve More
+            </span>
+          </p>
+        </div>
+
+        {/* RIGHT DRAWER */}
+        <aside
+          className="relative h-full flex flex-col font-[Inter]"
           style={{
-            background: "rgba(0,0,0,0.3)",
-            border: `1px solid transparent`,
-            borderImage: BORDER_GRADIENT,
+            width: vw(DRAWER_W),
+            background: "rgba(255,255,255,0.10)",
+            border: "1px solid transparent",
             borderImageSlice: 1,
-            padding: "32px",
-            borderRadius: "24px",
+            borderImageSource: BORDER_GRADIENT,
+            borderRadius: "18px",
+            backdropFilter: "blur(10px)",
+            color: "#A3A3A3",
+            paddingLeft: PAD_X,
+            paddingRight: PAD_X,
+            paddingTop: TOP_HEADER,
+            paddingBottom: 12,
+            justifyContent: "space-between",
           }}
         >
-          {/* Email */}
-          <div className="flex flex-col">
-            <label className="mb-[6px] text-[#CFCFCF] text-[16px]">Email</label>
-            <input
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="bg-transparent border border-[#787878] rounded-xl px-4 py-3 text-white"
-            />
+          <div>
+            {/* HEADER */}
+            <header className="text-center mb-[10px]">
+              <h1
+                className="text-[48px] font-extrabold leading-tight mb-2"
+                style={gradientText}
+              >
+                Let’s Register
+              </h1>
+              <p className="text-[18px] leading-snug mb-[32px]">
+                Join Gradia and take control of your goals, time, and mindset —
+                all in one app.
+              </p>
+            </header>
+
+            {/* FORM */}
+            <div>
+              {/* Email */}
+              <div className="mb-[10px]">
+                <div className="flex items-center gap-2 mb-[6px]">
+                  <i className="ri-mail-line text-[16px]" />
+                  <span className="text-[14px]">Email</span>
+                </div>
+                <div style={gradientBorderWrapper}>
+                  <div style={gradientBorderOverlay} />
+                  <input
+                    type="email"
+                    placeholder=" "
+                    style={inputStyle}
+                    // NEW
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Username */}
+              <div className="mb-[10px]">
+                <div className="flex items-center gap-2 mb-[6px]">
+                  <i className="ri-account-circle-2-line text-[16px]" />
+                  <span className="text-[14px]">Username</span>
+                </div>
+                <div style={gradientBorderWrapper}>
+                  <div style={gradientBorderOverlay} />
+                  <input
+                    type="text"
+                    placeholder=" "
+                    style={inputStyle}
+                    // NEW
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="mb-[18px]">
+                <div className="flex items-center gap-2 mb-[6px]">
+                  <i className="ri-lock-2-line text-[16px]" />
+                  <span className="text-[14px]">Password</span>
+                </div>
+                <div style={gradientBorderWrapper}>
+                  <div style={gradientBorderOverlay} />
+                  <input
+                    type="password"
+                    placeholder=" "
+                    style={inputStyle}
+                    // NEW
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* OPTIONAL: Error text kecil (tidak mengubah layout besar) */}
+              {errMsg ? (
+                <p className="text-red-400 text-[12px] mb-[8px]">{errMsg}</p>
+              ) : null}
+
+              {/* REGISTER BUTTON */}
+              <div className="flex justify-end mb-[16px]">
+                <button
+                  type="button"
+                  onClick={handleRegister}
+                  disabled={loading}
+                  className="w-1/2 px-4 py-3 text-[16px] font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, #4C1D95 0%, #2D0A49 100%)",
+                    border: "none",
+                    borderRadius: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      background:
+                        "linear-gradient(180deg, #FAFAFA 0%, #949494 100%)",
+                      WebkitBackgroundClip: "text",
+                      backgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      color: "transparent",
+                    }}
+                  >
+                    {loading ? "Processing..." : "Register Now"}
+                  </span>
+                </button>
+              </div>
+
+              {/* FOOTER */}
+              <div className="text-center">
+                <p className="text-[14px] mb-[42px]">
+                  Already have an account?{" "}
+                  <button
+                    onClick={() => navigate("/login")}
+                    className="hover:underline"
+                    style={{
+                      color: "#643EB2",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Login
+                  </button>
+                </p>
+                <p className="text-[12px] leading-none">
+                  © 2025 Gradia. All rights reserved.
+                </p>
+              </div>
+            </div>
           </div>
-
-          {/* Username */}
-          <div className="flex flex-col">
-            <label className="mb-[6px] text-[#CFCFCF] text-[16px]">
-              Username
-            </label>
-            <input
-              type="text"
-              placeholder="Enter your username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="bg-transparent border border-[#787878] rounded-xl px-4 py-3 text-white"
-            />
-          </div>
-
-          {/* Password */}
-          <div className="flex flex-col">
-            <label className="mb-[6px] text-[#CFCFCF] text-[16px]">
-              Password
-            </label>
-            <input
-              type="password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="bg-transparent border border-[#787878] rounded-xl px-4 py-3 text-white"
-            />
-          </div>
-
-          {/* Error message */}
-          {errorMsg && (
-            <p className="text-red-500 text-sm mt-[4px]">{errorMsg}</p>
-          )}
-
-          {/* Submit button */}
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="mt-[20px] w-full py-[12px] rounded-xl font-semibold text-[18px]
-              bg-gradient-to-r from-[#8D8D8D] via-[#C9C9C9] to-[#989898]
-              text-black hover:opacity-90 disabled:opacity-40"
-          >
-            {loading ? "Processing..." : "Register"}
-          </button>
-        </form>
-
-        {/* Footer */}
-        <p className="text-[#B9B9B9] text-[16px] mt-[32px] text-center w-full">
-          Already have an account?{" "}
-          <a
-            href="/login"
-            className="text-white underline hover:text-[#D1D1D1]"
-          >
-            Login here
-          </a>
-        </p>
+        </aside>
       </div>
     </div>
   );

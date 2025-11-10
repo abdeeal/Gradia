@@ -6,7 +6,7 @@ import Dashboard from "../pages/Dashboard/dashboard.jsx";
 import Courses from "../pages/Courses/Courses.jsx";
 import Tasks from "../pages/Tasks/Tasks.jsx";
 import Presence from "../pages/Presence/Presence.jsx";
-import Calendar from "../pages/Calendar/calendar.jsx"; // ✅ ejaan & default import
+import Calendar from "../pages/Calendar/calendar.jsx"; 
 
 // === LOGIN & FORGOT PASSWORD PAGES ===
 import Login from "../pages/Loginpage/loginpage.jsx";
@@ -16,9 +16,13 @@ import ForgotOTP from "@/pages/Loginpage/forgot-otp.jsx";
 import ForgotSuccess from "@/pages/Loginpage/forgot-succes.jsx";
 
 // === REGISTER PAGES ===
+// ⛏️ perbaikan: default import TANPA <>
 import Register from "../pages/Register/register.jsx";
 import RegisterOTP from "@/pages/Register/otp.jsx";
 import RegisterSuccess from "@/pages/Register/email-succes.jsx";
+
+// === WORKSPACES PAGES ===
+import WorkspacesPage from "@/pages/Workspace/Workspace.jsx";
 
 export default function AppRoutes() {
   return (
@@ -32,7 +36,8 @@ export default function AppRoutes() {
 
       {/* ===== AUTH ===== */}
       <Route path="/auth/login" element={<Login />} />
-      <Route path="/auth/register" element={<Register />} /> {/* ✅ tadinya <Registration /> */}
+      {/* gunakan komponen Register yang di-import di atas */}
+      <Route path="/auth/register" element={<Register />} />
 
       {/* ===== LOGIN & FORGOT PASSWORD FLOW ===== */}
       <Route path="/login" element={<Login />} />
@@ -45,6 +50,9 @@ export default function AppRoutes() {
       <Route path="/register" element={<Register />} />
       <Route path="/register/otp" element={<RegisterOTP />} />
       <Route path="/register/success" element={<RegisterSuccess />} />
+
+      {/* === WORKSPACES FLOW === */}
+      <Route path="/workspace" element={<WorkspacesPage />} />
 
       {/* ===== REDIRECTS (legacy) ===== */}
       <Route path="/presences" element={<Navigate to="/presence" replace />} />
