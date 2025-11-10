@@ -85,7 +85,7 @@ export default async function handleRegister(req, res) {
 
       if (insertError) throw insertError;
 
-      // Kirim OTP purpose: registration
+    
       const { expiresAt } = await sendOtpInternal(
         emailLower,
         newUser,
@@ -109,7 +109,7 @@ export default async function handleRegister(req, res) {
   });
 }
 
-// fungsi internal kirim OTP
+
 async function sendOtpInternal(email, user, purpose) {
   const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
