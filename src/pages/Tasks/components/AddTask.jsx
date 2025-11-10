@@ -29,11 +29,23 @@ const priorityValueClass = (val) => {
   if (val === "Low") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
   return BADGE_BASE;
 };
+
+/* ---------- Status: normalizer + badge color (warna sama) ---------- */
+const normalizeStatus = (s) => {
+  const m = String(s || "").trim().toLowerCase();
+  if (m === "in progress" || m === "inprogress") return "In progress";
+  if (m === "not started" || m === "notstarted") return "Not started";
+  if (m === "completed") return "Completed";
+  if (m === "overdue") return "Overdue";
+  return s || "";
+};
+
 const statusValueClass = (val) => {
-  if (val === "In Progress") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
-  if (val === "Completed") return `${BADGE_BASE} bg-[#14532D]/60 text-[#4ADE80]`;
-  if (val === "Overdue") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
-  if (val === "Not started") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
+  const v = normalizeStatus(val);
+  if (v === "In progress") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
+  if (v === "Completed") return `${BADGE_BASE} bg-[#14532D]/60 text-[#4ADE80]`;
+  if (v === "Overdue") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
+  if (v === "Not started") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
   return BADGE_BASE;
 };
 
@@ -112,6 +124,17 @@ const uniqBy = (arr, keyFn) => {
   return Array.from(m.values());
 };
 
+/* SSR/CSR-safe workspace getter */
+function getIdWorkspace() {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      const v = Number(window.sessionStorage.getItem("id_workspace"));
+      return Number.isFinite(v) && v > 0 ? v : 1;
+    }
+  } catch {}
+  return 1;
+}
+
 const AddTask = ({
   onClose,
   refreshTasks, // function()
@@ -143,7 +166,8 @@ const AddTask = ({
   );
 
   const priorities = ["High", "Medium", "Low"];
-  const statuses = ["Not started", "In Progress", "Completed", "Overdue"];
+  // gunakan tulisan yang direvisi
+  const statuses = ["Not started", "In progress", "Completed", "Overdue"];
 
   useEffect(() => {
     gsap.fromTo(
@@ -161,16 +185,17 @@ const AddTask = ({
 
   useEffect(() => {
     let abort = false;
+    const idWorkspace = getIdWorkspace();
 
     (async () => {
       setLoadingCourses(true);
 
       const fromProp = normalizeCourses(coursesProp || []);
 
-      // 1) coba /api/courses
+      // 1) coba /api/courses (dengan idWorkspace)
       let fromApiCourses = [];
       try {
-        const r = await fetch("/api/courses");
+        const r = await fetch(`/api/courses?idWorkspace=${encodeURIComponent(idWorkspace)}`);
         if (r.ok) {
           const raw = await r.json();
           if (Array.isArray(raw)) {
@@ -181,10 +206,10 @@ const AddTask = ({
         /* ignore */
       }
 
-      // 2) ekstrak dari /api/tasks
+      // 2) ekstrak dari /api/tasks (dengan idWorkspace)
       let fromTasks = [];
       try {
-        const r = await fetch("/api/tasks?limit=1000");
+        const r = await fetch(`/api/tasks?limit=1000&idWorkspace=${encodeURIComponent(idWorkspace)}`);
         if (r.ok) {
           const tasks = await r.json();
           if (Array.isArray(tasks)) {
@@ -243,7 +268,7 @@ const AddTask = ({
       return;
     }
 
-    const id_workspace = Number(sessionStorage.getItem("id_workspace") || "1");
+    const id_workspace = getIdWorkspace();
     const payload = {
       title: form.title,
       description: form.subtitle || null,
@@ -251,7 +276,7 @@ const AddTask = ({
         ? new Date(`${form.deadline}T${form.time || "00:00"}`)
         : null,
       priority: form.priority || null,
-      status: form.status || null,
+      status: normalizeStatus(form.status) || null, // normalisasi
       score: form.score === "" ? null : Number(form.score),
       link: form.link || null,
       // kirim number
@@ -273,7 +298,8 @@ const AddTask = ({
 
     try {
       setLoading(true);
-      const axiosPromise = axios.post(`/api/tasks`, payload);
+      // sertakan idWorkspace di endpoint
+      const axiosPromise = axios.post(`/api/tasks?idWorkspace=${encodeURIComponent(id_workspace)}`, payload);
 
       // popup sukses dulu
       showAlert({
@@ -285,7 +311,7 @@ const AddTask = ({
         height: 380,
       });
 
-      // tutup & refresh
+      // tutup & refresh (drawer otomatis tertutup setelah add)
       requestAnimationFrame(() => {
         if (typeof refreshTasks === "function") refreshTasks();
         if (typeof setDrawer === "function") setDrawer(false);
@@ -486,7 +512,7 @@ const AddTask = ({
             <Row icon="ri-loader-line" label="Status">
               <BadgeSelect
                 value={form.status}
-                onChange={(val) => setVal("status", val)}
+                onChange={(val) => setVal("status", normalizeStatus(val))}
                 options={statuses}
                 valueClassFn={statusValueClass}
                 label="Status"

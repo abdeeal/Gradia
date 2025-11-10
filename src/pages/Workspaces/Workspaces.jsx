@@ -1,21 +1,54 @@
 // src/pages/Workspaces/index.jsx
-import React, { $1 } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Mobile from "./Layout/Mobile";
+import { useAlert } from "@/hooks/useAlert";
 import { useMediaQuery } from "react-responsive";
-$1
-// === API CONFIG ===
-const API_URL = "/api/workspace"; // point this to your deployed API route
+import DeletePopup from "@/components/Delete";
 
-// If you already have auth, replace this with your real user-id source
+// === API CONFIG ===
+const API_URL = "/api/workspace"; // sesuaikan dengan route API kamu
+
+// Helper user-id (opsional)
 const getCurrentUserId = () => {
   try {
-    // example: persisted from your auth flow
     const v = localStorage.getItem("gradia_user_id");
     return v ? JSON.parse(v) : null;
-  } catch (e) {
+  } catch {
     return null;
   }
 };
+
+// --- helpers: fetch JSON yang tahan response kosong / non-JSON ---
+async function fetchJsonSafe(input, init) {
+  const res = await fetch(input, init);
+
+  const contentType = res.headers.get("content-type") || "";
+  const isJSON = contentType.includes("application/json");
+
+  // 204 No Content
+  if (res.status === 204) {
+    return { res, data: null };
+  }
+
+  // baca sebagai text dulu supaya aman walau bukan JSON
+  const text = await res.text();
+  if (!text) {
+    return { res, data: null };
+  }
+
+  if (isJSON) {
+    try {
+      return { res, data: JSON.parse(text) };
+    } catch (e) {
+      throw new Error(
+        `Invalid JSON from server (status ${res.status}). Body: "${text.slice(0, 120)}..."`
+      );
+    }
+  }
+
+  // non-JSON → kembalikan text
+  return { res, data: text };
+}
 
 export default function Workspaces() {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -54,7 +87,6 @@ function GradiaWorkspacePage() {
   const [workspaces, setWorkspaces] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-
   const [openMenuId, setOpenMenuId] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [targetWs, setTargetWs] = useState(null);
@@ -75,11 +107,18 @@ function GradiaWorkspacePage() {
       try {
         const id_user = getCurrentUserId();
         const qs = id_user ? `?id_user=${encodeURIComponent(id_user)}` : "";
-        const res = await fetch(`${API_URL}${qs}`);
-        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
-        const data = await res.json();
-        // map backend fields -> UI shape
-        const mapped = (Array.isArray(data) ? data : []).map((w) => ({
+
+        const { res, data } = await fetchJsonSafe(`${API_URL}${qs}`);
+        if (!res.ok) {
+          throw new Error(
+            `Failed to fetch: ${res.status}${
+              typeof data === "string" ? ` • ${data.slice(0, 80)}` : ""
+            }`
+          );
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        const mapped = rows.map((w) => ({
           id: w.id_workspace ?? w.id ?? w.id_workspace_id ?? Math.random(),
           name: w.name ?? w.nama ?? w.workspace_name ?? "Untitled",
           __raw: w,
@@ -99,7 +138,7 @@ function GradiaWorkspacePage() {
       }
     };
     fetchWorkspaces();
-  }, []);
+  }, [showAlert]);
 
   // Close dropdown + create ketika klik di luar
   useEffect(() => {
@@ -174,27 +213,36 @@ function GradiaWorkspacePage() {
     const prevName = workspaces.find((w) => w.id === id)?.name;
 
     try {
-      // find raw id_workspace
       const target = workspaces.find((w) => w.id === id);
       const id_workspace = target?.__raw?.id_workspace ?? id;
-      const res = await fetch(API_URL, {
+
+      const { res, data } = await fetchJsonSafe(API_URL, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_workspace, name: next }),
       });
+
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j?.error || `Failed to update: ${res.status}`);
+        const msg =
+          (data && typeof data === "object" && data.error) ||
+          (typeof data === "string" ? data : "") ||
+          `Failed to update: ${res.status}`;
+        throw new Error(msg);
       }
 
-      setWorkspaces((prev) => prev.map((w) => (w.id === id ? { ...w, name: next } : w)));
+      setWorkspaces((prev) =>
+        prev.map((w) => (w.id === id ? { ...w, name: next } : w))
+      );
       setEditingId(null);
       setDraftName("");
 
       showAlert({
         icon: "ri-checkbox-circle-fill",
         title: "Workspace updated",
-        desc: prevName && prevName !== next ? `"${prevName}" → "${next}"` : "Changes saved successfully.",
+        desc:
+          prevName && prevName !== next
+            ? `"${prevName}" → "${next}"`
+            : "Changes saved successfully.",
         variant: "success",
         width: 676,
         height: 380,
@@ -221,14 +269,19 @@ function GradiaWorkspacePage() {
     if (!targetWs) return;
     try {
       const id_workspace = targetWs?.__raw?.id_workspace ?? targetWs.id;
-      const res = await fetch(API_URL, {
+
+      const { res, data } = await fetchJsonSafe(API_URL, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_workspace }),
       });
+
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j?.error || `Failed to delete: ${res.status}`);
+        const msg =
+          (data && typeof data === "object" && data.error) ||
+          (typeof data === "string" ? data : "") ||
+          `Failed to delete: ${res.status}`;
+        throw new Error(msg);
       }
 
       setWorkspaces((prev) => prev.filter((w) => w.id !== targetWs.id));
@@ -279,16 +332,23 @@ function GradiaWorkspacePage() {
       const payload = { name };
       if (id_user) payload.id_user = id_user;
 
-      const res = await fetch(API_URL, {
+      const { res, data } = await fetchJsonSafe(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j?.error || `Failed to create: ${res.status}`);
 
-      // API returns { message, data: [row] }
-      const created = Array.isArray(j?.data) ? j.data[0] : j?.data ?? {};
+      if (!res.ok) {
+        const msg =
+          (data && typeof data === "object" && data.error) ||
+          (typeof data === "string" ? data : "") ||
+          `Failed to create: ${res.status}`;
+        throw new Error(msg);
+      }
+
+      const body = data && typeof data === "object" ? data : {};
+      const created = Array.isArray(body.data) ? body.data[0] : body.data ?? {};
+
       const mapped = {
         id: created.id_workspace ?? created.id ?? Math.random(),
         name: created.name ?? name,
@@ -378,25 +438,6 @@ function GradiaWorkspacePage() {
             <span className="text-[128px] tracking-tight text-[#9457FF]">GRA</span>
             <span className="text-[128px] tracking-tight text-white">DIA</span>
           </div>
-          <p
-            className="ml-2 mt-[-10px] font-[Inter] font-semibold leading-[1.2]"
-            style={{ fontSize: 36 }}
-          >
-            <span
-              style={{
-                display: "inline-block",
-                background: "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
-                WebkitBackgroundClip: "text",
-                backgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                color: "transparent",
-              }}
-            >
-              Manage Smarter,
-              <br />
-              Achieve More
-            </span>
-          </p>
         </div>
 
         {/* RIGHT DRAWER */}

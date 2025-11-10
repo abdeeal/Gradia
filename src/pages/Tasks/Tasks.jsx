@@ -9,8 +9,8 @@ import { useMediaQuery } from "react-responsive";
 
 /* ===== Helpers ===== */
 const normalizeStatusKey = (s = "") => {
-  const x = s.toLowerCase();
-  if (x.includes("progress")) return "inProgress";
+  const x = String(s).toLowerCase();
+  if (x.includes("progress")) return "inProgress"; // ✅ samakan dengan grouped
   if (x.includes("complete")) return "completed";
   if (x.includes("overdue") || x.includes("late")) return "overdue";
   return "notStarted";
@@ -27,6 +27,8 @@ const Tasks = () => {
   const [showAddPanel, setShowAddPanel] = useState(false);
   const taskContainerRef = useRef(null);
 
+  const id_workspace = Number(sessionStorage.getItem("id_workspace") || "1");
+
   const [tasksByCol, setTasksByCol] = useState({
     notStarted: [],
     inProgress: [],
@@ -37,7 +39,7 @@ const Tasks = () => {
   // daftar courses (id_course + title) untuk dropdown & display
   const [courses, setCourses] = useState([]);
 
-  // ===== Loading state (sesuai permintaan) =====
+  // ===== Loading state =====
   const [loading, setLoading] = useState(true);
 
   // === LOAD Courses & Tasks from API ===
@@ -47,7 +49,7 @@ const Tasks = () => {
       try {
         // 1) Courses
         try {
-          const resCourses = await fetch("/api/courses");
+          const resCourses = await fetch(`/api/courses?idWorkspace=${id_workspace}`);
           if (resCourses.ok) {
             const data = await resCourses.json();
             const mapped = (Array.isArray(data) ? data : [])
@@ -65,12 +67,16 @@ const Tasks = () => {
         }
 
         // 2) Tasks
-        const id_workspace = Number(sessionStorage.getItem("id_workspace") || "1");
-        const res = await fetch(`/api/tasks?workspace=${id_workspace}`);
+        const res = await fetch(`/api/tasks?idWorkspace=${id_workspace}`);
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
+
         const grouped = { notStarted: [], inProgress: [], completed: [], overdue: [] };
-        data.forEach((t) => grouped[normalizeStatusKey(t.status || "")].push(t));
+        (Array.isArray(data) ? data : []).forEach((t) => {
+          const key = normalizeStatusKey(t.status || "");
+          if (!grouped[key]) grouped[key] = [];     // ✅ guard
+          grouped[key].push(t);
+        });
         setTasksByCol(grouped);
       } catch (e) {
         console.error("Initial load failed:", e);
@@ -79,7 +85,7 @@ const Tasks = () => {
       }
     };
     load();
-  }, []);
+  }, [id_workspace]);
 
   /* ===== Drawer handlers ===== */
   const handleCardClick = (task) => setSelectedTask(task);
@@ -106,18 +112,21 @@ const Tasks = () => {
 
   // === CRUD ke API ===
   const refreshList = async () => {
-    const id_workspace = Number(sessionStorage.getItem("id_workspace") || "1");
-    const res = await fetch(`/api/tasks?workspace=${id_workspace}`);
+    const res = await fetch(`/api/tasks?idWorkspace=${id_workspace}`);
     const fresh = await res.json();
     const grouped = { notStarted: [], inProgress: [], completed: [], overdue: [] };
-    fresh.forEach((t) => grouped[normalizeStatusKey(t.status || "")].push(t));
+    (Array.isArray(fresh) ? fresh : []).forEach((t) => {
+      const key = normalizeStatusKey(t.status || "");
+      if (!grouped[key]) grouped[key] = [];       // ✅ guard
+      grouped[key].push(t);
+    });
     setTasksByCol(grouped);
     return fresh;
   };
 
   const addTask = async (payload) => {
     try {
-      const res = await fetch("/api/tasks", {
+      const res = await fetch(`/api/tasks?idWorkspace=${id_workspace}`, { // ✅ perbaiki URL
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -131,7 +140,7 @@ const Tasks = () => {
 
   const updateTask = async (updated) => {
     try {
-      const res = await fetch("/api/tasks", {
+      const res = await fetch(`/api/tasks?idWorkspace=${id_workspace}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updated),
@@ -147,7 +156,10 @@ const Tasks = () => {
 
   const deleteTask = async (taskId) => {
     try {
-      const res = await fetch(`/api/tasks?id=${encodeURIComponent(taskId)}`, { method: "DELETE" });
+      const res = await fetch(
+        `/api/tasks?id=${encodeURIComponent(taskId)}&idWorkspace=${id_workspace}`,
+        { method: "DELETE" }
+      ); // ✅ sertakan idWorkspace
       if (!res.ok) throw new Error(await res.text());
       setTasksByCol((prev) => ({
         notStarted: prev.notStarted.filter((t) => t.id_task !== taskId),
@@ -179,16 +191,16 @@ const Tasks = () => {
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
   if (isMobile || isTablet) return <Mobile />;
 
-  /* ========= LISTEN to optimistic events (langsung terlihat) ========= */
+  /* ========= LISTEN to optimistic events ========= */
   useEffect(() => {
     const placeTask = (prevCols, task) => {
       const key = normalizeStatusKey(task.status || "");
       const next = { ...prevCols };
       // pastikan tidak ada duplikat di semua kolom
-      Object.keys(next).forEach(k => {
+      Object.keys(next).forEach((k) => {
         next[k] = next[k].filter((t) => t.id_task !== task.id_task);
       });
-      // masukkan ke kolom yang sesuai (prepend)
+      if (!next[key]) next[key] = []; // ✅ guard
       next[key] = [task, ...next[key]];
       return next;
     };
@@ -203,7 +215,6 @@ const Tasks = () => {
       const { temp_id, task } = e.detail || {};
       if (!temp_id || !task) return;
       setTasksByCol((prev) => {
-        // ganti temp_id dengan id real, jaga kolom sesuai status terbaru
         const cleaned = Object.fromEntries(
           Object.entries(prev).map(([k, arr]) => [k, arr.filter((t) => t.id_task !== temp_id)])
         );
@@ -215,7 +226,6 @@ const Tasks = () => {
       const { task } = e.detail || {};
       if (!task) return;
       setTasksByCol((prev) => placeTask(prev, task));
-      // jika panel detail sedang buka di task yg sama, sinkronkan
       setSelectedTask((curr) => (curr && curr.id_task === task.id_task ? { ...curr, ...task } : curr));
     };
 
@@ -295,7 +305,6 @@ const Tasks = () => {
         <div className="border-t border-[#464646] mb-[14px] mr-6"></div>
 
         <div className="bg-background-secondary p-5 rounded-2xl mr-6 border border-[#2c2c2c]">
-          {/* ====== Conditional render loading (sesuai snippet) ====== */}
           {loading ? (
             <div className="text-gray-400 text-sm">Loading tasks…</div>
           ) : (

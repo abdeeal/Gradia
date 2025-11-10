@@ -28,7 +28,10 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
 
   const setVal = (k, v) => setFormData((p) => ({ ...p, [k]: v }));
 
-  const handleSave = () => {
+  /* =========================
+     SAVE — tutup drawer otomatis jika sukses
+     ========================= */
+  const handleSave = async () => {
     const updated = {
       ...formData,
       sks: formData.sks ? Number(formData.sks) : 0,
@@ -37,22 +40,44 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
     delete updated.startTime;
     delete updated.endTime;
 
-    if (typeof onSave === "function") onSave(updated);
+    try {
+      setLoading(true);
+      if (typeof onSave === "function") {
+        await onSave(updated); // tunggu (bisa ke backend)
+      }
 
-    showAlert({
-      icon: "ri-checkbox-circle-fill",
-      title: "Updated",
-      desc: `${updated.title} updated successfully.`,
-      variant: "success",
-      width: 676,
-      height: 380,
-    });
+      showAlert({
+        icon: "ri-checkbox-circle-fill",
+        title: "Updated",
+        desc: `${updated.title} updated successfully.`,
+        variant: "success",
+        width: 676,
+        height: 380,
+      });
+
+      onClose?.(); // <- tutup drawer setelah sukses
+    } catch (err) {
+      const msg =
+        err?.message ||
+        err?.response?.data?.message ||
+        "Failed to update course. Please try again.";
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Error",
+        desc: msg,
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   /* =========================
-     DELETE — nyontek ke /api/courses
+     DELETE — buka popup, eksekusi, tutup drawer kalau sukses
      ========================= */
-  const handleDelete = () => setShowConfirm(true); // sama: hanya buka popup
+  const handleDelete = () => setShowConfirm(true);
 
   const doDelete = async () => {
     const courseId =
@@ -61,7 +86,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
     try {
       setLoading(true);
 
-      // Optimistic update (opsional)
+      // Optimistic event (opsional)
       window.dispatchEvent(
         new CustomEvent("courses:deleted", { detail: { id_course: courseId } })
       );
@@ -79,7 +104,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
         height: 380,
       });
 
-      onClose?.();
+      onClose?.(); // <- tutup drawer setelah sukses delete
     } catch (e) {
       console.error(e);
       showAlert({
@@ -91,7 +116,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
         height: 380,
       });
     } finally {
-      setShowConfirm(false); // tutup popup di finally (pola sama)
+      setShowConfirm(false);
       setLoading(false);
     }
   };
@@ -188,7 +213,6 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
           </div>
 
           <div className="mt-[24px] flex justify-end items-center gap-3 pt-8 font-inter">
-            {/* tombol delete -> sama: buka popup */}
             <button
               onClick={handleDelete}
               className="flex items-center justify-center w-[44px] h-[44px] rounded-lg bg-[#830404] hover:bg-[#9b0a0a] shadow-md shadow-red-900/40 transition-all disabled:opacity-60"
@@ -204,7 +228,9 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
               disabled={loading}
             >
               <i className="ri-edit-line text-foreground text-[18px]" />
-              <span className="text-[15px] font-medium">{loading ? "Saving..." : "Save changes"}</span>
+              <span className="text-[15px] font-medium">
+                {loading ? "Saving..." : "Save changes"}
+              </span>
             </button>
           </div>
         </div>
@@ -215,7 +241,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
           title="Delete Course"
           warning={`Are you sure you want to delete "${course.title}"?`}
           onCancel={() => setShowConfirm(false)}
-          onDelete={doDelete} // <-- persis seperti pola yang diminta
+          onDelete={doDelete}
         />
       )}
     </>
@@ -272,17 +298,18 @@ const NumberInline = ({ icon, label, value, onChange }) => (
     <div className="flex-1 w-fit">
       <SelectUi
         placeholder="1"
-        value={value === "" || value == null ? undefined : Number(value)}
+        value={value === "" || value == null ? undefined : String(value)}
         onValueChange={(v) => onChange(Number(v))}
         valueClassFn={(val) => {
-          if (val === 2) return "bg-drop-yellow text-yellow px-3";
-          if (val === 1) return "bg-drop-cyan text-cyan px-3";
+          const num = Number(val);
+          if (num === 2) return "bg-drop-yellow text-yellow px-3";
+          if (num === 1) return "bg-drop-cyan text-cyan px-3";
           return "bg-drop-red text-red px-3";
         }}
       >
         <SelectLabel>SKS</SelectLabel>
         {[1, 2, 3].map((sks) => (
-          <SelectItem key={sks} value={sks}>
+          <SelectItem key={sks} value={String(sks)}>
             {sks}
           </SelectItem>
         ))}

@@ -1,4 +1,3 @@
-// src/components/taskprogress.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell } from "recharts";
 
@@ -13,17 +12,22 @@ export default function TaskProgress({
   queryParams = null,
   taskIds = null,
   useCountsDirect = false,
+
+  idWorkspace = null, // opsional override
 }) {
   const [remoteTasks, setRemoteTasks] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // === NEW: Ambil data dari TaskSummary (via event global) ===
-  const [summaryCounts, setSummaryCounts] = useState(null);
-  useEffect(() => {
-    const handler = (e) => setSummaryCounts(e.detail);
-    window.addEventListener("taskSummaryUpdate", handler);
-    return () => window.removeEventListener("taskSummaryUpdate", handler);
+  // === idWorkspace dari sessionStorage (SSR/CSR-safe) ===
+  const sessionIdWorkspace = React.useMemo(() => {
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        const v = Number(window.sessionStorage.getItem("id_workspace"));
+        return Number.isFinite(v) && v > 0 ? v : 1;
+      }
+    } catch {}
+    return 1;
   }, []);
 
   // ===== Normalisasi status & ID =====
@@ -46,57 +50,85 @@ export default function TaskProgress({
 
   const extractId = (t) => t?.id?.task ?? t?.id_task ?? t?.task_id ?? t?.id ?? null;
 
-  const NOT_STARTED_KEYS = new Set(
-    ["not started","not_started","not-started","todo","to do","pending","backlog","new","open","ready","queued","created","belummulai",0,"0"].map(keyfy)
+  const NOT_STARTED_KEYS = useMemo(
+    () =>
+      new Set(
+        [
+          "not started","not_started","not-started","todo","to do","pending","backlog","new","open","ready","queued","created","belummulai",0,"0"
+        ].map(keyfy)
+      ),
+    []
   );
-  const INPROGRESS_KEYS = new Set(
-    ["in progress","in_progress","in-progress","on progress","ongoing","processing","doing","wip","progress","started","active","sedangdikerjakan",1,"1"].map(keyfy)
+  const INPROGRESS_KEYS = useMemo(
+    () =>
+      new Set(
+        [
+          "in progress","in_progress","in-progress","on progress","ongoing","processing","doing","wip","progress","started","active","sedangdikerjakan",1,"1"
+        ].map(keyfy)
+      ),
+    []
   );
-  const COMPLETED_KEYS = new Set(
-    ["completed","complete","done","finished","closed","resolved","selesai",2,"2"].map(keyfy)
+  const COMPLETED_KEYS = useMemo(
+    () => new Set(["completed","complete","done","finished","closed","resolved","selesai",2,"2"].map(keyfy)),
+    []
   );
-  const OVERDUE_KEYS = new Set(
-    ["overdue","late","terlambat","jatuhtempo","lewatjatuhtempo",3,"3"].map(keyfy)
+  const OVERDUE_KEYS = useMemo(
+    () => new Set(["overdue","late","terlambat","jatuh tempo","lewat jatuh tempo","jatuhtempo","lewatjatuhtempo",3,"3"].map(keyfy)),
+    []
   );
 
-  // ===== Fetch jika tasks kosong =====
+  // ==== Gabung query params (priority: queryParams > prop idWorkspace > session) ====
+  const mergedQuery = useMemo(() => {
+    const hasQP = !!(queryParams && Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace"));
+    const effective = hasQP ? undefined : (idWorkspace ?? sessionIdWorkspace);
+    const base = effective != null ? { idWorkspace: effective } : {};
+    return { ...base, ...(queryParams || {}) };
+  }, [queryParams, idWorkspace, sessionIdWorkspace]);
+
+  const queryString = useMemo(() => {
+    const entries = Object.entries(mergedQuery).filter(([, v]) => v !== undefined && v !== null && v !== "");
+    if (entries.length === 0) return "";
+    return (
+      "?" + entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&")
+    );
+  }, [mergedQuery]);
+
+  // ===== Fetch jika tasks kosong / tidak pakai counts langsung =====
   useEffect(() => {
     const local = Array.isArray(tasks) ? tasks : [];
-    if (local.length > 0 || useCountsDirect || summaryCounts) {
+    if (local.length > 0 || useCountsDirect) {
       setRemoteTasks(null);
       setLoading(false);
       setErr("");
       return;
     }
 
-    let cancelled = false;
+    const ctrl = new AbortController();
+    setLoading(true); // 🔴 aktifkan loader sebelum async
+    setErr("");
+
     (async () => {
       try {
-        setLoading(true);
-        setErr("");
-        const qs = queryParams
-          ? "?" + Object.entries(queryParams)
-              .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-              .join("&")
-          : "";
-        const resp = await fetch(`${apiUrl}${qs}`, { headers: { Accept: "application/json" } });
+        const resp = await fetch(`${apiUrl}${queryString}`, {
+          headers: { Accept: "application/json" },
+          signal: ctrl.signal,
+        });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
         const arr = Array.isArray(data) ? data : data?.data || [];
-        if (!cancelled) setRemoteTasks(arr);
+        setRemoteTasks(arr);
       } catch (e) {
-        if (!cancelled) setErr(e?.message || "Gagal memuat tasks");
+        if (e.name !== "AbortError") setErr(e?.message || "Gagal memuat tasks");
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [tasks, apiUrl, JSON.stringify(queryParams), useCountsDirect, summaryCounts]);
+    return () => ctrl.abort();
+  }, [tasks, apiUrl, queryString, useCountsDirect]);
 
   // ===== Pilih sumber data =====
   const sourceTasks = useMemo(() => {
-    if (summaryCounts) return [];
     if (useCountsDirect) return [];
     const base = (Array.isArray(tasks) && tasks.length > 0) ? tasks : (remoteTasks || []);
     if (!taskIds || taskIds.length === 0) return base;
@@ -105,25 +137,13 @@ export default function TaskProgress({
       const id = extractId(t);
       return id != null && allow.has(String(id));
     });
-  }, [tasks, remoteTasks, taskIds, useCountsDirect, summaryCounts]);
+  }, [tasks, remoteTasks, taskIds, useCountsDirect]);
 
   // ===== Hitung angka untuk diagram =====
   const derived = useMemo(() => {
-    // 1️⃣ Utamakan hasil dari TaskSummary
-    if (summaryCounts) {
-      return {
-        pending: Number(summaryCounts.pending) || 0,
-        inProgress: Number(summaryCounts.inProgress) || 0,
-        completed: Number(summaryCounts.completed) || 0,
-      };
-    }
-
-    // 2️⃣ Kalau pakai angka langsung
     if (useCountsDirect) {
       return { pending, inProgress, completed };
     }
-
-    // 3️⃣ Hitung manual dari tasks
     let pend = 0, prog = 0, comp = 0;
     const seen = new Set();
     for (const t of sourceTasks) {
@@ -141,7 +161,7 @@ export default function TaskProgress({
       else pend++;
     }
     return { pending: pend, inProgress: prog, completed: comp };
-  }, [sourceTasks, useCountsDirect, pending, inProgress, completed, summaryCounts]);
+  }, [sourceTasks, useCountsDirect, pending, inProgress, completed, COMPLETED_KEYS, INPROGRESS_KEYS, OVERDUE_KEYS, NOT_STARTED_KEYS]);
 
   const chartCompleted = derived.completed;
   const chartInProgress = derived.inProgress;
@@ -160,17 +180,23 @@ export default function TaskProgress({
   const pct = Math.round((chartCompleted / total) * 100);
   const pctClamped = Math.max(0, Math.min(100, pct));
 
-  // ===== UI tetap sama persis =====
+  // ===== UI (tetap) =====
   if (loading) {
+    // Saat fetch: tampilkan "..." sesuai request kamu sebelumnya
     return (
       <div
-        className="relative rounded-2xl p-4 text-white animate-pulse"
+        className="relative rounded-2xl p-4 text-white"
+        role="status"
+        aria-live="polite"
+        aria-label="Loading..."
         style={{ width: 308, height: 347, backgroundImage: "linear-gradient(to right, #000000, #211832)" }}
       >
         <div className="mb-2" style={{ fontFamily: "Montserrat, ui-sans-serif", fontSize: 20, fontWeight: 700 }}>
           {title}
         </div>
-        <div className="h-[200px] flex items-center justify-center text-[#C4B5FD]">Loading…</div>
+        <div className="h-[200px] flex items-center justify-center">
+          <span className="text-4xl select-none">...</span>
+        </div>
       </div>
     );
   }
@@ -191,30 +217,14 @@ export default function TaskProgress({
   return (
     <div
       className="relative rounded-2xl p-4 text-white"
-      style={{
-        width: 308,
-        height: 347,
-        backgroundImage: "linear-gradient(to right, #000000, #211832)",
-      }}
+      style={{ width: 308, height: 347, backgroundImage: "linear-gradient(to right, #000000, #211832)" }}
     >
-      <div
-        className="mb-2"
-        style={{ fontFamily: "Montserrat, ui-sans-serif", fontSize: 20, fontWeight: 700 }}
-      >
+      <div className="mb-2" style={{ fontFamily: "Montserrat, ui-sans-serif", fontSize: 20, fontWeight: 700 }}>
         {title}
       </div>
 
       <div className="relative" style={{ width: "100%", height: 200 }}>
-        <div
-          style={{
-            width: "100%",
-            display: "flex",
-            justifyContent: "center",
-            position: "relative",
-            zIndex: 1,
-            transform: "translateY(20px)",
-          }}
-        >
+        <div style={{ width: "100%", display: "flex", justifyContent: "center", position: "relative", zIndex: 1, transform: "translateY(20px)" }}>
           <PieChart width={250} height={240}>
             <Pie
               data={data}
@@ -247,38 +257,14 @@ export default function TaskProgress({
           }}
         >
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 0 }}>
-            <span
-              style={{
-                fontFamily: "Montserrat, ui-sans-serif",
-                fontSize: 42,
-                fontWeight: 600,
-                lineHeight: 1.5,
-                color: "#FFFFFF",
-              }}
-            >
+            <span style={{ fontFamily: "Montserrat, ui-sans-serif", fontSize: 42, fontWeight: 600, lineHeight: 1.5, color: "#FFFFFF" }}>
               {pctClamped}
             </span>
-            <span
-              style={{
-                fontFamily: "Montserrat, ui-sans-serif",
-                fontSize: 42,
-                fontWeight: 700,
-                lineHeight: 1,
-                color: "#FFFFFF",
-                transform: "translateY(0px)",
-              }}
-            >
+            <span style={{ fontFamily: "Montserrat, ui-sans-serif", fontSize: 42, fontWeight: 700, lineHeight: 1, color: "#FFFFFF" }}>
               %
             </span>
           </div>
-          <div
-            style={{
-              fontFamily: "Inter, ui-sans-serif",
-              fontSize: 14,
-              marginTop: 8,
-              color: "#C4B5FD",
-            }}
-          >
+          <div style={{ fontFamily: "Inter, ui-sans-serif", fontSize: 14, marginTop: 8, color: "#C4B5FD" }}>
             Task Completed
           </div>
         </div>

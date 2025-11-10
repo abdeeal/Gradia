@@ -2,19 +2,12 @@ import React from "react";
 
 export default function DueToday(props) {
   const {
-    // fallback jika tidak ada data dari API
-    items = [
-      { title: "Penilaian Harian 4", subject: "Jarkom", priority: "Low" },
-      { title: "Penilaian Harian 4", subject: "DKA", priority: "Medium" },
-    ],
     defaultOpen = true,
     taskUrl = "/tasks",
-
-    // opsi pengambilan data
     fetchTasks,       // async () => Task[]
     fetchCourses,     // async () => Course[]
-    tasksEndpoint,    // string, mis. "/api/tasks"
-    coursesEndpoint,  // string, mis. "/api/courses"
+    tasksEndpoint,    // mis. "/api/tasks"
+    coursesEndpoint,  // mis. "/api/courses"
   } = props;
 
   const [open] = React.useState(defaultOpen);
@@ -32,7 +25,7 @@ export default function DueToday(props) {
     return () => clearInterval(id);
   }, []);
 
-  // warna label (day/night mode) — TIDAK diubah
+  // warna label (day/night mode)
   const prColor = (p = "Low") => {
     const bgMapDay = {
       High: "bg-[#ef4444]/20",
@@ -55,11 +48,23 @@ export default function DueToday(props) {
     return `${bg} ${text} font-semibold`;
   };
 
-  // ====== DATA WIRING ======
+  // ====== DATA FETCHING ======
   const [todayItems, setTodayItems] = React.useState([]);
-  const [loaded, setLoaded] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
 
-  // helper: tanggal "hari ini" di Asia/Jakarta (YYYY-MM-DD)
+  // idWorkspace dari sessionStorage
+  const idWorkspace = React.useMemo(() => {
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        const v = Number(window.sessionStorage.getItem("id_workspace"));
+        return Number.isFinite(v) && v > 0 ? v : 1;
+      }
+    } catch {}
+    return 1;
+  }, []);
+
+  // format hari ini Asia/Jakarta (YYYY-MM-DD)
   const todayJakarta = React.useMemo(() => {
     const fmt = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Jakarta",
@@ -67,45 +72,62 @@ export default function DueToday(props) {
       month: "2-digit",
       day: "2-digit",
     });
-    return fmt.format(new Date()); // "YYYY-MM-DD"
+    return fmt.format(new Date());
   }, []);
 
+  const withWorkspace = React.useCallback((baseUrl) => {
+    if (!baseUrl) return undefined;
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    const url = new URL(baseUrl, origin);
+    const sp = new URLSearchParams(url.search);
+    if (!sp.get("idWorkspace")) sp.set("idWorkspace", String(idWorkspace));
+    url.search = sp.toString();
+    return typeof window !== "undefined" ? url.toString() : `${url.pathname}${url.search}`;
+  }, [idWorkspace]);
+
+  const tasksUrl = React.useMemo(
+    () => withWorkspace(tasksEndpoint || "/api/tasks"),
+    [tasksEndpoint, withWorkspace]
+  );
+  const coursesUrl = React.useMemo(
+    () => withWorkspace(coursesEndpoint || "/api/courses"),
+    [coursesEndpoint, withWorkspace]
+  );
+
   React.useEffect(() => {
-    let cancelled = false;
+    let active = true;
 
     const load = async () => {
+      setLoading(true);
+      setError("");
       try {
         let tasks;
         let courses;
 
-        if (typeof fetchTasks === "function") tasks = await fetchTasks();
-        else if (tasksEndpoint) {
-          const r = await fetch(tasksEndpoint);
+        if (typeof fetchTasks === "function") {
+          tasks = await fetchTasks();
+        } else if (tasksUrl) {
+          const r = await fetch(tasksUrl, { cache: "no-store" });
           if (!r.ok) throw new Error("Failed to fetch tasks");
           tasks = await r.json();
         }
 
-        if (typeof fetchCourses === "function") courses = await fetchCourses();
-        else if (coursesEndpoint) {
-          const r = await fetch(coursesEndpoint);
+        if (typeof fetchCourses === "function") {
+          courses = await fetchCourses();
+        } else if (coursesUrl) {
+          const r = await fetch(coursesUrl, { cache: "no-store" });
           if (!r.ok) throw new Error("Failed to fetch courses");
           courses = await r.json();
         }
 
-        // jika tidak ada API, jangan override items prop
-        if (!tasks || !courses) {
-          if (!cancelled) {
-            setTodayItems([]);
-            setLoaded(true);
-          }
-          return;
-        }
-
         const courseNameById = new Map(
-          courses.map((c) => [String(c.id), c.name])
+          (Array.isArray(courses) ? courses : courses?.data || []).map((c) => [
+            String(c.id),
+            c.name || c.title || c.course_title || "—",
+          ])
         );
 
-        // Normalisasi tanggal deadline ke YYYY-MM-DD (Asia/Jakarta)
         const toYmdJakarta = (d) => {
           if (!d) return null;
           const date = new Date(d);
@@ -119,7 +141,8 @@ export default function DueToday(props) {
           return fmt.format(date);
         };
 
-        const filtered = tasks
+        const tasksArr = Array.isArray(tasks) ? tasks : tasks?.data || [];
+        const normalized = tasksArr
           .filter((t) => toYmdJakarta(t.deadline) === todayJakarta)
           .map((t) => ({
             title: t.title,
@@ -127,25 +150,24 @@ export default function DueToday(props) {
             priority: t.priority || "Low",
           }));
 
-        if (!cancelled) {
-          setTodayItems(filtered);
-          setLoaded(true);
-        }
+        if (active) setTodayItems(normalized);
       } catch (e) {
-        if (!cancelled) {
+        if (active) {
           setTodayItems([]);
-          setLoaded(true);
+          setError(e?.message || "Failed to load");
         }
+      } finally {
+        if (active) setLoading(false);
       }
     };
 
     load();
     return () => {
-      cancelled = true;
+      active = false;
     };
-  }, [fetchTasks, fetchCourses, tasksEndpoint, coursesEndpoint, todayJakarta]);
+  }, [fetchTasks, fetchCourses, tasksUrl, coursesUrl, todayJakarta]);
 
-  // Samakan frame luar dengan CoursesToday — TIDAK diubah
+  // FRAME layout sama seperti sebelumnya
   const FRAME_W = 259;
   const FRAME_H = 246;
   const PAD_X = 16;
@@ -155,10 +177,7 @@ export default function DueToday(props) {
   const headerHeight = 32;
   const listMaxH = FRAME_H - PAD_TOP - PAD_BOTTOM - HEADER_GAP - headerHeight;
 
-  // Sumber data yang dirender
-  const renderFromApi = loaded;
-  const displayItems = renderFromApi ? todayItems : items.map((x) => ({ ...x }));
-  const noDueToday = renderFromApi && displayItems.length === 0;
+  const noDueToday = !loading && todayItems.length === 0;
 
   return (
     <div
@@ -182,7 +201,7 @@ export default function DueToday(props) {
         #id_due .scrollbar-hide::-webkit-scrollbar { display:none; width:0; height:0; }
       `}</style>
 
-      {/* Header — TIDAK diubah */}
+      {/* Header */}
       <div className="flex items-center justify-between" style={{ marginBottom: HEADER_GAP }}>
         <h2
           className="font-semibold text-white"
@@ -208,10 +227,10 @@ export default function DueToday(props) {
         </a>
       </div>
 
-      {/* Body — tetap, tambah empty state bila tidak ada data */}
+      {/* Body */}
       <div className="overflow-hidden transition-all duration-300 ease-out" style={{ maxHeight: open ? listMaxH : 0 }}>
         <div className="scrollbar-hide pr-2" style={{ maxHeight: listMaxH, overflowY: "auto" }}>
-          {noDueToday ? (
+          {loading ? (
             <div
               className="rounded-xl flex items-center justify-center"
               style={{
@@ -219,27 +238,45 @@ export default function DueToday(props) {
                 height: 162,
                 background: "#181818",
                 borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                textAlign: "center",
               }}
             >
               <span
                 style={{
                   fontFamily: "Inter, sans-serif",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  lineHeight: "22px",
+                  fontSize: 14,
+                  fontWeight: 400,
+                  lineHeight: "26px",
+                  color: "#9CA3AF",
+                }}
+              >
+                Loading...
+              </span>
+            </div>
+          ) : noDueToday ? (
+            <div
+              className="rounded-xl flex items-center justify-center"
+              style={{
+                width: FRAME_W - PAD_X * 2,
+                height: 162,
+                background: "#181818",
+                borderRadius: 12,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 16,
+                  fontWeight: 400,
+                  lineHeight: "26px",
                   color: "#FFFFFF",
                 }}
               >
-                No Due Today
+                No Tasks Due Today
               </span>
             </div>
           ) : (
             <div className="flex flex-col" style={{ gap: 10 }}>
-              {displayItems.map((it, idx) => (
+              {todayItems.map((it, idx) => (
                 <div
                   key={idx}
                   className="rounded-xl"
@@ -252,7 +289,6 @@ export default function DueToday(props) {
                     borderRadius: 12,
                   }}
                 >
-                  {/* Icon kiri (28x28) — TIDAK diubah */}
                   <div
                     style={{
                       width: 28,
@@ -269,7 +305,6 @@ export default function DueToday(props) {
                     <i className="ri-article-line" style={{ fontSize: 28, color: "#A78BFA", lineHeight: "28px" }} />
                   </div>
 
-                  {/* Texts — subject = related course */}
                   <div className="flex-1" style={{ fontFamily: "Inter, sans-serif" }}>
                     <h3 className="font-semibold text-white" style={{ fontSize: 16, lineHeight: "20px", marginTop: 4 }}>
                       {it.title}
@@ -301,6 +336,21 @@ export default function DueToday(props) {
             </div>
           )}
         </div>
+
+        {error && !loading && (
+          <div
+            className="mt-2"
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontSize: 12,
+              lineHeight: "16px",
+              color: "#F87171",
+              opacity: 0.9,
+            }}
+          >
+            {error}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -2,9 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "remixicon/fonts/remixicon.css";
 
-/**
- * Utility: parse a "HH:mm" or "HH.mm" string to a Date anchored to today
- */
+/** Parse "HH:mm"/"HH.mm" ke Date hari ini */
 function parseHM(hm) {
   if (!hm) return null;
   const cleaned = String(hm).replace(":", ".");
@@ -16,68 +14,105 @@ function parseHM(hm) {
   return d;
 }
 
-/**
- * Compute course status relative to \"now\"
- */
 function computeStatus(now, start, end) {
-  if (start && end && now >= start && now < end) return "On Going"; // end-exclusive
+  if (start && end && now >= start && now < end) return "On Going";
   if (start && now < start) return "Upcoming";
   return "Done";
 }
 
-/**
- * Normalize various time inputs into "HH.mm"
- */
-function toHM(d) {
-  if (!d) return "";
-  if (typeof d === "string") {
-    const s = d.replace(":", ".");
-    if (/^\d{2}.\d{2}$/.test(s)) return s;
-    const dt = new Date(d);
+/** Normalisasi ke format tampilan "HH:MM" (tahan "HH:mm", "HH.mm", "HH:mm:ss") */
+function toHM(value) {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const s = value.trim();
+    const m = s.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?$/);
+    if (m) {
+      const hh = String(parseInt(m[1], 10)).padStart(2, "0");
+      const mm = String(parseInt(m[2], 10)).padStart(2, "0");
+      return `${hh}:${mm}`;
+    }
+    const dt = new Date(s);
     if (!isNaN(dt)) {
       const hh = String(dt.getHours()).padStart(2, "0");
       const mm = String(dt.getMinutes()).padStart(2, "0");
-      return `${hh}.${mm}`;
+      return `${hh}:${mm}`;
     }
   }
-  const dt = new Date(d);
-  const hh = String(dt.getHours()).padStart(2, "0");
-  const mm = String(dt.getMinutes()).padStart(2, "0");
-  return `${hh}.${mm}`;
+  const dt = new Date(value);
+  if (!isNaN(dt)) {
+    const hh = String(dt.getHours()).padStart(2, "0");
+    const mm = String(dt.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+  return "";
 }
 
 /**
- * CoursesToday
- *
- * This version calls `/api/courses?q=today` so it matches your backend snippet:
- *   if (q === "today") { const today = new Date().toLocaleString("en-US", { weekday: "long" }) ... }
- *
- * Props:
- * - apiBase: base path of the API (default: "/api/courses")
- * - query: query string value for `q` (default: "today")
+ * Ambil hanya baris pertama dari lecturer.
+ * - Jika ada <br> atau newline, baris kedua dan seterusnya dihapus.
  */
-export default function CoursesToday({ apiBase = "/api/courses", query = "today" }) {
+function firstLineOnlyLecturer(value) {
+  if (!value) return "";
+  const normalized = String(value).replace(/<br\s*\/?>/gi, "\n");
+  const lines = normalized
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return lines[0] || "";
+}
+
+/**
+ * Potong string dengan ellipsis tapi hanya pada batas kata.
+ * Jika panjang <= maxChars -> balikin apa adanya.
+ * Jika tidak ada spasi sebelum batas -> pakai batas karakter (fallback).
+ */
+function ellipsizeAtWord(text, maxChars = 42) {
+  const s = String(text).trim();
+  if (!s) return "";
+  if (s.length <= maxChars) return s;
+  // cari spasi terakhir sebelum maxChars
+  const cut = s.lastIndexOf(" ", maxChars);
+  if (cut > 0) return s.slice(0, cut).trimEnd() + " …";
+  // fallback kalau tidak ada spasi (nama single-token panjang)
+  return s.slice(0, maxChars).trimEnd() + " …";
+}
+
+export default function CoursesToday({ apiBase = "/api/courses" }) {
   const [now, setNow] = useState(new Date());
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Tick every 60s for status freshness
+  // baca id_workspace dari sessionStorage
+  const workspace = useMemo(() => {
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        const val = Number(window.sessionStorage.getItem("id_workspace"));
+        return Number.isFinite(val) && val > 0 ? val : 1;
+      }
+    } catch {}
+    return 1;
+  }, []);
+
+  // refresh waktu tiap 60 detik
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
 
-  // Build URL with q=today by default
+  // build endpoint: tambahkan q=today & idWorkspace
   const endpoint = useMemo(() => {
-    const url = new URL(apiBase, typeof window !== "undefined" ? window.location.origin : "http://localhost");
-    const sp = new URLSearchParams({ q: query });
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    const url = new URL(apiBase, origin);
+    const sp = new URLSearchParams(url.search);
+    if (!sp.get("q")) sp.set("q", "today");
+    if (!sp.get("idWorkspace")) sp.set("idWorkspace", String(workspace));
     url.search = sp.toString();
-    // If running server-side, return pathname+search only
     return typeof window !== "undefined" ? url.toString() : `${url.pathname}${url.search}`;
-  }, [apiBase, query]);
+  }, [apiBase, workspace]);
 
-  // Fetch courses
+  // ambil data dari API
   useEffect(() => {
     let active = true;
     async function fetchCourses() {
@@ -88,13 +123,22 @@ export default function CoursesToday({ apiBase = "/api/courses", query = "today"
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const arr = Array.isArray(json) ? json : json.data || [];
-        const normalized = arr.map((c) => ({
-          start: toHM(c.start || c.start_time || c.time_start || c.time?.split("-")[0]),
-          end: toHM(c.end || c.end_time || c.time_end || c.time?.split("-")[1]),
-          title: c.title || c.name || c.course_title || "",
-          room: c.room || c.room_name || c.location || "",
-          lecturer: c.lecturer || c.lecturer_name || c.teacher || "",
-        }));
+
+        // ⬇️ hanya gunakan field: c.start, c.end, c.room, c.name, c.lecturer
+        const normalized = arr.map((c) => {
+          const firstLineLecturer = firstLineOnlyLecturer(c.lecturer || "");
+          // perkiraan panjang aman untuk lebar 245px @14px font -> ~40-44 chars
+          const lecturerOneLine = ellipsizeAtWord(firstLineLecturer, 44);
+          return {
+            start: toHM(c.start ?? ""),
+            end: toHM(c.end ?? ""),
+            title: c.name || "",
+            room: c.room || "",
+            lecturer: lecturerOneLine,
+            lecturerFull: firstLineLecturer, // untuk tooltip
+          };
+        });
+
         if (active) setItems(normalized);
       } catch (e) {
         if (active) {
@@ -111,7 +155,7 @@ export default function CoursesToday({ apiBase = "/api/courses", query = "today"
     };
   }, [endpoint]);
 
-  // Compose with computed status
+  // status (On Going / Upcoming / Done)
   const withComputed = useMemo(() => {
     return items.map((c) => {
       const start = parseHM(c.start);
@@ -163,7 +207,15 @@ export default function CoursesToday({ apiBase = "/api/courses", query = "today"
           className="flex items-center justify-center rounded-full border border-white hover:bg-white/10"
           style={{ width: 32, height: 32 }}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth="2"
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M7 7h10v10" />
           </svg>
         </a>
@@ -171,46 +223,120 @@ export default function CoursesToday({ apiBase = "/api/courses", query = "today"
 
       {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center flex-1" style={{ fontFamily: "Inter, sans-serif", color: "#9CA3AF", fontSize: 14 }}>
+        <div
+          className="flex items-center justify-center flex-1"
+          style={{ fontFamily: "Inter, sans-serif", color: "#9CA3AF", fontSize: 14 }}
+        >
           Loading...
         </div>
       ) : error ? (
-        <div className="flex items-center justify-center flex-1" style={{ fontFamily: "Inter, sans-serif", color: "#ef4444", fontSize: 14 }}>
+        <div
+          className="flex items-center justify-center flex-1"
+          style={{ fontFamily: "Inter, sans-serif", color: "#ef4444", fontSize: 14 }}
+        >
           Failed to load: {error}
         </div>
       ) : withComputed.length === 0 ? (
-        <div className="flex items-center justify-center flex-1" style={{ display: "flex", justifyContent: "center", alignItems: "center", flex: 1 }}>
-          {/* No Courses Box */}
-          <div className="rounded-2xl shadow" style={{ width: 500, height: 162, background: "#181818", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 700, color: "#FAFAFA" }}>
+        <div
+          className="flex items-center justify-center flex-1"
+          style={{ display: "flex", justifyContent: "center", alignItems: "center", flex: 1 }}
+        >
+          <div
+            className="rounded-2xl shadow"
+            style={{
+              width: 500,
+              height: 162,
+              background: "#181818",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "Inter, sans-serif",
+              fontSize: 16,
+              fontWeight: 400,
+              color: "#FAFAFA",
+            }}
+          >
             No Courses For Today
           </div>
         </div>
       ) : (
-        <div className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar" style={{ gap: 10, alignItems: "flex-start", flex: 1 }}>
+        <div
+          className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar"
+          style={{ gap: 8, alignItems: "flex-start", flex: 1 }} // gap diperkecil
+        >
           {withComputed.map((c, idx) => (
-            <article key={idx} className="snap-start rounded-2xl px-4 py-3 shadow" style={{ minWidth: 245, width: 245, height: 162, background: "#242424", fontFamily: "Inter, ui-sans-serif, system-ui", flexShrink: 0, display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
-              <p className="text-gray-300 flex items-center gap-2" style={{ fontSize: 14 }}>
-                <i className="ri-time-line text-[#643EB2]" style={{ fontSize: 16, marginLeft: -3 }} />
+            <article
+              key={idx}
+              className="snap-start rounded-2xl px-4 py-3 shadow"
+              style={{
+                minWidth: 245,
+                width: 245,
+                height: 162,
+                background: "#242424",
+                fontFamily: "Inter, ui-sans-serif, system-ui",
+                flexShrink: 0,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-start",
+              }}
+            >
+              <p
+                className="text-gray-300 flex items-center gap-2"
+                style={{ fontSize: 14, lineHeight: 1.25 }}
+              >
+                <i
+                  className="ri-time-line text-[#643EB2]"
+                  style={{ fontSize: 16, marginLeft: -3 }}
+                />
                 {c.start} - {c.end}
               </p>
 
-              <h3 className="text-white font-semibold leading-snug" style={{ fontSize: 16, marginTop: 8 }}>
+              <h3
+                className="text-white font-semibold leading-snug"
+                style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }} // mt diperkecil
+              >
                 {c.title}
               </h3>
 
               {c.room && (
-                <p className="text-gray-300" style={{ fontSize: 14, marginTop: 4 }}>
+                <p
+                  className="text-gray-300"
+                  style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }} // mt diperkecil
+                >
                   {c.room}
                 </p>
               )}
+
               {c.lecturer && (
-                <p className="text-gray-300" style={{ fontSize: 14, marginTop: 4 }}>
+                <p
+                  className="text-gray-300"
+                  style={{
+                    fontSize: 16,
+                    marginTop: 6,         // mt diperkecil
+                    lineHeight: 1.2,      // rapatkan line-height
+                    whiteSpace: "nowrap", // tetap 1 baris
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: "100%",
+                  }}
+                  title={c.lecturerFull}
+                >
                   {c.lecturer}
                 </p>
               )}
 
-              <div className="mt-2 pt-2 border-t border-white/30">
-                <span className="inline-block rounded" style={{ ...statusStyle(c._status), fontSize: 14, height: 22, padding: "0 12px", borderRadius: 4 }}>
+              <div className="mt-1 pt-1 border-t border-white/30"> {/* jarak label & garis diperkecil */}
+                <span
+                  className="inline-block rounded"
+                  style={{
+                    ...statusStyle(c._status),
+                    marginTop: 6,
+                    fontSize: 16,
+                    height: 26,
+                    padding: "0 16px", // sedikit dipadatkan
+                    borderRadius: 4,
+                  }}
+                >
                   {c._status}
                 </span>
               </div>
@@ -221,4 +347,3 @@ export default function CoursesToday({ apiBase = "/api/courses", query = "today"
     </div>
   );
 }
-

@@ -1,229 +1,314 @@
 // src/pages/Presence/components/PresenceCard.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+
+const CARD_W = 269;
+const CARD_H = 191;
+const GAP = 10;
+const MAX_W = 864;
 
 const PresenceCard = ({
-  courses = [],
-  rows = [],                 // semua record presence (multi-day)
+  courses: coursesProp = [],
+  rows = [],
   onOpenAddPresence,
   totalsTodayOverride = null,
-  isLoading = false,         // ← parent kirim true saat fetch
+  isLoading: isLoadingProp = null,
 }) => {
-  const cardsWrapRef = useRef(null);
-  const [cardHeight, setCardHeight] = useState(220); // default biar box besar terlihat
+  /* ===== Ambil id_workspace ===== */
+  const idWorkspace = useMemo(() => {
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        const v = Number(window.sessionStorage.getItem("id_workspace"));
+        return Number.isFinite(v) && v > 0 ? v : 1;
+      }
+    } catch {}
+    return 1;
+  }, []);
 
-  /* ===== Helpers ===== */
-  const normStatus = (s) => {
-    const v = String(s || "").trim().toLowerCase();
-    return v === "presence" ? "present" : v;
-  };
+  /* ===== State courses hari ini (ambil dari /api/courses) ===== */
+  const [coursesState, setCoursesState] = useState([]);
+  const [loadingState, setLoadingState] = useState(false);
 
-  /* ===== Helpers: nama hari ===== */
-  const todayName = useMemo(
-    () => new Date().toLocaleDateString("en-US", { weekday: "long" }),
-    []
-  );
-
-  // Ambil field day dari course + normalisasi (id/en)
-  const getCourseDay = (c) => {
-    const raw =
-      c?.day ?? c?.day_name ?? c?.dayName ?? c?.weekday ?? c?.scheduleDay ?? "";
-    const s = String(raw).trim();
-    if (!s) return "";
-    const map = {
-      senin: "Monday",
-      selasa: "Tuesday",
-      rabu: "Wednesday",
-      kamis: "Thursday",
-      jumat: "Friday",
-      sabtu: "Saturday",
-      minggu: "Sunday",
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoadingState(true);
+      try {
+        const res = await fetch(
+          `/api/courses?q=today&idWorkspace=${encodeURIComponent(idWorkspace)}`
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const arr = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.data)
+          ? data.data
+          : [];
+        if (alive) setCoursesState(arr);
+      } catch {
+        if (alive) setCoursesState([]);
+      } finally {
+        if (alive) setLoadingState(false);
+      }
+    })();
+    return () => {
+      alive = false;
     };
-    const lower = s.toLowerCase();
-    return map[lower] || s; // bila sudah English, pakai apa adanya
+  }, [idWorkspace]);
+
+  const usingParentCourses = coursesProp && coursesProp.length > 0;
+  const rawCourses = usingParentCourses ? coursesProp : coursesState;
+
+  /* ===== Split "09:00 - 10:00" -> start/end ===== */
+  const normalizeSE = (c) => {
+    if (typeof c?.start === "string" && c.start.includes("-") && !c.end) {
+      const [s, e] = c.start.split("-").map((x) => x.trim());
+      return { ...c, start: s, end: e || null };
+    }
+    return c;
   };
+  const courses = useMemo(() => rawCourses.map(normalizeSE), [rawCourses]);
 
-  /* ===== Filter: hanya hari ini (maks 3 item) ===== */
-  const sameDayCourses = useMemo(
-    () => courses.filter((c) => getCourseDay(c) === todayName),
-    [courses, todayName]
-  );
-  const visibleCourses = useMemo(
-    () => sameDayCourses.slice(0, 3),
-    [sameDayCourses]
-  );
+  /* ===== Loading flag ===== */
+  const isLoading =
+    typeof isLoadingProp === "boolean" ? isLoadingProp : loadingState;
 
-  /* ===== Totals present/absent ===== */
+  /* ===== Totals ===== */
+  const normStatus = (s) => String(s || "").trim().toLowerCase();
   const { derivedPresenceCount, derivedAbsentCount } = useMemo(() => {
-    if (totalsTodayOverride && typeof totalsTodayOverride === "object") {
+    if (totalsTodayOverride) {
       return {
         derivedPresenceCount: Number(totalsTodayOverride.presence || 0),
         derivedAbsentCount: Number(totalsTodayOverride.absent || 0),
       };
     }
-    let presence = 0;
-    let absent = 0;
-    for (const r of rows) {
+    let p = 0,
+      a = 0;
+    rows.forEach((r) => {
       const s = normStatus(r.status);
-      if (s === "present") presence += 1;
-      else if (s === "absent") absent += 1;
-    }
-    return { derivedPresenceCount: presence, derivedAbsentCount: absent };
+      if (s === "presence" || s === "present") p += 1;
+      else if (s === "absent") a += 1;
+    });
+    return { derivedPresenceCount: p, derivedAbsentCount: a };
   }, [rows, totalsTodayOverride]);
 
-  /* ===== Waktu (untuk badge “On Going / Upcoming”) ===== */
-  const windowTodayFromRange = (rangeStr) => {
-    if (!rangeStr) return null;
-    const [s, e] = rangeStr.split("-").map((x) => x?.trim());
-    if (!s || !e) return null;
-    const [sh, sm] = s.split(":").map((x) => parseInt(x, 10));
-    const [eh, em] = e.split(":").map((x) => parseInt(x, 10));
+  /* ===== Time utils (HH:mm) ===== */
+  const parseHM = (v) => {
+    if (!v) return null;
+    const [h, m] = String(v).split(":").map((x) => parseInt(x, 10));
+    const d = new Date();
+    d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
+    return d;
+  };
+  const toHM = (v) => {
+    const d = parseHM(v);
+    if (!d) return "";
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  };
+  const timeState = (s, e) => {
     const now = new Date();
-    const start = new Date(now);
-    start.setHours(sh || 0, sm || 0, 0, 0);
-    const end = new Date(now);
-    end.setHours(eh || 0, em || 0, 0, 0);
-    return { start, end };
+    const ds = parseHM(s),
+      de = parseHM(e);
+    if (!ds && !de) return "unknown";
+    if (ds && now < ds) return "upcoming";
+    if (ds && de && now >= ds && now < de) return "ongoing";
+    if (de && now >= de) return "done";
+    return "unknown";
+  };
+  const timeLabel = (s, e) => {
+    const S = toHM(s),
+      E = toHM(e);
+    return S && E ? `${S} - ${E}` : S || E || "—";
   };
 
-  const timeState = (timeRange) => {
-    const w = windowTodayFromRange(timeRange);
-    if (!w) return "unknown";
-    const now = new Date();
-    if (now < w.start) return "upcoming";
-    if (now <= w.end) return "ongoing";
-    return "overdue";
-  };
-
-  /* ===== Merge presence per course (ambil satu record per course) ===== */
+  /* ===== Join presence info by course ===== */
   const coursesWithPresence = useMemo(() => {
     const byCourse = new Map();
     rows.forEach((r) => {
-      const key = String(r.courseId ?? r.id_course ?? r.course_id ?? "");
-      if (!key) return;
-      if (!byCourse.has(key)) byCourse.set(key, r);
+      const k = String(r.courseId ?? r.id_course ?? r.course_id ?? "");
+      if (k && !byCourse.has(k)) byCourse.set(k, r);
     });
-    return visibleCourses.map((c) => ({
-      ...c,
-      presence: byCourse.get(String(c.id)) || null,
-    }));
-  }, [visibleCourses, rows]);
+    return courses.map((c) => {
+      const id = String(c.id ?? c.course_id ?? "");
+      return { ...c, presence: id ? byCourse.get(id) || null : null };
+    });
+  }, [courses, rows]);
 
-  /* ===== Tinggi konten (agar panel totals sync) ===== */
-  useEffect(() => {
-    if (!cardsWrapRef.current || isLoading) return; // saat loading biarkan 220px
-    const measure = () => {
-      const cards = cardsWrapRef.current.querySelectorAll(".presence-card");
-      let maxH = 0;
-      cards.forEach((el) => (maxH = Math.max(maxH, el.offsetHeight || 0)));
-      if (maxH > 0) setCardHeight(maxH);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(cardsWrapRef.current);
-    cardsWrapRef.current
-      .querySelectorAll(".presence-card")
-      .forEach((el) => ro.observe(el));
-    window.addEventListener("resize", measure);
-    return () => {
-      window.removeEventListener("resize", measure);
-      ro.disconnect();
-    };
-  }, [visibleCourses, rows, isLoading]);
-
-  /* ===== Box besar (loading / no schedule) ===== */
-  const BoxFullWidth = ({ text }) => (
-    <div
-      className="col-span-3 flex items-center justify-center rounded-lg border border-[#464646]/50"
-      style={{
-        background: "linear-gradient(180deg, #070707 0%, #141414 100%)",
-        height: `${cardHeight}px`,
-      }}
-    >
-      <p className="text-white font-semibold">{text}</p>
-    </div>
+  /* ===== CSS: sembunyikan scrollbar + auto-cols 269 ===== */
+  const HideScrollbar = () => (
+    <style>{`
+      .hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none;}
+      .hide-scrollbar::-webkit-scrollbar{display:none;}
+      .presence-grid{grid-auto-columns:${CARD_W}px;}
+    `}</style>
   );
 
-  const noScheduleToday = !isLoading && visibleCourses.length === 0;
+  const Box = ({ children }) => {
+    const boxStyle = isLoading
+      ? {
+          height: `${CARD_H}px`,
+          background: "linear-gradient(180deg, #070707 0%, #141414 100%)",
+          border: "1px solid rgba(70,70,70,0.5)",
+        }
+      : {
+          height: `${CARD_H}px`,
+          background: "transparent",
+          border: "none",
+        };
 
-  /* ===================== UI ===================== */
+    return (
+      <div
+        className="rounded-lg max-w-[864px] w-full transition-all duration-300"
+        style={boxStyle}
+      >
+        {children}
+      </div>
+    );
+  };
+
+  const BoxFull = ({ text }) => (
+    <Box>
+      <div className="h-full w-full flex items-center justify-center">
+        <p className="text-white font-semibold">{text}</p>
+      </div>
+    </Box>
+  );
+
+  const noScheduleToday = !isLoading && coursesWithPresence.length === 0;
+
   return (
     <div className="font-[Montserrat]">
+      <HideScrollbar />
       <div className="flex gap-4">
-        <div ref={cardsWrapRef} className="grid grid-cols-3 gap-4 flex-1">
+        {/* LEFT: container fix 864×191 */}
+        <div className="flex-1 max-w-[864px]">
           {isLoading ? (
-            <BoxFullWidth text="Loading..." />
+            <BoxFull text="Loading..." />
           ) : noScheduleToday ? (
-            <BoxFullWidth text="No Schedule Today" />
+            <BoxFull text="No Schedule Today" />
           ) : (
-            coursesWithPresence.map((c) => {
-              const tstate = timeState(c?.time);
-              const isOngoing = tstate === "ongoing";
-              const isUpcoming = tstate === "upcoming";
-              const labelText = isOngoing ? "On Going" : isUpcoming ? "Upcoming" : "";
-              const labelClass = isOngoing
-                ? "bg-[#EAB308]/20 text-[#FDE047]"
-                : isUpcoming
-                ? "bg-zinc-700/30 text-zinc-400"
-                : "hidden";
-              const circleClass = isOngoing
-                ? "bg-[#FDE047]"
-                : isUpcoming
-                ? "bg-zinc-400"
-                : "bg-gray-500";
-
-              return (
+            <Box>
+              <div className="h-full w-full hide-scrollbar overflow-x-auto overflow-y-hidden">
                 <div
-                  key={c.id}
-                  className="presence-card bg-[#1c1c1c] rounded-xl border border-[#2c2c2c] flex flex-col h-full px-3.5 py-3"
+                  className="grid grid-flow-col presence-grid h-full"
+                  style={{
+                    gap: `${GAP}px`,
+                    minWidth: "100%",
+                  }}
                 >
-                  {/* TOP */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <div className={`w-2 h-2 rounded-full ${circleClass}`} />
-                      <p className="text-[16px] text-foreground-secondary">
-                        {c?.time || "—"}
-                      </p>
-                    </div>
-                    {labelText && (
-                      <span className={`text-[16px] px-1.5 py-[2px] rounded-md ${labelClass}`}>
-                        {labelText}
-                      </span>
-                    )}
-                  </div>
+                  {coursesWithPresence.map((c, i) => {
+                    const t = timeState(c?.start, c?.end);
 
-                  {/* MIDDLE */}
-                  <div className="flex-1 flex flex-col justify-center">
-                    <h3 className="text-[16px] font-semibold leading-snug text-foreground line-clamp-2 break-words">
-                      {c?.title || "—"}
-                    </h3>
-                    <p className="text-[16px] text-foreground-secondary mt-1">
-                      {c?.room ?? c?.presence?.room ?? "—"}
-                    </p>
-                  </div>
+                    // === Badge mapping ===
+                    const label =
+                      t === "ongoing"
+                        ? "On Going"
+                        : t === "upcoming"
+                        ? "Upcoming"
+                        : t === "done"
+                        ? "Done"
+                        : "";
+                    const labelCls =
+                      t === "ongoing"
+                        ? "bg-[#EAB308]/20 text-[#FDE047]"
+                        : t === "upcoming"
+                        ? "bg-zinc-800/60 text-zinc-400"
+                        : t === "done"
+                        ? "bg-[#22C55E]/20 text-[#4ADE80]"
+                        : "hidden";
 
-                  {/* BOTTOM */}
-                  <button
-                    onClick={() => onOpenAddPresence?.(c)}
-                    className="bg-gradient-to-l from-[#28073B] to-[#34146C] hover:opacity-90 transition-all px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2"
-                  >
-                    Log Presence
-                    <i className="ri-logout-circle-r-line ml-1" />
-                  </button>
+                    // === Dot color (revisi solid) ===
+                    const dotCls =
+                      t === "ongoing"
+                        ? "bg-[#FDE047]"
+                        : t === "upcoming"
+                        ? "bg-[#F87171]"
+                        : t === "done"
+                        ? "bg-[#22C55E]"
+                        : "bg-gray-500";
+
+                    // === Sudah presenced ===
+                    const alreadyPresenced = ["present", "presence"].includes(
+                      normStatus(c?.presence?.status)
+                    );
+
+                    return (
+                      <div
+                        key={c.id ?? i}
+                        className="presence-card bg-[#1c1c1c] border border-[#2c2c2c] rounded-xl px-3.5 py-3 flex flex-col"
+                        style={{
+                          width: `${CARD_W}px`,
+                          height: `${CARD_H}px`,
+                        }}
+                      >
+                        {/* TOP */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-2 h-2 rounded-full ${dotCls}`} />
+                            <p className="text-[16px] text-foreground-secondary">
+                              {timeLabel(c?.start, c?.end)}
+                            </p>
+                          </div>
+                          {label && (
+                            <span
+                              className={`text-[16px] px-1.5 py-[2px] rounded-md ${labelCls}`}
+                            >
+                              {label}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* MIDDLE */}
+                        <div className="flex-1 flex flex-col justify-center">
+                          <h3 className="text-[16px] font-semibold leading-snug text-foreground line-clamp-2 break-words">
+                            {c?.title ?? c?.name ?? "—"}
+                          </h3>
+                          <p className="text-[16px] text-foreground-secondary mt-1">
+                            {c?.room ?? c?.presence?.room ?? "—"}
+                          </p>
+                        </div>
+
+                        {/* BOTTOM */}
+                        <button
+                          onClick={
+                            alreadyPresenced ? undefined : () => onOpenAddPresence?.(c)
+                          }
+                          className={[
+                            "bg-gradient-to-l from-[#28073B] to-[#34146C] transition-all px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2",
+                            alreadyPresenced
+                              ? "opacity-50 cursor-not-allowed pointer-events-none"
+                              : "hover:opacity-90",
+                          ].join(" ")}
+                          aria-disabled={alreadyPresenced ? "true" : "false"}
+                        >
+                          {alreadyPresenced ? (
+                            <>Presenced</>
+                          ) : (
+                            <>
+                              Log Presence{" "}
+                              <i className="ri-logout-circle-r-line ml-1" />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })
+              </div>
+            </Box>
           )}
         </div>
 
-        {/* ===== PANEL TOTAL ===== */}
+        {/* RIGHT: panel totals (tinggi tetap 191) */}
         <div className="ml-4 flex items-start gap-4">
           <div
-            className="w-px bg-[#2c2c2c] transition-[height] duration-200"
-            style={{ height: `${cardHeight}px` }}
+            className="w-px bg-[#2c2c2c]"
+            style={{ height: `${CARD_H}px` }}
           />
           <div
-            className="w-[160px] flex flex-col items-center text-center transition-[height] duration-200"
-            style={{ height: `${cardHeight}px` }}
+            className="w-[160px] flex flex-col items-center text-center"
+            style={{ height: `${CARD_H}px` }}
           >
             <h4 className="text-[16px] font-semibold text-foreground mt-1 mb-6">
               Total Present

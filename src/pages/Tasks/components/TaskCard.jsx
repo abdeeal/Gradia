@@ -23,7 +23,19 @@ const TaskCard = ({
     });
   };
 
-  // Warna badge
+  // --- Normalizer status (kompatibel data lama) ---
+  const normalizeStatus = (s) => {
+    const m = String(s || "").trim().toLowerCase();
+    if (m === "in progress" || m === "inprogress") return "In progress";
+    if (m === "not started" || m === "notstarted") return "Not started";
+    if (m === "completed") return "Completed";
+    if (m === "overdue") return "Overdue";
+    return s || "Not started";
+  };
+
+  const normStatus = normalizeStatus(status);
+
+  // Warna badge (tetap sama seperti sebelumnya)
   const getColors = (type) => {
     switch (type) {
       case "High":
@@ -33,7 +45,7 @@ const TaskCard = ({
         return { bg: "bg-[#EAB308]/25", text: "text-[#FDE047]" };
       case "Not started":
         return { bg: "bg-[#6B7280]/20", text: "text-[#D4D4D8]" };
-      case "In Progress":
+      case "In progress":
         return { bg: "bg-[#06B6D4]/20", text: "text-[#22D3EE]" };
       case "Completed":
         return { bg: "bg-[#22C55E]/20", text: "text-[#4ADE80]" };
@@ -43,14 +55,14 @@ const TaskCard = ({
   };
 
   const priorityColor = getColors(priority);
-  const statusColor = getColors(status);
+  const statusColor = getColors(normStatus);
 
   const circleColor =
-    status === "In Progress"
+    normStatus === "In progress"
       ? "bg-[#22D3EE]"
-      : status === "Completed"
+      : normStatus === "Completed"
       ? "bg-[#4ADE80]"
-      : status === "Overdue"
+      : normStatus === "Overdue"
       ? "bg-[#F87171]"
       : "bg-gray-400";
 
@@ -118,7 +130,7 @@ const TaskCard = ({
         <span
           className={`text-[16px] px-[10px] py-[4px] rounded-md font-medium ${statusColor.bg} ${statusColor.text}`}
         >
-          {status}
+          {normStatus}
         </span>
       </div>
     </div>

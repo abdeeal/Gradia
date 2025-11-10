@@ -35,6 +35,17 @@ const formatDateDDMMYYYY = (iso) => {
 /* ---------- Small timing helper ---------- */
 const wait = (ms) => new Promise((res) => setTimeout(res, ms));
 
+/* ---------- Workspace helper (aman SSR/CSR) ---------- */
+function getIdWorkspace() {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      const v = Number(window.sessionStorage.getItem("id_workspace"));
+      return Number.isFinite(v) && v > 0 ? v : 1;
+    }
+  } catch {}
+  return 1;
+}
+
 /* ---------- Title (2 baris) ---------- */
 const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
   if (!editable) {
@@ -94,11 +105,23 @@ const priorityValueClass = (val) => {
   if (val === "Low") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
   return BADGE_BASE;
 };
+
+/* ---------- Status normalizer (kompatibel data lama) ---------- */
+const normalizeStatus = (s) => {
+  const m = String(s || "").trim().toLowerCase();
+  if (m === "in progress" || m === "inprogress") return "In progress";
+  if (m === "not started" || m === "notstarted") return "Not started";
+  if (m === "completed") return "Completed";
+  if (m === "overdue") return "Overdue";
+  return s || "Not started";
+};
+
 const statusValueClass = (val) => {
-  if (val === "In Progress") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
-  if (val === "Completed") return `${BADGE_BASE} bg-[#14532D]/60 text-[#4ADE80]`;
-  if (val === "Overdue") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
-  if (val === "Not started") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
+  const v = normalizeStatus(val);
+  if (v === "In progress") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
+  if (v === "Completed") return `${BADGE_BASE} bg-[#14532D]/60 text-[#4ADE80]`;
+  if (v === "Overdue") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
+  if (v === "Not started") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
   return BADGE_BASE;
 };
 
@@ -200,6 +223,9 @@ const TaskDetail = ({
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  /* ---------- idWorkspace ---------- */
+  const idWorkspace = getIdWorkspace();
+
   /* ---------- Form state ---------- */
   const [form, setForm] = useState({
     id_task: task?.id_task,
@@ -214,7 +240,7 @@ const TaskDetail = ({
         ? String(task.relatedCourse)
         : null,
     priority: task?.priority || "High",
-    status: task?.status || "Not started",
+    status: normalizeStatus(task?.status) || "Not started",
     score: task?.score ?? "",
     link: task?.link || "",
   });
@@ -237,7 +263,10 @@ const TaskDetail = ({
     setCoursesFetching(true);
     const t0 = Date.now();
     try {
-      const r = await fetch("/api/courses", { cache: "no-store" });
+      // === tambahkan idWorkspace pada request ===
+      const r = await fetch(`/api/courses?idWorkspace=${encodeURIComponent(idWorkspace)}`, {
+        cache: "no-store",
+      });
       if (!r.ok) throw new Error("courses request failed");
       const raw = await r.json();
       const list = normalizeCourses(raw);
@@ -288,7 +317,7 @@ const TaskDetail = ({
           ? String(task.relatedCourse)
           : null,
       priority: task.priority || "High",
-      status: task.status || "Not started",
+      status: normalizeStatus(task.status) || "Not started",
       score: task.score ?? "",
       link: task.link || "",
     }));
@@ -308,7 +337,7 @@ const TaskDetail = ({
   const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   /* =========================
-     SAVE (Optimistic, capped 1s, lalu success)
+     SAVE (Optimistic, capped 1s, lalu success + tutup drawer)
      ========================= */
   const closeDrawer = () => {
     if (onClose) onClose();
@@ -348,7 +377,7 @@ const TaskDetail = ({
       description: form.subtitle || null,
       deadline: combinedDeadline,
       priority: form.priority || null,
-      status: form.status || null,
+      status: normalizeStatus(form.status) || null,
       score: form.score === "" ? null : Number(form.score),
       link: form.link || null,
       id_course:
@@ -376,16 +405,16 @@ const TaskDetail = ({
       window.dispatchEvent(new CustomEvent("tasks:updated", { detail: { task: optimisticTask } }));
       if (typeof onTaskUpdated === "function") onTaskUpdated(optimisticTask);
 
-      // Fire-and-forget request (tidak memblok UI > 1s)
-      const req = axios.put(`/api/tasks`, payload)
+      // === sertakan idWorkspace pada request ===
+      const req = axios
+        .put(`/api/tasks?idWorkspace=${encodeURIComponent(idWorkspace)}`, payload)
         .then(async () => {
           if (typeof onSave === "function") {
             try { await onSave(payload); } catch (_) {}
           }
         })
         .catch((err) => {
-          // sengaja tidak menampilkan error alert (sesuai permintaan),
-          // cukup log agar bisa diinspeksi di devtools
+          // sengaja tidak menampilkan error alert
           console.log(err?.response?.data || err?.message);
         });
 
@@ -401,9 +430,11 @@ const TaskDetail = ({
         height: 380,
       });
 
-      // Drawer tetap terbuka
       setEditingKey(null);
-      // (opsional) tidak menunggu req selesai
+
+      // Tutup drawer segera setelah sukses (biarkan request tetap berjalan)
+      requestAnimationFrame(() => closeDrawer());
+
       void req;
     } finally {
       setLoading(false);
@@ -411,7 +442,7 @@ const TaskDetail = ({
   };
 
   /* =========================
-     DELETE (Optimistic) — tetap seperti sebelumnya (min 1s)
+     DELETE (Optimistic) — min 1s + tutup drawer
      ========================= */
   const handleDelete = async () => {
     const t0 = Date.now();
@@ -423,7 +454,10 @@ const TaskDetail = ({
       if (typeof onTaskDeleted === "function") onTaskDeleted(task.id_task);
       else if (typeof refreshTasks === "function") refreshTasks();
 
-      await axios.delete(`/api/tasks?id=${task.id_task}`);
+      // === sertakan idWorkspace pada request ===
+      await axios.delete(
+        `/api/tasks?id=${encodeURIComponent(task.id_task)}&idWorkspace=${encodeURIComponent(idWorkspace)}`
+      );
 
       showAlert({
         icon: "ri-delete-bin-2-line",
@@ -651,8 +685,8 @@ const TaskDetail = ({
             <Row icon="ri-loader-line" label="Status">
               <BadgeSelect
                 value={form.status}
-                onChange={(val) => setVal("status", val)}
-                options={["Not started", "In Progress", "Completed", "Overdue"]}
+                onChange={(val) => setVal("status", normalizeStatus(val))}
+                options={["Not started", "In progress", "Completed", "Overdue"]}
                 valueClassFn={statusValueClass}
                 label="Status"
               />

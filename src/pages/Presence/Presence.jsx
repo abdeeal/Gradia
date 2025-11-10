@@ -10,6 +10,7 @@ import { useMediaQuery } from "react-responsive";
 import { prewarmRooms, getRoom, peekRoom, setRoom } from "@/utils/coursesRoomCache";
 
 const WORKSPACE_ID = 1;
+const idWorkspace = sessionStorage.getItem("id_workspace");
 
 /* ===== Helpers tanggal/status ===== */
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -80,9 +81,77 @@ function mapServerRow(row) {
   };
 }
 
+/* ===== Helpers waktu untuk course (HH:mm / HH.mm accepted) ===== */
+const toHHMM = (v) => {
+  if (!v) return "";
+  const s = String(v).trim();
+  if (!s) return "";
+  const t = s.replace(".", ":"); // support "07.30"
+  const [h, m] = t.split(":").map((x) => parseInt(x, 10));
+  if (!Number.isFinite(h)) return "";
+  const hh = pad2(Math.max(0, Math.min(23, h)));
+  const mm = pad2(Number.isFinite(m) ? Math.max(0, Math.min(59, m)) : 0);
+  return `${hh}:${mm}`;
+};
+
+/* ===== Ambil daftar course today dari tabel courses ===== */
+async function fetchCoursesToday() {
+  try {
+    const r = await fetch(`/api/courses?q=today&idWorkspace=${idWorkspace}`);
+    const data = await safeJson(r);
+    const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+
+    // Map ke shape yang dipakai PresenceCard + kebutuhan logic lama
+    const mapped = arr.map((c) => {
+      const id = c.id ?? c.id_course ?? c.course_id;
+      const title = c.name ?? c.title ?? c.course_name ?? "-";
+      const room = c.room ?? c.course_room ?? "";
+      const start = toHHMM(c.start ?? c.course_start ?? c.time?.split("-")?.[0]);
+      const end   = toHHMM(c.end   ?? c.course_end   ?? c.time?.split("-")?.[1]);
+
+      // time untuk UI: "HH:MM & HH:MM" (permintaanmu)
+      const timeAmpersand = (start && end) ? `${start} & ${end}` : (start || end || "");
+
+      // rangeDash hanya dipakai untuk perhitungan status oleh helper lama (TIDAK mengubah logic lain)
+      const rangeDash = (start && end) ? `${start} - ${end}` : (start || end || "");
+
+      return {
+        id,
+        title,
+        room,
+        // Kirim juga start/end agar PresenceCard bisa baca langsung
+        start,
+        end,
+        // time untuk ditampilkan (punya "&")
+        time: timeAmpersand,
+        // status dihitung dengan logic lama
+        status: statusFromNow(rangeDash),
+      };
+    });
+
+    // Panaskan cache room; lengkapin room bila kosong
+    prewarmRooms(mapped.map((c) => ({ id: c.id, room: c.room })));
+    const completed = await Promise.all(
+      mapped.map(async (c) => {
+        let room = c.room;
+        if (!room) {
+          room = await getRoom(c.id).catch(() => "");
+        }
+        setRoom(c.id, room || "");
+        return { ...c, room: room || "-" };
+      })
+    );
+
+    return completed;
+  } catch (e) {
+    console.error("fetchCoursesToday error:", e);
+    return [];
+  }
+}
+
 function Presence() {
   const [records, setRecords] = useState([]); // semua record presensi (multi hari)
-  const [courses, setCourses] = useState([]); // daftar course (unik)
+  const [courses, setCourses] = useState([]); // daftar course (unik) → SEKARANG dari tabel courses
   const [initialLoading, setInitialLoading] = useState(false);
 
   // ➜ totals GLOBAL dari DATABASE (tanpa filter tanggal)
@@ -118,8 +187,8 @@ function Presence() {
     // 2) Fallback: ambil seluruh presences, hitung di client
     const tryList = async () => {
       const candidates = [
-        `/api/presences?limit=100000`,
-        `/api/presences`,
+        `/api/presences?limit=100000&idWorkspace=${idWorkspace}`,
+        `/api/presences?idWorkspace=${idWorkspace}`,
       ];
       for (const url of candidates) {
         try {
@@ -162,57 +231,29 @@ function Presence() {
     setLoadingTotals(false);
   };
 
-  /* ===== Fetch pertama kali (data & totals) ===== */
+  /* ===== Fetch pertama kali (data presences & courses today) ===== */
   const fetchInitial = async () => {
     setInitialLoading(true);
     try {
-      const res = await fetch("/api/presences");
-      const raw = await safeJson(res);
+      // ambil presences dan courses today secara paralel
+      const [presR, todayCourses] = await Promise.all([
+        fetch(`/api/presences?idWorkspace=${idWorkspace}`),
+        fetchCoursesToday(),
+      ]);
 
-      const mapped = (Array.isArray(raw) ? raw : []).map(mapServerRow);
+      // ===== presences
+      const presRaw = await safeJson(presR);
+      const mappedRecords = (Array.isArray(presRaw) ? presRaw : []).map(mapServerRow);
 
-      // Build courses unik dari payload
-      const byCourse = new Map();
-      (Array.isArray(raw) ? raw : []).forEach((row) => {
-        const id = row.id_course;
-        if (!id) return;
-        if (!byCourse.has(id)) {
-          const range = timeRangeStrFromApi(row);
-          byCourse.set(id, {
-            id,
-            title: row.course_name || "-",
-            time: range,
-            status: statusFromNow(range),
-            room: row.course_room || "", // room prioritas di course; kosong dulu kalau belum tahu
-          });
-        }
-      });
-
-      // Panaskan cache
-      const initialCourses = Array.from(byCourse.values());
-      prewarmRooms(initialCourses.map((c) => ({ id: c.id, room: c.room })));
-
-      // Lengkapi room yg kosong dari API (dedup via getRoom)
-      const completed = await Promise.all(
-        initialCourses.map(async (c) => {
-          let room = c.room;
-          if (!room) {
-            room = await getRoom(c.id).catch(() => "");
-          }
-          setRoom(c.id, room || "");
-          return { ...c, room: room || "-" };
-        })
-      );
-
-      // Rekonsiliasi records agar room ikut terisi bila kosong
-      const reconciledRecords = mapped.map((r) => {
+      // rekonsiliasi record → isi room dari courses kalau kosong
+      const reconciledRecords = mappedRecords.map((r) => {
         if (r.room && r.room !== "-") return r;
-        const course = completed.find((c) => c.id === r.courseId);
-        return { ...r, room: course?.room || r.room || "-" };
+        const c = todayCourses.find((x) => x.id === r.courseId);
+        return { ...r, room: c?.room || r.room || "-" };
       });
 
       setRecords(reconciledRecords);
-      setCourses(completed);
+      setCourses(todayCourses);
     } catch (e) {
       console.error(e);
       setRecords([]);
@@ -232,7 +273,12 @@ function Presence() {
   useEffect(() => {
     const t = setInterval(() => {
       setCourses((prev) =>
-        prev.map((c) => ({ ...c, status: statusFromNow(c.time) }))
+        prev.map((c) => {
+          // hitung status pakai logic lama (range "HH:MM - HH:MM") tetapi TIDAK mengubah properti time yang ber-ampersand
+          const dashRange =
+            c.start && c.end ? `${c.start} - ${c.end}` : (c.start || c.end || "");
+          return { ...c, status: statusFromNow(dashRange) };
+        })
       );
       // refresh total GLOBAL dari DB supaya angka selalu up-to-date
       fetchTotalsGlobalFromServer();
@@ -284,7 +330,7 @@ function Presence() {
     setRecords((prev) => upsertRecord(prev, optimistic));
 
     try {
-      const res = await fetch("/api/presences", {
+      const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -339,7 +385,7 @@ function Presence() {
     setRecords((prev) => upsertRecord(prev, nextLocal));
 
     try {
-      const res = await fetch("/api/presences", {
+      const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -368,7 +414,9 @@ function Presence() {
     const checkAutoAbsent = async () => {
       const now = new Date();
       for (const c of courses) {
-        const win = windowTodayFromRange(c.time);
+        const win = windowTodayFromRange(
+          c.start && c.end ? `${c.start} - ${c.end}` : (c.start || c.end || "")
+        );
         if (!win) continue;
         if (now <= win.end) continue;
 
@@ -401,7 +449,7 @@ function Presence() {
           setRecords((prev) => upsertRecord(prev, optimistic));
 
           try {
-            const res = await fetch("/api/presences", {
+            const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

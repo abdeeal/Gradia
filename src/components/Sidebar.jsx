@@ -22,7 +22,7 @@ const Sidebar = () => {
     }`;
 
   const navItems = [
-    { to: "/", icon: "ri-dashboard-line", label: "Dashboard" },
+    { to: "/dashboard", icon: "ri-dashboard-line", label: "Dashboard" },
     { to: "/calendar", icon: "ri-calendar-schedule-line", label: "Calendar" },
     { divider: true },
     { section: "Task" },
@@ -88,12 +88,19 @@ const Sidebar = () => {
 
           {/* === FOOTER === */}
           <div className="px-5 py-5 font-inter">
-            <button className="flex items-center gap-3 text-gray-400 hover:text-white py-[4px] text-[15px] mb-[12px]">
+            <Link
+              to="/workspace"
+              className="flex items-center gap-3 text-gray-400 hover:text-white py-[4px] text-[15px] mb-[12px]"
+            >
               <i className="ri-arrow-left-circle-line text-[17px]" /> Back
-            </button>
-            <button className="flex items-center gap-3 text-white hover:text-red-500 py-[4px] text-[15px]">
+            </Link>
+
+            <Link
+              to="/auth/logout"
+              className="flex items-center gap-3 text-white hover:text-red-500 py-[4px] text-[15px]"
+            >
               <i className="ri-door-open-line text-[17px]" /> Logout
-            </button>
+            </Link>
           </div>
         </div>
       </aside>

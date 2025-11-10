@@ -67,7 +67,7 @@ export const Courses = () => {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    fetch(`/api/courses`)
+    fetch(`/api/courses?idWorkspace=${workspace}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch courses");
         return res.json();

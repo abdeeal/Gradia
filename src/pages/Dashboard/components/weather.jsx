@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 export default function WeatherCard({ dateText, now }) {
-  // Dummy city
-  const city = "Purwokerto";
+  // Dummy city (di-update dari geolocation/IP)
+  const [city, setCity] = useState("Loading...");
 
   const refDate = now ? new Date(now) : new Date();
 
@@ -35,6 +35,86 @@ export default function WeatherCard({ dateText, now }) {
   const circleDColor = isNight ? "bg-[#656565]/[0.67]" : "bg-[#50D0F4]/[0.67]";
   const circleEGradient = "bg-gradient-to-b from-[#FFE478] to-[#DFA62B]";
   const montserrat = { fontFamily: '"Montserrat", sans-serif' };
+
+  useEffect(() => {
+    let active = true;
+    const abort = new AbortController();
+
+    const safeSetCity = (val) => {
+      if (active) setCity(val);
+    };
+
+    const getCityFromCoords = async (lat, lon) => {
+      try {
+        // pakai backticks + encode
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
+          lat
+        )}&lon=${encodeURIComponent(lon)}&zoom=10&addressdetails=1`;
+        const res = await fetch(url, {
+          signal: abort.signal,
+          headers: {
+            // sebagian server suka minta header ini; aman diabaikan jika ditolak
+            "Accept-Language": "en",
+            // Note: User-Agent tak bisa diubah di browser
+          },
+        });
+        const data = await res.json();
+        const cityName =
+          data?.address?.city ||
+          data?.address?.town ||
+          data?.address?.village ||
+          data?.address?.state ||
+          "Unknown location";
+        safeSetCity(cityName);
+      } catch {
+        safeSetCity("Gradia");
+      }
+    };
+
+    const getCityFromIP = async () => {
+      try {
+        const res = await fetch("https://ipapi.co/json/", { signal: abort.signal });
+        const data = await res.json();
+        safeSetCity(data?.city || data?.region || "Unknown");
+      } catch {
+        safeSetCity("Unknown");
+      }
+    };
+
+    // SSR/Non-browser guard
+    if (typeof window === "undefined") {
+      safeSetCity("Unknown");
+      return () => {
+        active = false;
+        abort.abort();
+      };
+    }
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          getCityFromCoords(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {
+          // jika user blokir/ gagal → fallback IP
+          getCityFromIP();
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 8000,
+          maximumAge: 5 * 60 * 1000, // cache posisi 5 menit
+        }
+      );
+    } else {
+      // perangkat tidak support geolocation → fallback IP
+      getCityFromIP();
+    }
+
+    return () => {
+      active = false;
+      abort.abort();
+    };
+  }, []);
 
   return (
     <div
@@ -71,7 +151,6 @@ export default function WeatherCard({ dateText, now }) {
       <div
         className="absolute flex items-center tabular-nums"
         style={{
-          // Pakai posisi yang sama seperti versi malam
           left: 235.5,
           top: 61,
           width: 754 - 235.5 - 416.5,

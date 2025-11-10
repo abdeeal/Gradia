@@ -13,17 +13,53 @@ function isSameDay(a, b) {
   );
 }
 
-export default function TotalTask({ apiUrl = "/api/tasks" }) {
+export default function TotalTask({
+  apiUrl = "/api/tasks",
+  idWorkspace = null,   // opsional override
+  queryParams = null,   // opsional
+}) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState("");
   const navigate = useNavigate();
 
+  // ==== idWorkspace dari sessionStorage (SSR/CSR-safe) ====
+  const sessionIdWorkspace = React.useMemo(() => {
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        const v = Number(window.sessionStorage.getItem("id_workspace"));
+        return Number.isFinite(v) && v > 0 ? v : 1;
+      }
+    } catch {}
+    return 1;
+  }, []);
+
+  // ==== Gabung query params (priority: queryParams > prop idWorkspace > session) ====
+  const mergedQuery = useMemo(() => {
+    const hasQP = !!(queryParams && Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace"));
+    const effective = hasQP ? undefined : (idWorkspace ?? sessionIdWorkspace);
+    const base = effective != null ? { idWorkspace: effective } : {};
+    return { ...base, ...(queryParams || {}) };
+  }, [queryParams, idWorkspace, sessionIdWorkspace]);
+
+  const queryString = useMemo(() => {
+    const entries = Object.entries(mergedQuery).filter(
+      ([, v]) => v !== undefined && v !== null && v !== ""
+    );
+    if (entries.length === 0) return "";
+    return (
+      "?" +
+      entries
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .join("&")
+    );
+  }, [mergedQuery]);
+
   const fetchTasks = async (signal) => {
-    setLoading(true);
+    setLoading(true);             // 🔴 tampilkan loader segera
     setErrMsg("");
     try {
-      const res = await fetch(apiUrl, { signal });
+      const res = await fetch(`${apiUrl}${queryString}`, { signal, headers: { Accept: "application/json" } });
       if (!res.ok) throw new Error(`Gagal memuat tasks (${res.status})`);
       const data = await res.json();
       const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
@@ -39,7 +75,7 @@ export default function TotalTask({ apiUrl = "/api/tasks" }) {
     const controller = new AbortController();
     fetchTasks(controller.signal);
     return () => controller.abort();
-  }, [apiUrl]);
+  }, [apiUrl, queryString]);
 
   const { total, todayAdded } = useMemo(() => {
     const all = Array.isArray(tasks) ? tasks : [];
@@ -74,22 +110,12 @@ export default function TotalTask({ apiUrl = "/api/tasks" }) {
           onClick={() => navigate("/tasks")}
           aria-label="Go to Tasks page"
           className="flex items-center justify-center rounded-full transition hover:brightness-90"
-          style={{
-            width: 32,
-            height: 32,
-            background: "#FAFAFA",
-          }}
+          style={{ width: 32, height: 32, background: "#FAFAFA" }}
         >
           <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#000000"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+            viewBox="0 0 24 24" fill="none" stroke="#000000"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
           >
             <path d="M7 17L17 7M7 7h10v10" />
           </svg>
@@ -98,7 +124,7 @@ export default function TotalTask({ apiUrl = "/api/tasks" }) {
 
       {/* Body */}
       {loading ? (
-        <div style={{ marginTop: 32 }}>
+        <div style={{ marginTop: 32 }} role="status" aria-live="polite" aria-label="Loading...">
           <div className="animate-pulse">
             <div className="h-16 w-40 bg-white/20 rounded-md" />
           </div>
@@ -110,14 +136,17 @@ export default function TotalTask({ apiUrl = "/api/tasks" }) {
               color: "#FCD34D",
             }}
           >
-            Loading today’s tasks…
+            Loading...
           </p>
         </div>
       ) : errMsg ? (
         <div style={{ marginTop: 24 }}>
           <p className="text-red-200 text-sm">{errMsg}</p>
           <button
-            onClick={() => fetchTasks()}
+            onClick={() => {
+              const controller = new AbortController();
+              fetchTasks(controller.signal);
+            }}
             className="mt-3 px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-sm"
           >
             Retry
