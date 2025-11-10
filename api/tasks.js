@@ -6,66 +6,88 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-if (req.method === "GET") {
-  const { data, error } = await supabase
-    .from("task")
-    .select(`
-      *,
-      course:id_course ( name )
-    `)
-    .order("deadline", { ascending: true });
+  if (req.method === "GET") {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const idWorkspace = url.searchParams.get("idWorkspace");
 
-  if (error) {
-    return res.status(500).json({ error: error.message });
+    if (!idWorkspace) {
+      return res
+        .status(400)
+        .json({ error: "Parameter 'idWorkspace' diperlukan." });
+    }
+
+    const { data, error } = await supabase
+      .from("task")
+      .select(
+        `
+      *,
+      course:id_course (
+        name,
+        id_workspace
+      )
+    `
+      )
+      .eq("course.id_workspace", idWorkspace)
+      .order("deadline", { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const formatted = data.map((task) => ({
+      ...task,
+      relatedCourse: task.course?.name || null,
+    }));
+
+    return res.status(200).json(formatted);
   }
 
-  const formatted = data.map((task) => ({
-    ...task,
-    relatedCourse: task.course?.name || null,
-  }));
-
-  return res.status(200).json(formatted);
-}
-
   if (req.method === "POST") {
-  let body = "";
-  req.on("data", (chunk) => {
-    body += chunk.toString();
-  });
-  req.on("end", async () => {
-    try {
-      const task = JSON.parse(body);
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const task = JSON.parse(body);
 
-      const { data, error } = await supabase
-        .from("task")
-        .insert([task])
-        .select();
+        const { data, error } = await supabase
+          .from("task")
+          .insert([task])
+          .select();
 
-      if (error) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: error.message }));
-      } else {
-        res.writeHead(201, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({ message: "Task berhasil ditambahkan!", data })
-        );
+        if (error) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: error.message }));
+        } else {
+          res.writeHead(201, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({ message: "Task berhasil ditambahkan!", data })
+          );
+        }
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Gagal memproses data" }));
       }
-    } catch (e) {
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Gagal memproses data" }));
-    }
-  });
+    });
 
-  return;
-}
+    return;
+  }
 
   if (req.method === "PUT") {
     let body = "";
     req.on("data", (chunk) => (body += chunk.toString()));
     req.on("end", async () => {
       try {
-        const { id_task, id_course, title, description, deadline, status, priority } =
-          JSON.parse(body);
+        const {
+          id_task,
+          id_course,
+          title,
+          description,
+          deadline,
+          status,
+          priority,
+        } = JSON.parse(body);
 
         if (!id_task) {
           return res
@@ -73,7 +95,14 @@ if (req.method === "GET") {
             .json({ error: "Parameter id_task wajib diisi untuk update." });
         }
 
-        const updateData = { id_course, title, description, deadline, status, priority };
+        const updateData = {
+          id_course,
+          title,
+          description,
+          deadline,
+          status,
+          priority,
+        };
 
         const { data, error } = await supabase
           .from("task")
