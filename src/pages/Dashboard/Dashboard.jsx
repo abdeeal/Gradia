@@ -1,5 +1,8 @@
 // src/pages/Dashboard/index.jsx
 import React, { useMemo } from "react";
+import { useMediaQuery } from "react-responsive";
+import Mobile from "./Layout/Mobile";
+
 import Sidebar from "@/components/Sidebar";
 import DueToday from "../Dashboard/components/duetoday";
 import CoursesToday from "../Dashboard/components/coursetoday";
@@ -9,6 +12,16 @@ import TaskProgress from "../Dashboard/components/taskprogress";
 import TaskSummary from "../Dashboard/components/progresstask";
 
 export default function Dashboard() {
+  // Breakpoints
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
+
+  // On mobile & tablet use the dedicated mobile layout
+  if (isMobile || isTablet) {
+    return <Mobile />;
+  }
+
+  // Desktop layout below
   const now = useMemo(() => new Date(), []);
   // Night = 18:00–05:59
   const isNight = now.getHours() >= 18 || now.getHours() < 6;

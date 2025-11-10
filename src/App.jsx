@@ -8,7 +8,7 @@ function App() {
   const { pathname } = useLocation();
   sessionStorage.setItem("id_workspace", "1");
   const isAuthPage =
-    pathname.startsWith("/login") || pathname.startsWith("/register") || pathname.startsWith("/workspace");
+    pathname.startsWith("/auth") || pathname.startsWith("/workspace");
 
   const isDashboard = pathname.startsWith("/dashboard");
 

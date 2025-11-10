@@ -75,7 +75,7 @@ const Mobile = ({
         if (from === "login") {
           console.log("user before storage:", user); // cek dulu, harus object
           localStorage.setItem("user", JSON.stringify(user));
-          navigate("/dashboard");
+          navigate("/workspaces");
         } else if (from === "verification") {
           setSuccess("verification");
         } else {
@@ -150,8 +150,8 @@ const Mobile = ({
             </span>
 
             <Button
-              icon="noIcon"
-              title={`${loading ? "Verifying" : "Verify"}`}
+               icon={loading ? "ri-loader-4-line animate-spin" : "noIcon"}
+              title={`${loading ? "Verifying..." : "Verify"}`}
               className={"w-full text-center justify-center py-4"}
               onClick={handleVerify}
             />

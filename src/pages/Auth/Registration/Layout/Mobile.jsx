@@ -14,11 +14,11 @@ const Mobile = () => {
   const [showVerify, setShowVerify] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
   const [expiredAt, setExpiredAt] = useState("");
-  const [errorMsg, setErrorMsg] = useState(""); 
+  const [errorMsg, setErrorMsg] = useState("");
   const navigate = useNavigate();
 
   const handleRegister = async () => {
-    setErrorMsg(""); 
+    setErrorMsg("");
 
     if (!email || !username || !password) {
       setErrorMsg("Please fill all fields.");
@@ -31,7 +31,7 @@ const Mobile = () => {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, username, password, action:"register" }),
+        body: JSON.stringify({ email, username, password, action: "register" }),
       });
 
       const data = await res.json();
@@ -52,7 +52,13 @@ const Mobile = () => {
   };
 
   if (showVerify) {
-    return <VerifyOtp email={registeredEmail} expiredAt={expiredAt} from={"verification"} />;
+    return (
+      <VerifyOtp
+        email={registeredEmail}
+        expiredAt={expiredAt}
+        from={"verification"}
+      />
+    );
   }
 
   return (
@@ -70,7 +76,8 @@ const Mobile = () => {
               Let's Register
             </p>
             <p className="text-center text-foreground-secondary mt-3 px-4 md:text-[20px] md:w-[75%]">
-              Join Gradia and take control of your goals, time, and mindset — all in one app.
+              Join Gradia and take control of your goals, time, and mindset —
+              all in one app.
             </p>
           </div>
         </div>
@@ -110,7 +117,7 @@ const Mobile = () => {
                 errorMsg ? "text-red-400 opacity-100" : "opacity-0"
               }`}
             >
-              {errorMsg || " "} 
+              {errorMsg || " "}
             </p>
           </div>
 
@@ -123,7 +130,7 @@ const Mobile = () => {
             </span>
 
             <Button
-              icon="noIcon"
+              icon={loading ? "ri-loader-4-line animate-spin" : "noIcon"}
               title={loading ? "Registering..." : "Register"}
               className="w-full text-center justify-center py-4"
               onClick={handleRegister}
