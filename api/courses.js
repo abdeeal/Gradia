@@ -30,38 +30,44 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: error.message });
       }
 
-      res
-        .status(200)
-        .json({
-          message: `Course dengan id ${id_courses} berhasil diperbarui.`,
-          data,
-        });
+      res.status(200).json({
+        message: `Course dengan id ${id_courses} berhasil diperbarui.`,
+        data,
+      });
     });
     return;
   }
   if (req.method === "GET") {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const q = url.searchParams.get("q");
+    const idWorkspace = url.searchParams.get("idWorkspace");
 
+    if (!idWorkspace) {
+      return res
+        .status(400)
+        .json({ error: "Parameter 'idWorkspace' diperlukan." });
+    }
+
+    // Filter berdasarkan hari ini
     if (q === "today") {
       const today = new Date().toLocaleString("en-US", { weekday: "long" });
       const { data, error } = await supabase
         .from("course")
         .select("*")
+        .eq("id_workspace", idWorkspace)
         .eq("day", today);
 
-      if (error) {
-        return res.status(500).json({ error: error.message });
-      }
-
+      if (error) return res.status(500).json({ error: error.message });
       return res.status(200).json(data);
     }
 
-    const { data, error } = await supabase.from("course").select("*");
+    // Tanpa query q → ambil semua course dalam workspace itu
+    const { data, error } = await supabase
+      .from("course")
+      .select("*")
+      .eq("id_workspace", idWorkspace);
 
-    if (error) {
-      return res.status(500).json({ error: error.message });
-    }
+    if (error) return res.status(500).json({ error: error.message });
 
     return res.status(200).json(data);
   }

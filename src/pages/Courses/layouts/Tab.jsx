@@ -30,6 +30,8 @@ export const Tab = () => {
   const dayMobile = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const dayTab = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
+  const idWorkspace = sessionStorage.getItem("id_workspace");
+
   useEffect(() => {
     const id = Number(searchParams.get("c"));
     if (!id || courses.length === 0) return;
@@ -44,7 +46,7 @@ export const Tab = () => {
     else setInitialLoading(true);
 
     try {
-      const res = await fetch("/api/courses");
+      const res = await fetch(`/api/courses?idWorkspace=${idWorkspace}`);
       if (!res.ok) throw new Error("Failed to fetch courses");
       const data = await res.json();
       setCourses(data);
@@ -57,8 +59,9 @@ export const Tab = () => {
   }, []);
 
   useEffect(() => {
+    if (!idWorkspace) return;
     fetchCourses();
-  }, [fetchCourses]);
+  }, [fetchCourses, idWorkspace]);
 
   useEffect(() => {
     const filtered = courses.filter(
@@ -77,7 +80,6 @@ export const Tab = () => {
 
     setGroupedCourses(grouped);
   }, [courses, searchTerm]);
-
 
   return (
     <div className="flex flex-col gap-8 relative">

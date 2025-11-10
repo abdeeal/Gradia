@@ -11,6 +11,7 @@ const Mobile = () => {
   const [task, setTask] = useState(null);
   const [emptyDrawer, setEmptyDrawer] = useState(false);
   const [loading, setLoading] = useState(true);
+  const idWorkspace = sessionStorage.getItem("id_workspace")
 
   const toggleCategory = (title) => {
     setOpenCategories((prev) =>
@@ -19,9 +20,10 @@ const Mobile = () => {
   };
 
   const fetchTasks = useCallback(async (isRefresh = false) => {
-    try {
+    if (idWorkspace) {
+      try {
       if (!isRefresh) setLoading(true);
-      const res = await fetch("/api/tasks");
+      const res = await fetch(`/api/tasks?idWorkspace=${idWorkspace}`);
       const data = await res.json();
       setTasks(data);
     } catch (err) {
@@ -29,11 +31,12 @@ const Mobile = () => {
     } finally {
       if (!isRefresh) setLoading(false);
     }
-  }, []);
+    }
+  }, [idWorkspace]);
 
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    if(idWorkspace) fetchTasks();
+  }, [fetchTasks, idWorkspace]);
 
   const refreshTasks = () => fetchTasks(true);
   const groupedTasks = {
@@ -52,7 +55,7 @@ const Mobile = () => {
   useEffect(() => {
     const fetchCourses = async () => {
       try {
-        const res = await fetch("/api/courses");
+        const res = await fetch(`/api/courses?idWorkspace=${idWorkspace}`);
         const data = await res.json();
         setCourses(data);
       } catch (err) {

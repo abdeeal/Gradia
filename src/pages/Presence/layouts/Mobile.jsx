@@ -32,11 +32,14 @@ const Mobile = () => {
     setPopupMode(null);
   };
 
+  const idWorkspace = sessionStorage.getItem("id_workspace")
+
   // Courses today
   const [courses, setCourses] = useState([]);
   const [cLoading, setCLoading] = useState(true);
   useEffect(() => {
-    fetch("/api/courses?q=today")
+    if (!idWorkspace) return;
+    fetch(`/api/courses?q=today&idWorkspace=${idWorkspace}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch courses");
         return res.json();
@@ -44,7 +47,7 @@ const Mobile = () => {
       .then((data) => setCourses(data))
       .catch((error) => console.error("Error fetching courses:", error))
       .finally(() => setCLoading(false));
-  }, []);
+  }, [idWorkspace]);
 
   // Presences data
   const [presences, setPresences] = useState([]);
@@ -55,7 +58,7 @@ const Mobile = () => {
   const fetchPresences = useCallback(async (showSkeleton = true) => {
     if (showSkeleton) setLoading(true);
     try {
-      const res = await fetch("/api/presences");
+      const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`);
       const data = await res.json();
 
       const formatted = data.map((item) => {
@@ -113,8 +116,9 @@ const Mobile = () => {
   }, []);
 
   useEffect(() => {
+    if (!idWorkspace) return;
     fetchPresences();
-  }, [fetchPresences]);
+  }, [fetchPresences, idWorkspace]);
 
   // fungsi refresh tanpa skeleton
   const refreshPresences = useCallback(() => {

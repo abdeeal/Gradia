@@ -9,6 +9,15 @@ export default async function handler(req, res) {
   const method = req.method;
 
   if (method === "GET") {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const idWorkspace = url.searchParams.get("idWorkspace");
+
+    if (!idWorkspace) {
+      return res
+        .status(400)
+        .json({ error: "Parameter 'idWorkspace' diperlukan." });
+    }
+
     const { data, error } = await supabase
       .from("presence")
       .select(
@@ -19,10 +28,19 @@ export default async function handler(req, res) {
       note,
       id_course,
       created_at,
-      course: id_course ( name, room, sks, start, end )
+      course: id_course (
+        name,
+        room,
+        sks,
+        start,
+        end,
+        id_workspace
+      )
     `
       )
-      .order("presences_at", { ascending: false });
+      .order("presences_at", { ascending: false })
+      // filter berdasarkan id_workspace dari tabel relasi course
+      .eq("course.id_workspace", idWorkspace);
 
     if (error) {
       return res.status(500).json({ error: error.message });
@@ -30,7 +48,7 @@ export default async function handler(req, res) {
 
     const formatted = data.map((item) => ({
       id_presence: item.id_presence,
-      id_course : item.id_course,
+      id_course: item.id_course,
       presences_at: item.presences_at,
       status: item.status,
       note: item.note,
@@ -68,7 +86,7 @@ export default async function handler(req, res) {
               id_course,
               status,
               note,
-              id_workspace
+              id_workspace,
             },
           ])
           .select();
