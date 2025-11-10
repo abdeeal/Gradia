@@ -5,6 +5,7 @@ import { Button } from "@/components/Button";
 import { Link, useNavigate } from "react-router-dom";
 import OtpInput from "../components/OtpInput";
 import SuccessMsg from "../../Success-msg/SuccessMsg";
+import NewPassword from "../../Reset-Password/Layout/NewPassword";
 
 const Mobile = ({
   title = "Verify Your Email Address",
@@ -16,7 +17,9 @@ const Mobile = ({
   const [timeLeft, setTimeLeft] = useState("");
   const [otp, setOtp] = useState("");
   const [success, setSuccess] = useState("");
-  const [errorMsg, setErrorMsg] = useState(""); // <--- state untuk error
+  const [errorMsg, setErrorMsg] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resetPass, setResetPass] = useState(false);
 
   const navigate = useNavigate();
 
@@ -51,6 +54,7 @@ const Mobile = ({
 
   const handleVerify = async () => {
     setErrorMsg(""); // reset error sebelum verifikasi
+    setLoading(true);
 
     if (!otp || otp.length < 6) {
       setErrorMsg("Please enter a valid 6-digit OTP");
@@ -67,6 +71,7 @@ const Mobile = ({
       const data = await res.json();
 
       if (res.ok) {
+        setLoading(false);
         if (from === "login") {
           console.log("user before storage:", user); // cek dulu, harus object
           localStorage.setItem("user", JSON.stringify(user));
@@ -74,6 +79,7 @@ const Mobile = ({
         } else if (from === "verification") {
           setSuccess("verification");
         } else {
+          setResetPass(true);
           setSuccess("reset-password");
         }
       } else {
@@ -85,8 +91,12 @@ const Mobile = ({
     }
   };
 
-  if (success !== "") {
-    return <SuccessMsg type={success} />;
+  if (resetPass) {
+    return <NewPassword success={success} email={email} />;
+  } else {
+    if (success !== "") {
+      return <SuccessMsg type={success} />;
+    }
   }
 
   return (
@@ -141,7 +151,7 @@ const Mobile = ({
 
             <Button
               icon="noIcon"
-              title={"Verify"}
+              title={`${loading ? "Verifying" : "Verify"}`}
               className={"w-full text-center justify-center py-4"}
               onClick={handleVerify}
             />

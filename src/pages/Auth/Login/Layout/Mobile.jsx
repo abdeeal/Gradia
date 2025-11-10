@@ -30,10 +30,10 @@ const Mobile = () => {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, password }),
+        body: JSON.stringify({ text, password, action:"login" }),
       });
 
       const data = await res.json();
@@ -166,7 +166,7 @@ const Mobile = () => {
             </p>
 
             <Link
-              to={"#"}
+              to={"/auth/reset-password"}
               className="text-[14px] text-end text-foreground-secondary"
             >
               Forgot password?
