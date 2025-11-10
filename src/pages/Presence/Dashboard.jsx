@@ -1,12 +1,12 @@
 // src/pages/Dashboard/index.jsx
 import React, { useMemo } from "react";
 import Sidebar from "@/components/Sidebar";
-import DueToday from "./components/duetoday";
-import CoursesToday from "./components/coursetoday";
-import Weather from "./components/weather";
-import TotalTask from "./components/totaltask";
-import TaskProgress from "./components/taskprogress";
-import TaskSummary from "./components/progresstask";
+import DueToday from "../Dashboard/components/duetoday";
+import CoursesToday from "../Dashboard/components/coursetoday";
+import Weather from "../Dashboard/components/weather";
+import TotalTask from "../Dashboard/components/totaltask";
+import TaskProgress from "../Dashboard/components/taskprogress";
+import TaskSummary from "../Dashboard/components/progresstask";
 
 export default function Dashboard() {
   const now = useMemo(() => new Date(), []);

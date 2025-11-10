@@ -2,7 +2,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 
 // === MAIN APP PAGES ===
-import Dashboard from "@/pages/Dashboard/dashboard.jsx";
+import Dashboard from "@/pages/Presence/Dashboard.jsx";
 import Courses from "@/pages/Courses/Courses.jsx";
 import Tasks from "@/pages/Tasks/Tasks.jsx";
 import Presence from "@/pages/Presence/Presence.jsx";
