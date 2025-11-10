@@ -1,17 +1,15 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/" }],
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ],
   "crons": [
     {
       "path": "/api/autoMarkAbsent",
-<<<<<<< HEAD
-      "schedule": "59 23 * * *"
-=======
       "schedule": "59 16 * * *"
     },
     {
       "path": "/api/autoMarkOverdue",
       "schedule": "59 16 * * *"
->>>>>>> 77cb904eca230da3beea14297902cba5dac5ce6e
     }
   ]
 }
