@@ -32,10 +32,10 @@ export const Button = ({ variant = "main", icon = "ri-add-line", title = 'Add co
         <button
           type="button"
           {...props}
-          className={`p-2 cursor-pointer rounded-[8px] gap-3 flex text-foreground bg-gradient-to-br from-[#34146C] to-[#28073B] ${className}`}
+          className={`p-2 cursor-pointer rounded-[8px] gap-3 flex text-foreground bg-gradient-to-br from-[#34146C] to-[#28073B] items-center ${className}`}
         >
           {icon == "noIcon" ? "" : <i className={`${icon} text-[18px]`}></i>}
-          <span>{title}</span>
+          {title == "noText" ? "" : <span>{title}</span>}
         </button>
       );
       break;

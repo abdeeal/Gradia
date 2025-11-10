@@ -6,7 +6,10 @@ import { Navbar } from "./components/Navbar";
 
 function App() {
   const location = useLocation();
-  const hideNavbar = location.pathname.startsWith("/auth");
+
+  const hideNavbar =
+    location.pathname.startsWith("/auth") ||
+    location.pathname === "/workspaces";
 
   sessionStorage.setItem("id_workspace", "1");
 

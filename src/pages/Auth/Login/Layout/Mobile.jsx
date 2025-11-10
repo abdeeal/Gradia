@@ -37,7 +37,7 @@ const Mobile = () => {
       });
 
       const data = await res.json();
-      console.log(data)
+
 
       if (!res.ok) {
         throw new Error(data.error || "Login failed");
@@ -53,7 +53,7 @@ const Mobile = () => {
 
       // jika user sudah verified → login sukses
       localStorage.setItem("user", JSON.stringify(data.user));
-      navigate("/dashboard");
+      navigate("/workspaces");
     } catch (err) {
       console.error("LOGIN ERROR:", err);
       setErrorMsg(err.message || "An error occurred during login");
@@ -89,7 +89,7 @@ const Mobile = () => {
         .then((data) => {
           if (data.email) {
             localStorage.setItem("user", JSON.stringify(data));
-            navigate("/dashboard");
+            navigate("/workspaces");
           }
         })
         .catch(console.error)
@@ -197,7 +197,7 @@ const Mobile = () => {
             </span>
 
             <Button
-              icon="noIcon"
+              icon={loading ? "ri-loader-4-line animate-spin" : "noIcon"}
               title={loading ? "Logging in..." : "Login"}
               className={"w-full text-center justify-center py-4"}
               onClick={handleLogin}

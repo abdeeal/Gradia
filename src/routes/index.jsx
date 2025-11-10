@@ -7,10 +7,14 @@ import Login from "@/pages/Auth/Login/Login.jsx";
 import Registration from "@/pages/Auth/Registration/Registration.jsx";
 import Callback from "@/pages/Auth/Callback.jsx";
 import ResetPassword from "@/pages/Auth/Reset-Password/ResetPassword.jsx";
+import Workspaces from "@/pages/Workspaces/Workspaces.jsx";
+import Dashboard from "@/pages/Dashboard/Dashboard.jsx";
 
 export default function AppRoutes() {
   return (
     <Routes>
+      <Route path="/workspaces" element={<Workspaces />} />
+      <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/courses" element={<Courses />} />
       <Route path="/tasks" element={<Tasks />} />
       <Route path="/presences" element={<Presence />} />

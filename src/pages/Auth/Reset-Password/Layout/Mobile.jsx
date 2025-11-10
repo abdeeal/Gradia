@@ -104,7 +104,7 @@ const Mobile = () => {
 
           <div className="flex flex-col gap-4 md:gap-8">
             <Button
-              icon="noIcon"
+               icon={loading ? "ri-loader-4-line animate-spin" : "noIcon"}
               title={loading ? "Sending..." : "Next"}
               className={"w-full text-center justify-center py-4"}
               onClick={handleNext}

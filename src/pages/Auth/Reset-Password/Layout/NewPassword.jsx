@@ -111,7 +111,7 @@ const NewPassword = ({ email, otp, success }) => {
 
           <div className="flex flex-col gap-4 md:gap-8">
             <Button
-              icon="noIcon"
+               icon={loading ? "ri-loader-4-line animate-spin" : "noIcon"}
               title={loading ? "Changing Password..." : "Change Password"}
               className="w-full text-center justify-center py-4"
               onClick={handleChange}
