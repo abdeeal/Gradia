@@ -48,15 +48,17 @@ const Mobile = () => {
         // Hitung statistik berdasarkan data
         const today = new Date().toISOString().split("T")[0];
         const completed = data.filter((t) => t.status === "Completed").length;
-        const inProgress = data.filter((t) => t.status === "In progress").length;
-        const notStarted = data.filter((t) => t.status === "Not started").length;
+        const inProgress = data.filter(
+          (t) => t.status === "In progress"
+        ).length;
+        const notStarted = data.filter(
+          (t) => t.status === "Not started"
+        ).length;
         const total = data.length;
         const addedToday = data.filter((t) =>
           t.created_at?.startsWith(today)
         ).length;
-        const dueToday = data.filter((t) =>
-          t.deadline?.startsWith(today)
-        );
+        const dueToday = data.filter((t) => t.deadline?.startsWith(today));
 
         setTasks(data);
         setStats({
@@ -87,6 +89,87 @@ const Mobile = () => {
     { title: "Pending", color: "bg-[#D9CEED]" },
   ];
 
+  const [time, setTime] = useState("");
+  const [date, setDate] = useState("");
+  const [city, setCity] = useState("Loading...");
+  const [day, setDay] = useState(true);
+
+  // Update waktu setiap detik
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+
+      // Format waktu & tanggal
+      const formattedTime = now
+        .toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+        .replace(":", " : ");
+      const formattedDate = now.toLocaleDateString("en-US", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      });
+
+      // Deteksi siang atau malam
+      const hour = now.getHours();
+      const isDay = hour >= 6 && hour < 18; // 06:00 - 17:59 siang
+      setDay(isDay);
+
+      setTime(formattedTime);
+      setDate(formattedDate);
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Ambil lokasi kota user
+  useEffect(() => {
+    const getCityFromCoords = async (lat, lon) => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`
+        );
+        const data = await res.json();
+        const cityName =
+          data.address.city ||
+          data.address.town ||
+          data.address.village ||
+          data.address.state ||
+          "Unknown location";
+        setCity(cityName);
+      } catch {
+        setCity("Gradia");
+      }
+    };
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          getCityFromCoords(pos.coords.latitude, pos.coords.longitude);
+        },
+        async () => {
+          try {
+            const res = await fetch("https://ipapi.co/json/");
+            const data = await res.json();
+            setCity(data.city || data.region || "Unknown");
+          } catch {
+            setCity("Unknown");
+          }
+        }
+      );
+    } else {
+      fetch("https://ipapi.co/json/")
+        .then((res) => res.json())
+        .then((data) => setCity(data.city || data.region || "Unknown"))
+        .catch(() => setCity("Unknown"));
+    }
+  }, []);
+
   return (
     <div className="flex flex-col gap-6 text-foreground pb-6">
       {/* Header */}
@@ -100,6 +183,45 @@ const Mobile = () => {
       </div>
 
       {/* Banner */}
+      <div
+        className={`relative w-full h-[160px] min-h-[160px] bg-gradient-to-tl ${
+          day ? "from-[#539db8] to-[#164a7b]" : "from-[#272727] to-[#000]"
+        } rounded-2xl flex items-center justify-center font-montserrat overflow-hidden`}
+      >
+        <div
+          className={`absolute bg-gradient-to-t from-[#DFA62B] to-[#FFE478] w-[22vw] aspect-square rounded-full right-[-9vw] top-[-9vw] md:w-[100px] md:top-[-20%] md:right-[-5%] z-5`}
+        />
+        <div
+          className={`absolute ${
+            day ? "bg-[#50d0f4]/22" : "bg-[#656565]/22"
+          } w-[42vw] aspect-square rounded-full left-[-15vw] bottom-[-8vh] md:w-[218px]`}
+        />
+        <div
+          className={`absolute ${
+            day ? "bg-[#50d0f4]/67" : "bg-[#656565]/67"
+          } w-[33vw] aspect-square rounded-full right-[-12vw] top-[-6vh] md:w-[218px]`}
+        />
+        <div
+          className={`absolute ${
+            day ? "bg-[#50d0f4]/39" : "bg-[#656565]/39"
+          } w-[43vw] aspect-square rounded-full right-[-14vw] top-[-6.5vh] md:w-[265px]`}
+        />
+        <div
+          className={`absolute ${
+            day ? "bg-[#50d0f4]/13" : "bg-[#656565]/13"
+          } w-[54vw] aspect-square rounded-full right-[-12vw] top-[-6vh] md:w-[326px]`}
+        />
+
+        <div className="flex gap-2.5 z-10 text-white">
+          <span className="font-semibold text-[32px] border-r border-white pr-3">
+            {time || "00:00"}
+          </span>
+          <div className="flex flex-col text-[3.5vw] sm:text-base">
+            <p>{date}</p>
+            <p>{city}</p>
+          </div>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-6 md:flex-row md:gap-4">
         {/* DUE TODAY */}
@@ -129,10 +251,8 @@ const Mobile = () => {
                 </div>
               ))
             ) : (
-              <div className="flex justify-center items-center h-[100px]">
-                <p className="text-foreground-secondary">
-                  No tasks due today.
-                </p>
+              <div className="flex justify-center items-center h-[100px] bg-background-secondary rounded-[12px]">
+                <p className="text-foreground-secondary">No tasks due today.</p>
               </div>
             )}
           </div>
@@ -242,9 +362,7 @@ const Mobile = () => {
           <p className="md:text-[80px] text-[64px] font-semibold font-montserrat">
             {stats.total}
           </p>
-          <p className="text-[#FFEB3B]">
-            {stats.addedToday} tasks added today
-          </p>
+          <p className="text-[#FFEB3B]">{stats.addedToday} tasks added today</p>
         </div>
       </div>
 
@@ -256,10 +374,7 @@ const Mobile = () => {
               {stats.completed}
             </p>
           </Card>
-          <Card
-            title={"Tasks Not Started"}
-            className={"md:w-1/2 md:h-[180px]"}
-          >
+          <Card title={"Tasks Not Started"} className={"md:w-1/2 md:h-[180px]"}>
             <p className="font-montserrat text-[#FFEB3B] font-semibold text-[64px]">
               {stats.notStarted}
             </p>

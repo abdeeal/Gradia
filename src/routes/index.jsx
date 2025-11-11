@@ -9,12 +9,14 @@ import Callback from "@/pages/Auth/Callback.jsx";
 import ResetPassword from "@/pages/Auth/Reset-Password/ResetPassword.jsx";
 import Workspaces from "@/pages/Workspaces/Workspaces.jsx";
 import Dashboard from "@/pages/Dashboard/Dashboard.jsx";
+import Calendar from "@/pages/Calendar/Calendar.jsx";
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/workspaces" element={<Workspaces />} />
       <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/calendar" element={<Calendar />} />
       <Route path="/courses" element={<Courses />} />
       <Route path="/tasks" element={<Tasks />} />
       <Route path="/presences" element={<Presence />} />
