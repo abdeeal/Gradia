@@ -66,36 +66,59 @@ function RegisterDesktop() {
   };
 
   const handleRegister = async () => {
-    try {
-      setErrMsg("");
-      if (!email || !username || !password) {
-        setErrMsg("Username, email, dan password wajib diisi.");
-        return;
-      }
-      setLoading(true);
+    setErrMsg("");
 
-      const res = await fetch("/api/register", {
+    if (!email || !username || !password) {
+      setErrMsg("Username, email, dan password wajib diisi.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({
+          email,
+          username,
+          password,
+          action: "register",
+        }),
       });
 
-      const data = await res.json();
+      // baca response sebagai text dulu biar kalau error bukan JSON, nggak meledak
+      const raw = await res.text();
+      let data = null;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        console.error("REGISTER RAW RESPONSE (bukan JSON):", raw);
+        setErrMsg("Server mengembalikan response tidak valid.");
+        return;
+      }
 
       if (!res.ok) {
         setErrMsg(data?.error || "Registrasi gagal.");
         return;
       }
 
-      // Simpan email untuk verify
+      // simpan email utk halaman VerifyOtp (desktop & mobile bisa pakai)
       try {
         sessionStorage.setItem("registerEmail", email);
       } catch {}
 
-      // Arahkan ke Verify OTP (mode register)
-      navigate("/auth/verify-otp", { state: { email, type: "register" } });
-    } catch (e) {
-      setErrMsg(e?.message || "Terjadi kesalahan. Coba lagi.");
+      // redirect ke halaman OTP dengan mode REGISTER
+      navigate("/auth/verify-otp", {
+        state: {
+          email,
+          type: "register",
+          expires_at: data?.expires_at,
+        },
+      });
+    } catch (err) {
+      console.error("REGISTER ERROR:", err);
+      setErrMsg(err?.message || "Terjadi kesalahan. Coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -153,8 +176,12 @@ function RegisterDesktop() {
             className="inline-flex items-baseline gap-1 leading-none"
             style={{ fontFamily: "'Genos', sans-serif", fontWeight: 700 }}
           >
-            <span className="text-[128px] tracking-tight text-[#9457FF]">GRA</span>
-            <span className="text-[128px] tracking-tight text-white">DIA</span>
+            <span className="text-[128px] tracking-tight text-[#9457FF]">
+              GRA
+            </span>
+            <span className="text-[128px] tracking-tight text-white">
+              DIA
+            </span>
           </div>
 
           <p
@@ -164,7 +191,8 @@ function RegisterDesktop() {
             <span
               style={{
                 display: "inline-block",
-                background: "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
+                background:
+                  "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 color: "transparent",
@@ -192,17 +220,21 @@ function RegisterDesktop() {
             paddingLeft: PAD_X,
             paddingRight: PAD_X,
             paddingTop: TOP_HEADER,
-            paddingBottom: 12,
+            paddingBottom: 10,
             justifyContent: "space-between",
           }}
         >
           <div>
             <header className="text-center mb-[10px]">
-              <h1 className="text-[48px] font-extrabold leading-tight mb-2" style={gradientText}>
+              <h1
+                className="text-[48px] font-extrabold leading-tight mb-2"
+                style={gradientText}
+              >
                 Let’s Register
               </h1>
-              <p className="text-[18px] leading-snug mb:[32px] mb-[32px]">
-                Join Gradia and take control of your goals, time, and mindset — all in one app.
+              <p className="text-[18px] leading-snug mb:[32px] mb-[40px]">
+                Join Gradia and take control of your goals, time, and mindset —
+                all in one app.
               </p>
             </header>
 
@@ -245,7 +277,7 @@ function RegisterDesktop() {
               </div>
 
               {/* Password */}
-              <div className="mb-[18px]">
+              <div className="mb-[20px]">
                 <div className="flex items-center gap-2 mb-[6px]">
                   <i className="ri-lock-2-line text-[16px]" />
                   <span className="text-[14px]">Password</span>
@@ -262,24 +294,28 @@ function RegisterDesktop() {
                 </div>
               </div>
 
-              {errMsg ? <p className="text-red-400 text-[12px] mb-[8px]">{errMsg}</p> : null}
+              {errMsg ? (
+                <p className="text-red-400 text-[12px] mb-[8px]">{errMsg}</p>
+              ) : null}
 
               {/* REGISTER BUTTON */}
-              <div className="flex justify-end mb-[16px]">
+              <div className="flex justify-end mb-[20px]">
                 <button
                   type="button"
                   onClick={handleRegister}
                   disabled={loading}
                   className="w-1/2 px-4 py-3 text-[16px] font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{
-                    background: "linear-gradient(90deg, #4C1D95 0%, #2D0A49 100%)",
+                    background:
+                      "linear-gradient(90deg, #4C1D95 0%, #2D0A49 100%)",
                     border: "none",
                     borderRadius: 8,
                   }}
                 >
                   <span
                     style={{
-                      background: "linear-gradient(180deg, #FAFAFA 0%, #949494 100%)",
+                      background:
+                        "linear-gradient(180deg, #FAFAFA 0%, #949494 100%)",
                       WebkitBackgroundClip: "text",
                       backgroundClip: "text",
                       WebkitTextFillColor: "transparent",
@@ -293,17 +329,24 @@ function RegisterDesktop() {
 
               {/* FOOTER */}
               <div className="text-center">
-                <p className="text-[14px] mb-[42px]">
+                <p className="text-[14px] mb-[60px] mt-[40px]">
                   Already have an account?{" "}
                   <button
                     onClick={() => navigate("/auth/login")}
                     className="hover:underline"
-                    style={{ color: "#643EB2", background: "none", border: "none", cursor: "pointer" }}
+                    style={{
+                      color: "#643EB2",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
                   >
                     Login
                   </button>
                 </p>
-                <p className="text-[12px] leading-none">© {new Date().getFullYear()} Gradia. All rights reserved.</p>
+                <p className="text-[12px] leading-none">
+                  © {new Date().getFullYear()} Gradia. All rights reserved.
+                </p>
               </div>
             </div>
           </div>

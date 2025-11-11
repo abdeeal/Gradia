@@ -5,36 +5,20 @@ import { useAlert } from "@/hooks/useAlert";
 import { useMediaQuery } from "react-responsive";
 import DeletePopup from "@/components/Delete";
 
-// === API CONFIG ===
-const API_URL = "/api/workspace"; // sesuaikan dengan route API kamu
+/* ========== API CONFIG ========== */
+const API_URL = "/api/workspace";       // route workspace (tetap)
+const API_USER_ME = "/api/index";       // route untuk ambil user (id_user)
 
-// Helper user-id (opsional)
-const getCurrentUserId = () => {
-  try {
-    const v = localStorage.getItem("gradia_user_id");
-    return v ? JSON.parse(v) : null;
-  } catch {
-    return null;
-  }
-};
-
-// --- helpers: fetch JSON yang tahan response kosong / non-JSON ---
+/* ========== Helper: fetch JSON aman ========== */
 async function fetchJsonSafe(input, init) {
   const res = await fetch(input, init);
-
   const contentType = res.headers.get("content-type") || "";
   const isJSON = contentType.includes("application/json");
 
-  // 204 No Content
-  if (res.status === 204) {
-    return { res, data: null };
-  }
+  if (res.status === 204) return { res, data: null };
 
-  // baca sebagai text dulu supaya aman walau bukan JSON
   const text = await res.text();
-  if (!text) {
-    return { res, data: null };
-  }
+  if (!text) return { res, data: null };
 
   if (isJSON) {
     try {
@@ -45,9 +29,44 @@ async function fetchJsonSafe(input, init) {
       );
     }
   }
-
-  // non-JSON → kembalikan text
   return { res, data: text };
+}
+
+/* ========== Fallback lama (opsional) ========== */
+const getCurrentUserIdFromLocal = () => {
+  try {
+    const v = localStorage.getItem("gradia_user_id");
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
+};
+
+/* ========== Ambil id_user dari /api/index ========== */
+async function getUserIdFromApi() {
+  const { res, data } = await fetchJsonSafe(API_USER_ME, { method: "GET" });
+  if (!res.ok) {
+    // kalau endpoint belum ready, lempar agar caller bisa fallback
+    throw new Error(
+      typeof data === "string" ? data : `Failed to fetch user: ${res.status}`
+    );
+  }
+
+  // Bentuk respons diasumsikan { id_user, ... } atau { data: { id_user } }
+  if (data && typeof data === "object") {
+    if (typeof data.id_user !== "undefined" && data.id_user !== null) {
+      return data.id_user;
+    }
+    if (data.data && typeof data.data.id_user !== "undefined") {
+      return data.data.id_user;
+    }
+    // kalau array user
+    if (Array.isArray(data) && data.length && data[0].id_user) {
+      return data[0].id_user;
+    }
+  }
+  // kalau tidak ketemu id_user
+  return null;
 }
 
 export default function Workspaces() {
@@ -58,7 +77,7 @@ export default function Workspaces() {
   return <GradiaWorkspacePage />;
 }
 
-// === Desktop page ===
+/* ========== Desktop Page ========== */
 function GradiaWorkspacePage() {
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`;
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
@@ -80,10 +99,10 @@ function GradiaWorkspacePage() {
     color: "transparent",
   };
 
-  // ==== ALERTS ====
   const { showAlert } = useAlert();
 
-  // ==== STATE ====
+  /* ====== STATE ====== */
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [workspaces, setWorkspaces] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -100,14 +119,40 @@ function GradiaWorkspacePage() {
   const pageRef = useRef(null);
   const createRowRef = useRef(null);
 
-  // Fetch list from API
+  /* ====== bootstrap: ambil id_user dari API, fallback localStorage ====== */
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const idApi = await getUserIdFromApi();
+        if (!cancelled) {
+          if (idApi) {
+            setCurrentUserId(idApi);
+          } else {
+            const fallback = getCurrentUserIdFromLocal();
+            setCurrentUserId(fallback ?? null);
+          }
+        }
+      } catch {
+        const fallback = getCurrentUserIdFromLocal();
+        if (!cancelled) setCurrentUserId(fallback ?? null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* ====== Fetch list workspace setelah id_user diketahui ====== */
   useEffect(() => {
     const fetchWorkspaces = async () => {
       setIsLoading(true);
       try {
-        const id_user = getCurrentUserId();
-        const qs = id_user ? `?id_user=${encodeURIComponent(id_user)}` : "";
-
+        const qs = currentUserId
+          ? `?id_user=${encodeURIComponent(currentUserId)}`
+          : "";
         const { res, data } = await fetchJsonSafe(`${API_URL}${qs}`);
         if (!res.ok) {
           throw new Error(
@@ -137,15 +182,18 @@ function GradiaWorkspacePage() {
         setIsLoading(false);
       }
     };
-    fetchWorkspaces();
-  }, [showAlert]);
 
-  // Close dropdown + create ketika klik di luar
+    // Hanya fetch ketika currentUserId sudah diresolve (termasuk null → boleh fetch tanpa filter)
+    // Jalankan sekali ketika currentUserId berubah (awal)
+    fetchWorkspaces();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId]);
+
+  /* ====== Close dropdown + cancel create on outside click ====== */
   useEffect(() => {
     function onDocClick(e) {
       if (!pageRef.current) return;
 
-      // Klik di luar keseluruhan page
       if (!pageRef.current.contains(e.target)) {
         setOpenMenuId(null);
         if (createMode) {
@@ -155,7 +203,6 @@ function GradiaWorkspacePage() {
         return;
       }
 
-      // Klik di luar form create
       if (
         createMode &&
         createRowRef.current &&
@@ -165,7 +212,6 @@ function GradiaWorkspacePage() {
         setCreateName("");
       }
 
-      // Tutup dropdown jika klik bukan di dropdown & bukan di tombol trigger
       if (openMenuId !== null) {
         const insideDropdown = e.target.closest(".workspace-dropdown");
         const onTrigger = e.target.closest(".workspace-more-trigger");
@@ -184,7 +230,7 @@ function GradiaWorkspacePage() {
     console.log("Enter:", name);
   };
 
-  // ==== handlers ====
+  /* ====== Handlers ====== */
   const startEdit = (ws) => {
     setEditingId(ws.id);
     setDraftName(ws.name);
@@ -328,9 +374,9 @@ function GradiaWorkspacePage() {
     }
 
     try {
-      const id_user = getCurrentUserId();
       const payload = { name };
-      if (id_user) payload.id_user = id_user;
+      // pakai id_user dari API/index jika ada
+      if (currentUserId) payload.id_user = currentUserId;
 
       const { res, data } = await fetchJsonSafe(API_URL, {
         method: "POST",
@@ -544,6 +590,7 @@ function GradiaWorkspacePage() {
   );
 }
 
+/* ====================== Item Row ====================== */
 function WorkspaceRow({
   workspace,
   isMenuOpen,
@@ -713,6 +760,7 @@ function WorkspaceRow({
   );
 }
 
+/* ====================== Create Row ====================== */
 function CreateNewRow({ containerRef, createMode, name, setName, onStart, onAdd, onCancel }) {
   const [isPressed, setIsPressed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -737,7 +785,7 @@ function CreateNewRow({ containerRef, createMode, name, setName, onStart, onAdd,
       title={createMode ? undefined : "Create new workspace"}
     >
       <div className="flex w-full items-center px-[21px]">
-        {/* Kotak + dan ikon: HANYA muncul ketika BELUM createMode */}
+        {/* Kotak + dan ikon: HANYA ketika belum createMode */}
         {!createMode && (
           <span
             className="inline-flex items-center justify-center"

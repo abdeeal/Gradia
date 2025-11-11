@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useMediaQuery } from "react-responsive";
 import Mobile from "./Layout/Mobile";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function ResetPassword() {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -9,17 +9,37 @@ export default function ResetPassword() {
   if (isMobile || isTablet) return <Mobile />;
 
   const navigate = useNavigate();
+  const location = useLocation();
+
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`;
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
 
   // === flow control ===
-  const [step, setStep] = useState("email"); // email | otp | newPw | success
+  // steps available: 'email' | 'otp' | 'newPw' | 'success'
+  // NOTE: 'otp' local step tidak dipakai untuk desktop flow karena dialihkan ke route /auth/verify-otp
+  const [step, setStep] = useState("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState(Array(6).fill(""));
   const [pw, setPw] = useState("");
   const [cpw, setCpw] = useState("");
   const [err, setErr] = useState("");
   const inputsRef = useRef([]);
+
+  // === ROUTES ===
+  const VERIFY_OTP_ROUTE = "/auth/verify-otp";
+  const FORGOT_SUCCESS_ROUTE = "/auth/success/reset"; 
+
+  // === detect return from Verify OTP ===
+  // Harapkan halaman Verify OTP mengirim state: { verified: true, type: 'reset', email }
+  useEffect(() => {
+    const st = location?.state || {};
+    if (st?.verified === true && st?.type === "reset") {
+      if (st?.email) setEmail(st.email);
+      setStep("newPw");
+      // bersihkan state agar tidak repeat saat refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location?.state]);
 
   // === styles constant ===
   const TITLE_TOP = 110;
@@ -33,9 +53,18 @@ export default function ResetPassword() {
     e.preventDefault();
     if (!email.includes("@")) return setErr("Invalid email.");
     setErr("");
-    setStep("otp");
+
+    // === ROUTING SESUAI PERMINTAAN ===
+    // Input Email -> halaman Verify OTP (type reset)
+    navigate(VERIFY_OTP_ROUTE, {
+      state: {
+        email,
+        type: "reset",
+      },
+    });
   };
 
+  // (Dipertahankan untuk mobile / kemungkinan reuse, tapi desktop tidak pakai local 'otp' step)
   const handleOtpChange = (val, idx) => {
     if (!/^[0-9]?$/.test(val)) return;
     const newOtp = [...otp];
@@ -46,11 +75,11 @@ export default function ResetPassword() {
     }
   };
 
+  // (Tidak dipakai untuk desktop route flow)
   const handleOtpSubmit = (e) => {
     e.preventDefault();
     if (otp.join("").length < 6) return setErr("OTP must be 6 digits");
     setErr("");
-    // simulate verify success
     setStep("newPw");
   };
 
@@ -59,7 +88,15 @@ export default function ResetPassword() {
     setErr("");
     if (pw.length < 8) return setErr("Password must be at least 8 chars");
     if (pw !== cpw) return setErr("Passwords do not match");
-    setStep("success");
+
+    // === ROUTING SESUAI PERMINTAAN ===
+    // New-Password -> SuccessMsg (Type ForgotSuccess)
+    navigate(FORGOT_SUCCESS_ROUTE, {
+      state: {
+        type: "reset",
+        email, // opsional, kalau mau ditampilkan di SuccessMsg
+      },
+    });
   };
 
   const renderBackground = () => (
@@ -178,6 +215,7 @@ export default function ResetPassword() {
     </form>
   );
 
+  // tetap disimpan kalau suatu saat kamu mau render OTP lokal (desktop sekarang dialihkan ke route)
   const renderOtp = () => (
     <form onSubmit={handleOtpSubmit} className="space-y-4">
       <p className="text-sm text-[#A3A3A3] text-center mb-3">
@@ -315,12 +353,9 @@ export default function ResetPassword() {
         </div>
 
         {/* card */}
-        <div
-          className="mt-[64px] w-[540px] min-h-[210px]"
-          style={cardStyle}
-        >
+        <div className="mt-[64px] w-[540px] min-h-[210px]" style={cardStyle}>
           {step === "email" && renderEmail()}
-          {step === "otp" && renderOtp()}
+          {step === "otp" && renderOtp() /* kept for completeness */}
           {step === "newPw" && renderNewPw()}
           {step === "success" && renderSuccess()}
         </div>

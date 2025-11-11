@@ -1,7 +1,7 @@
 // src/pages/Loginpage/Login.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useMediaQuery } from "react-responsive";
-import Mobile from "./Layout/Mobile";
+import Mobile from "./Layout/Mobile"; // Mobile kamu yang sudah jalan
 import { useNavigate, Link } from "react-router-dom";
 
 const Login = () => {
@@ -15,9 +15,13 @@ const Login = () => {
 function DesktopLoginPage() {
   const navigate = useNavigate();
 
-  // ✅ Perbaikan: gunakan email, bukan username
+  // normal login (email & password)
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // state untuk error & loading Google
+  const [errorMsg, setErrorMsg] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`;
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
@@ -66,12 +70,87 @@ function DesktopLoginPage() {
     outline: "none",
   };
 
-  // === Handler: submit login -> ke /dashboard ===
+  // === Normal login (dummy) -> /workspaces ===
   const handleLogin = (e) => {
     e.preventDefault();
-    // TODO: panggil API auth pakai email dan password
-    navigate("/dashboard");
+    // TODO: kalau mau, samain dengan /api/auth (seperti Mobile)
+    navigate("/workspace");
   };
+
+  // === Google Login: sama endpoint dengan Mobile ===
+  const handleGoogleLogin = async () => {
+    try {
+      setErrorMsg("");
+      setGoogleLoading(true);
+
+      const res = await fetch("/api/auth/google/server");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Google login failed");
+      }
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("No redirect URL from server");
+      }
+    } catch (err) {
+      console.error("Google login error (desktop):", err);
+      setErrorMsg(err.message || "Google login failed. Please try again.");
+      setGoogleLoading(false);
+    }
+  };
+
+  // === Callback Google: simpan user & redirect ke /workspaces ===
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.includes("access_token")) return;
+
+    const params = new URLSearchParams(hash.substring(1));
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+
+    if (!access_token) return;
+
+    fetch("/api/auth/google/callback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access_token, refresh_token }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("GOOGLE CALLBACK DATA (desktop):", data);
+
+        if (data.error) {
+          setErrorMsg(data.error || "Google login callback failed.");
+          return;
+        }
+
+        // dari log kita tahu struktur: { id_user, username, email }
+        if (data.email) {
+          const user = {
+            id_user: data.id_user,
+            username: data.username,
+            email: data.email,
+          };
+
+          localStorage.setItem("user", JSON.stringify(user));
+          navigate("/workspace");
+        } else {
+          setErrorMsg("Google login failed: invalid response from server.");
+        }
+      })
+      .catch((err) => {
+        console.error("Google callback error (desktop):", err);
+        setErrorMsg("Google login failed. Please try again.");
+      })
+      .finally(() => {
+        // hapus hash supaya URL bersih
+        window.history.replaceState({}, document.title, "/auth/login");
+        setGoogleLoading(false);
+      });
+  }, [navigate]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black text-white">
@@ -128,7 +207,9 @@ function DesktopLoginPage() {
             <span className="text-[128px] tracking-tight text-[#9457FF]">
               GRA
             </span>
-            <span className="text-[128px] tracking-tight text-white">DIA</span>
+            <span className="text-[128px] tracking-tight text-white">
+              DIA
+            </span>
           </div>
           <p
             className="ml-2 mt-[-10px] font-[Inter] font-semibold leading-[1.2]"
@@ -173,7 +254,7 @@ function DesktopLoginPage() {
         >
           <div>
             {/* HEADER */}
-            <header className="text-center mb-[36px]">
+            <header className="text-center mb-[56px]">
               <h1
                 className="text-[48px] font-extrabold leading-tight mb-2"
                 style={gradientText}
@@ -186,10 +267,17 @@ function DesktopLoginPage() {
               </p>
             </header>
 
+            {/* Error message */}
+            {errorMsg && (
+              <p className="mb-4 text-center text-sm text-red-400">
+                {errorMsg}
+              </p>
+            )}
+
             {/* FORM */}
             <form onSubmit={handleLogin}>
-              {/* ✅ Email */}
-              <div className="mb-[12px]">
+              {/* Email */}
+              <div className="mb-[18px] mt-[20px]">
                 <div className="flex items-center gap-2 mb-[4px]">
                   <i className="ri-mail-line text-[16px]" />
                   <span className="text-[14px]">Email</span>
@@ -237,7 +325,7 @@ function DesktopLoginPage() {
               </div>
 
               {/* Buttons */}
-              <div className="flex items-center gap-4 mb-[14px]">
+              <div className="flex items-center gap-4 mb-[32px]">
                 {/* Google */}
                 <button
                   type="button"
@@ -246,24 +334,44 @@ function DesktopLoginPage() {
                     background: "transparent",
                     border: "1px solid rgba(163,163,163,0.8)",
                     borderRadius: 8,
+                    opacity: googleLoading ? 0.7 : 1,
+                    cursor: googleLoading ? "not-allowed" : "pointer",
                   }}
-                  onClick={() => navigate("/dashboard")}
+                  onClick={googleLoading ? undefined : handleGoogleLogin}
                 >
-                  <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.73 1.23 9.24 3.64l6.9-6.9C35.9 2.38 30.29 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.65 6.71C13.03 14.21 18.04 9.5 24 9.5z" />
-                    <path fill="#4285F4" d="M46.5 24c0-1.64-.15-3.21-.44-4.73H24v9h12.7c-.55 2.95-2.2 5.45-4.7 7.14l7.18 5.58C43.76 37.1 46.5 31.06 46.5 24z" />
-                    <path fill="#FBBC05" d="M11.21 28.93A14.5 14.5 0 0 1 9.5 24c0-1.72.31-3.36.86-4.86l-8.65-6.71A24 24 0 0 0 0 24c0 3.84.92 7.47 2.56 10.78z" />
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.78l-7.18-5.58c-2 1.34-4.57 2.13-8.73 2.13-5.96 0-10.97-4.71-12.79-11.21l-8.65 6.71C6.51 42.62 14.62 48 24 48z" />
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 48 48"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fill="#EA4335"
+                      d="M24 9.5c3.54 0 6.73 1.23 9.24 3.64l6.9-6.9C35.9 2.38 30.29 0 24 0 14.62 0 6.51 5.38 2.56 13.22l8.65 6.71C13.03 14.21 18.04 9.5 24 9.5z"
+                    />
+                    <path
+                      fill="#4285F4"
+                      d="M46.5 24c0-1.64-.15-3.21-.44-4.73H24v9h12.7c-.55 2.95-2.2 5.45-4.7 7.14l7.18 5.58C43.76 37.1 46.5 31.06 46.5 24z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M11.21 28.93A14.5 14.5 0 0 1 9.5 24c0-1.72.31-3.36.86-4.86l-8.65-6.71A24 24 0 0 0 0 24c0 3.84.92 7.47 2.56 10.78z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M24 48c6.48 0 11.93-2.13 15.91-5.78l-7.18-5.58c-2 1.34-4.57 2.13-8.73 2.13-5.96 0-10.97-4.71-12.79-11.21l-8.65 6.71C6.51 42.62 14.62 48 24 48z"
+                    />
                   </svg>
-                  Google
+                  {googleLoading ? "Loading..." : "Google"}
                 </button>
 
-                {/* Log In */}
+                {/* Log In manual */}
                 <button
                   type="submit"
                   className="w-1/2 px-4 py-3 text-[14px] font-semibold"
                   style={{
-                    background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
+                    background:
+                      "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                     border: "none",
                     borderRadius: 8,
                   }}
@@ -274,7 +382,7 @@ function DesktopLoginPage() {
 
               {/* Footer */}
               <div className="text-center">
-                <p className="text-[14px] mb-[48px]">
+                <p className="text-[14px] mb-[56px]">
                   Don’t have an account?{" "}
                   <Link
                     to="/auth/register"

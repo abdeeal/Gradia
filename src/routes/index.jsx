@@ -32,8 +32,12 @@ export default function AppRoutes() {
       <Route path="/auth/login" element={<Login />} />
       <Route path="/auth/register" element={<Registration />} />
       <Route path="/auth/verify-otp" element={<VerifyOtp />} />
-      <Route path="/auth/success" element={<SuccessMsg />} />
       <Route path="/auth/reset-password" element={<ResetPassword />} />
+
+      {/* ===== SUCCESS PAGES (tanpa ubah UI komponen) ===== */}
+      <Route path="/auth/success" element={<SuccessMsg />} />
+      <Route path="/auth/success/register" element={<SuccessMsg type="register" />} />
+      <Route path="/auth/success/reset" element={<SuccessMsg type="reset" />} />
 
       {/* ===== WORKSPACE FLOW ===== */}
       <Route path="/workspace" element={<WorkspacesPage />} />
