@@ -1,7 +1,7 @@
 // src/pages/Calendar/Calendar.jsx
 import React, { useState } from "react";
-import MonthCalendar from "./components/CalendarCard";
-import EventDetailsPanel from "./components/Detail";
+import MonthCalendar from "../Calendar/components/CalendarCard";
+import EventDetailsPanel from "../Calendar/components/Detail";
 import Sidebar from "@/components/Sidebar";
 
 export default function Calendar() {

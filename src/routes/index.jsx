@@ -5,7 +5,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Courses from "@/pages/Courses/Courses.jsx";
 import Tasks from "@/pages/Tasks/Tasks.jsx";
 import Presence from "@/pages/Presence/Presence.jsx";
-import Calendar from "@/pages/Calendar/calendar.jsx";
+import Calendar from "@/pages/Courses/Calendar.jsx";
 
 // === AUTH PAGES ===
 import Registration from "@/pages/Auth/Registration/Registration.jsx";
