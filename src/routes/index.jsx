@@ -14,6 +14,7 @@ import VerifyOtp from "@/pages/Auth/Verify-otp/VerifyOtp.jsx";
 import SuccessMsg from "@/pages/Auth/Success-msg/SuccessMsg.jsx";
 import ResetPassword from "@/pages/Auth/Reset-Password/ResetPassword.jsx";
 import Dashboard from "@/pages/Dashboard/Dashboard.jsx";
+import Calendar from "@/pages/Calendar/Calendar.jsx";
 
 // === WORKSPACE PAGE ===
 import WorkspacesPage from "@/pages/Workspaces/Workspaces";
