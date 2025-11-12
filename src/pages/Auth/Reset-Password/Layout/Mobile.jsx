@@ -56,6 +56,7 @@ const Mobile = () => {
         email={emailToVerify}
         expiredAt={expiredAt}
         from="reset-password"
+        purpose={"reset-password"}
       />
     );
   }

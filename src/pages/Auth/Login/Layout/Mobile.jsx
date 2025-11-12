@@ -89,7 +89,7 @@ const Mobile = () => {
         .then((data) => {
           if (data.email) {
             localStorage.setItem("user", JSON.stringify(data));
-            navigate("/workspaces");
+            window.location.href ="/workspaces";
           }
         })
         .catch(console.error)
@@ -107,6 +107,7 @@ const Mobile = () => {
         expiredAt={expiredAt}
         from="login"
         user={userData}
+        purpose={"verification"}
       />
     );
   }

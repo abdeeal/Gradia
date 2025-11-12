@@ -188,6 +188,7 @@ export default async function handler(req, res) {
                 message:
                   "Account exists but not verified. A new verification OTP has been sent.",
                 expires_at: expiresAt,
+                purpose : "verification"
               })
             );
           }
@@ -222,6 +223,7 @@ export default async function handler(req, res) {
                 "Registration successful. OTP has been sent for verification.",
               user: newUser,
               expires_at: expiresAt,
+              purpose: "registration"
             })
           );
         }

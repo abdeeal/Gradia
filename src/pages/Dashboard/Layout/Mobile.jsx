@@ -170,6 +170,7 @@ const Mobile = () => {
     }
   }, []);
 
+
   return (
     <div className="flex flex-col gap-6 text-foreground pb-6">
       {/* Header */}
@@ -299,7 +300,7 @@ const Mobile = () => {
           <div className="w-full flex flex-col justify-center text-white">
             <p className="text-lg font-semibold mb-4">Task Progress</p>
             <div className="relative w-full h-[250px] flex justify-center items-center flex-col">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width={390} height={220} minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={dataPie}

@@ -266,7 +266,6 @@ export const Drawer = ({
                 name="lecturer"
                 value={lecturer}
                 onChange={(e) => setLecturer(e.target.value)}
-                defaultValue={`${empty ? "" : data?.lecturer || "Not set"}`}
                 className="focus:ring-0 focus:outline-none focus:border-none max-w-full w-full"
                 placeholder="Not set"
               />
@@ -318,7 +317,6 @@ export const Drawer = ({
                   id="time"
                   value={start}
                   onChange={(e) => setStart(e.target.value)}
-                  defaultValue={`${empty ? "00:00" : data?.start || "Not set"}`}
                   className="focus:ring-0 focus:border-none focus:outline-none max-w-full"
                 />
                 <span className="text-foreground-secondary hidden md:flex">
@@ -333,7 +331,6 @@ export const Drawer = ({
                     id="time"
                     value={end}
                     onChange={(e) => setEnd(e.target.value)}
-                    defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
                     className="focus:ring-0 focus:border-none focus:outline-none hidden md:flex max-w-full"
                   />
                 )}
@@ -353,7 +350,6 @@ export const Drawer = ({
                     id="time"
                     value={end}
                     onChange={(e) => setEnd(e.target.value)}
-                    defaultValue={`${empty ? "00:30" : data?.end || "Not set"}`}
                     className="focus:ring-0 focus:border-none focus:outline-none max-w-full "
                   />
                 </div>

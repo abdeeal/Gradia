@@ -62,7 +62,7 @@ export default async function verifyResetOtp(req, res) {
       if (otp.is_used) {
         return res
           .writeHead(400, { "Content-Type": "application/json" })
-          .end(JSON.stringify({ error: "OTP code has already been used." }));
+          .end(JSON.stringify({ error: "OTP code has already been expired." }));
       }
 
      

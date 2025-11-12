@@ -13,6 +13,7 @@ const Mobile = ({
   email,
   from,
   user,
+  purpose,
 }) => {
   const [timeLeft, setTimeLeft] = useState("");
   const [otp, setOtp] = useState("");
@@ -20,15 +21,16 @@ const Mobile = ({
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [resetPass, setResetPass] = useState(false);
+  const [localExpiredAt, setLocalExpiredAt] = useState(expiredAt);
+  const [resending, setResending] = useState(false);
 
   const navigate = useNavigate();
 
-  // Hitung mundur waktu
+  // ⏱️ Hitung mundur waktu OTP
   useEffect(() => {
-    if (!expiredAt) return;
+    if (!localExpiredAt) return;
 
-    const target = new Date(expiredAt).getTime();
-
+    const target = new Date(localExpiredAt).getTime();
     const timer = setInterval(() => {
       const now = new Date().getTime();
       const diff = target - now;
@@ -42,22 +44,20 @@ const Mobile = ({
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
       setTimeLeft(
-        `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
-          2,
-          "0"
-        )}`
+        `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
       );
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [expiredAt]);
+  }, [localExpiredAt]);
 
   const handleVerify = async () => {
-    setErrorMsg(""); // reset error sebelum verifikasi
+    setErrorMsg("");
     setLoading(true);
 
     if (!otp || otp.length < 6) {
       setErrorMsg("Please enter a valid 6-digit OTP");
+      setLoading(false);
       return;
     }
 
@@ -73,7 +73,6 @@ const Mobile = ({
       if (res.ok) {
         setLoading(false);
         if (from === "login") {
-          console.log("user before storage:", user); // cek dulu, harus object
           localStorage.setItem("user", JSON.stringify(user));
           navigate("/workspaces");
         } else if (from === "verification") {
@@ -84,20 +83,47 @@ const Mobile = ({
         }
       } else {
         setErrorMsg(data.error || "Failed to verify OTP");
+        setLoading(false);
       }
     } catch (err) {
       console.error("VERIFY ERROR:", err);
       setErrorMsg("An error occurred while verifying OTP.");
+      setLoading(false);
     }
   };
 
-  if (resetPass) {
-    return <NewPassword success={success} email={email} />;
-  } else {
-    if (success !== "") {
-      return <SuccessMsg type={success} />;
+  // 🔁 Resend OTP
+  const handleResendCode = async () => {
+    setResending(true);
+    setErrorMsg("");
+
+    try {
+      const res = await fetch("/api/auth/sendOtp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, purpose }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to resend code");
+      }
+
+      // ✅ update expiredAt baru
+      setLocalExpiredAt(data.expires_at);
+      setOtp("");
+      setErrorMsg("");
+    } catch (err) {
+      console.error("RESEND ERROR:", err);
+      setErrorMsg("Failed to resend code. Please try again.");
+    } finally {
+      setResending(false);
     }
-  }
+  };
+
+  if (resetPass) return <NewPassword success={success} email={email} />;
+  if (success !== "") return <SuccessMsg type={success} />;
 
   return (
     <div className="text-foreground min-h-dvh relative flex flex-col">
@@ -114,7 +140,7 @@ const Mobile = ({
               {title}
             </p>
             <p className="text-center text-foreground-secondary mt-3 px-4 md:text-[20px]">
-              Enter the 6-digits code sent to your email{" "}
+              Enter the 6-digit code sent to your email
             </p>
           </div>
         </div>
@@ -144,13 +170,19 @@ const Mobile = ({
           <div className="flex flex-col gap-4 md:gap-8">
             <span className="text-[14px] text-foreground-secondary">
               Didn’t receive the code?{" "}
-              <Link to={"/auth/register"} className="underline text-logo">
-                Resend Code
-              </Link>
+              <button
+                onClick={handleResendCode}
+                disabled={resending}
+                className={`underline ${
+                  resending ? "opacity-50 cursor-not-allowed" : "text-logo"
+                }`}
+              >
+                {resending ? "Resending..." : "Resend Code"}
+              </button>
             </span>
 
             <Button
-               icon={loading ? "ri-loader-4-line animate-spin" : "noIcon"}
+              icon={loading ? "ri-loader-4-line animate-spin" : "noIcon"}
               title={`${loading ? "Verifying..." : "Verify"}`}
               className={"w-full text-center justify-center py-4"}
               onClick={handleVerify}

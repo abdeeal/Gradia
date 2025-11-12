@@ -15,6 +15,7 @@ const Mobile = () => {
   const [registeredEmail, setRegisteredEmail] = useState("");
   const [expiredAt, setExpiredAt] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [purpose, setPurpose] = useState("");
   const navigate = useNavigate();
 
   const handleRegister = async () => {
@@ -40,6 +41,7 @@ const Mobile = () => {
         throw new Error(data.error || "Registration failed");
       }
 
+      setPurpose(data.purpose)
       setRegisteredEmail(email);
       setExpiredAt(data.expires_at);
       setShowVerify(true);
@@ -56,6 +58,7 @@ const Mobile = () => {
       <VerifyOtp
         email={registeredEmail}
         expiredAt={expiredAt}
+        purpose={purpose}
         from={"verification"}
       />
     );
