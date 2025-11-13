@@ -317,7 +317,7 @@ function DesktopLoginPage() {
               {/* Forgot Password */}
               <div className="flex justify-end mb-[10px]">
                 <Link
-                  to="/auth/reset-password"
+                  to="/auth/reset-password/email"
                   className="text-[14px] hover:text-white"
                 >
                   Forgot Password?

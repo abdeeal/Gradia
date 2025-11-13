@@ -1,9 +1,10 @@
+// src/pages/Loginpage/ResetPassword.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useMediaQuery } from "react-responsive";
 import Mobile from "./Layout/Mobile";
 import { useNavigate, useLocation } from "react-router-dom";
 
-export default function ResetPassword() {
+export default function ResetPassword({ initialStep = "email" }) {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
   if (isMobile || isTablet) return <Mobile />;
@@ -15,11 +16,11 @@ export default function ResetPassword() {
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
 
   // === flow control ===
-  // steps available: 'email' | 'otp' | 'newPw' | 'success'
-  // NOTE: 'otp' local step tidak dipakai untuk desktop flow karena dialihkan ke route /auth/verify-otp
-  const [step, setStep] = useState("email");
+  // steps: 'email' | 'otp' | 'newPw' | 'success'
+  // catatan: step 'otp' local tidak dipakai utk desktop; dialihkan ke /auth/verify-otp
+  const [step, setStep] = useState(initialStep === "newPw" ? "newPw" : "email");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState(Array(6).fill(""));
+  const [otp, setOtp] = useState(Array(6).fill("")); // disimpan utk kompatibilitas mobile
   const [pw, setPw] = useState("");
   const [cpw, setCpw] = useState("");
   const [err, setErr] = useState("");
@@ -27,10 +28,10 @@ export default function ResetPassword() {
 
   // === ROUTES ===
   const VERIFY_OTP_ROUTE = "/auth/verify-otp";
-  const FORGOT_SUCCESS_ROUTE = "/auth/success/reset"; 
+  const FORGOT_SUCCESS_ROUTE = "/auth/success/reset";
 
-  // === detect return from Verify OTP ===
-  // Harapkan halaman Verify OTP mengirim state: { verified: true, type: 'reset', email }
+  // === detect return from Verify OTP (kompatibilitas lama) ===
+  // Mengantisipasi jika VerifyOtp mengirim state: { verified: true, type: 'reset', email }
   useEffect(() => {
     const st = location?.state || {};
     if (st?.verified === true && st?.type === "reset") {
@@ -54,9 +55,12 @@ export default function ResetPassword() {
     if (!email.includes("@")) return setErr("Invalid email.");
     setErr("");
 
-    // === ROUTING SESUAI PERMINTAAN ===
-    // Input Email -> halaman Verify OTP (type reset)
-    navigate(VERIFY_OTP_ROUTE, {
+    // Email -> Verify OTP (type reset)
+    // Kirim via state dan query string supaya terdeteksi di VerifyOtp
+    navigate({
+      pathname: VERIFY_OTP_ROUTE,
+      search: "?type=reset",
+    }, {
       state: {
         email,
         type: "reset",
@@ -64,14 +68,14 @@ export default function ResetPassword() {
     });
   };
 
-  // (Dipertahankan untuk mobile / kemungkinan reuse, tapi desktop tidak pakai local 'otp' step)
+  // (Dipertahankan untuk mobile / kemungkinan reuse; desktop tidak pakai local 'otp' step)
   const handleOtpChange = (val, idx) => {
     if (!/^[0-9]?$/.test(val)) return;
     const newOtp = [...otp];
     newOtp[idx] = val;
     setOtp(newOtp);
     if (val && idx < otp.length - 1) {
-      inputsRef.current[idx + 1].focus();
+      inputsRef.current[idx + 1]?.focus();
     }
   };
 
@@ -89,13 +93,13 @@ export default function ResetPassword() {
     if (pw.length < 8) return setErr("Password must be at least 8 chars");
     if (pw !== cpw) return setErr("Passwords do not match");
 
-    // === ROUTING SESUAI PERMINTAAN ===
-    // New-Password -> SuccessMsg (Type ForgotSuccess)
+    // New Password -> SuccessMsg (Type ForgotSuccess)
     navigate(FORGOT_SUCCESS_ROUTE, {
       state: {
         type: "reset",
-        email, // opsional, kalau mau ditampilkan di SuccessMsg
+        email, // opsional, kalau perlu ditampilkan di SuccessMsg
       },
+      replace: true,
     });
   };
 
@@ -151,27 +155,10 @@ export default function ResetPassword() {
     </>
   );
 
-  const titleStyle = { fontSize: "48px", lineHeight: 1.3 };
-  const subtitleStyle = {
-    width: "540px",
-    fontSize: "20px",
-    marginTop: "4px",
-    color: "#A3A3A3",
-  };
-  const cardStyle = {
-    width: `${CARD_W}px`,
-    borderRadius: "16px",
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(255,255,255,0.05)",
-    boxShadow: "0 0 25px rgba(0,0,0,0.4)",
-    backdropFilter: "blur(10px)",
-    padding: `${CARD_PAD_Y}px ${CARD_PAD_X}px`,
-  };
   const btnStyle = {
     background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
   };
 
-  // === render per step ===
   const renderEmail = () => (
     <form onSubmit={handleEmailSubmit} className="space-y-4">
       <div>
@@ -215,7 +202,6 @@ export default function ResetPassword() {
     </form>
   );
 
-  // tetap disimpan kalau suatu saat kamu mau render OTP lokal (desktop sekarang dialihkan ke route)
   const renderOtp = () => (
     <form onSubmit={handleOtpSubmit} className="space-y-4">
       <p className="text-sm text-[#A3A3A3] text-center mb-3">
@@ -331,10 +317,10 @@ export default function ResetPassword() {
       {renderBackground()}
       <div className="relative z-10 flex h-full w-full flex-col items-center">
         {/* title */}
-        <div style={{ marginTop: `${TITLE_TOP}px` }} className="text-center">
+        <div style={{ marginTop: "110px" }} className="text-center">
           <h1
             className="font-bold text-transparent bg-clip-text bg-gradient-to-b from-[#FAFAFA] to-[#949494]"
-            style={titleStyle}
+            style={{ fontSize: "48px", lineHeight: 1.3 }}
           >
             {step === "email"
               ? "Forgot Password?"
@@ -344,7 +330,10 @@ export default function ResetPassword() {
               ? "Set New Password"
               : "Success!"}
           </h1>
-          <p className="mx-auto font-semibold" style={subtitleStyle}>
+          <p
+            className="mx-auto font-semibold"
+            style={{ width: "540px", fontSize: "20px", marginTop: "4px", color: "#A3A3A3" }}
+          >
             {step === "email" && "Enter your email to reset password"}
             {step === "otp" && "Check your inbox for the verification code"}
             {step === "newPw" && "Create your new password"}
@@ -353,7 +342,18 @@ export default function ResetPassword() {
         </div>
 
         {/* card */}
-        <div className="mt-[64px] w-[540px] min-h-[210px]" style={cardStyle}>
+        <div
+          className="mt-[64px] w-[540px] min-h-[210px]"
+          style={{
+            width: `540px`,
+            borderRadius: "16px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.05)",
+            boxShadow: "0 0 25px rgba(0,0,0,0.4)",
+            backdropFilter: "blur(10px)",
+            padding: `22px 65px`,
+          }}
+        >
           {step === "email" && renderEmail()}
           {step === "otp" && renderOtp() /* kept for completeness */}
           {step === "newPw" && renderNewPw()}
