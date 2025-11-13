@@ -12,7 +12,7 @@ const REGISTER_SUCCESS_ROUTE   = "/auth/success/register";
 const VERIFY_ENDPOINT  = "/api/auth/verifyOtp";
 const RESEND_ENDPOINT  = "/api/auth/sendotp";
 
-const VerifyOtp = ({ email, expiredAt, from, user }) => {
+const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
 
@@ -290,14 +290,7 @@ const VerifyOtp = ({ email, expiredAt, from, user }) => {
   /* ===== Mobile/Tablet: tetap pakai layout Mobile tanpa ubah API ===== */
   if (isMobile || isTablet) {
     return (
-      <Mobile
-        email={emailToUse}
-        expiredAt={expiredAt || location.state?.expires_at}
-        from={mode} // "registration" | "reset-password"
-        user={user}
-        verifyEndpoint={VERIFY_ENDPOINT}
-        resendEndpoint={RESEND_ENDPOINT}
-      />
+      <Mobile email={email} expiredAt={expiredAt} from={from} user={user} purpose={purpose} />
     );
   }
 

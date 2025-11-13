@@ -143,11 +143,6 @@ const Mobile = () => {
     [filtered, start, end]
   );
 
-  useEffect(() => {
-    console.log("Courses Today:", courses);
-    console.log("Attended IDs:", attendedCourseIds);
-  }, [courses, attendedCourseIds]);
-
   return (
     <div className="flex flex-col gap-8">
       {/* Popup */}

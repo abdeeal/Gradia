@@ -19,13 +19,17 @@ export default async function sendOtp(req, res) {
   req.on("data", (chunk) => (body += chunk.toString()));
   req.on("end", async () => {
     try {
-      const { email } = JSON.parse(body);
+      const { email, purpose } = JSON.parse(body);
 
-      if (!email) {
+      // 🔹 Validasi input
+      if (!email || !purpose) {
         res.writeHead(400, { "Content-Type": "application/json" });
-        return res.end(JSON.stringify({ error: "Email is required." }));
+        return res.end(
+          JSON.stringify({ error: "Email and purpose are required." })
+        );
       }
 
+      // 🔹 Cari user berdasarkan email
       const { data: user, error: userError } = await supabase
         .from("users")
         .select("*")
@@ -34,15 +38,16 @@ export default async function sendOtp(req, res) {
 
       if (userError) throw userError;
       if (!user) {
-        return res
-          .writeHead(404, { "Content-Type": "application/json" })
-          .end(JSON.stringify({ error: "Email not found." }));
+        res.writeHead(404, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ error: "Email not found." }));
       }
 
-      
-      const { data: otpData, error: otpError } = await supabase
+      const now = new Date();
+
+      // 🔹 Cek OTP lama milik user
+      const { data: oldOtp, error: otpError } = await supabase
         .from("otp")
-        .select("otp_code, expires_at")
+        .select("*")
         .eq("id_user", user.id_user || user.id)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -50,32 +55,30 @@ export default async function sendOtp(req, res) {
 
       if (otpError) throw otpError;
 
-      let otpCode;
-      let expiresAt;
-      const now = new Date();
-
-      if (!otpData || new Date(otpData.expires_at) < now) {
-      
-        otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString(); 
-
-        
-        const { error: insertError } = await supabase.from("otp").insert([
-          {
-            id_user: user.id_user || user.id,
-            otp_code: otpCode,
-            purpose: "register", 
-            is_used: false,
-            expires_at: expiresAt,
-          },
-        ]);
-        if (insertError) throw insertError;
-      } else {
-       
-        otpCode = otpData.otp_code;
-        expiresAt = otpData.expires_at;
+      // 🔹 Kalau OTP lama masih berlaku, tandai is_used = true
+      if (oldOtp && new Date(oldOtp.expires_at) > now) {
+        await supabase
+          .from("otp")
+          .update({ is_used: true })
+          .eq("id_otp", oldOtp.id_otp);
       }
 
+      // 🔹 Buat OTP baru
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString(); // 5 menit
+
+      const { error: insertError } = await supabase.from("otp").insert([
+        {
+          id_user: user.id_user || user.id,
+          otp_code: otpCode,
+          purpose,
+          is_used: false,
+          expires_at: expiresAt,
+        },
+      ]);
+      if (insertError) throw insertError;
+
+      // 🔹 Siapkan transporter email
       const transporter = nodemailer.createTransport({
         host: "smtp.gmail.com",
         port: 465,
@@ -84,16 +87,19 @@ export default async function sendOtp(req, res) {
         tls: { rejectUnauthorized: false },
       });
 
+      // 🔹 Format email OTP
       const mailOptions = {
         from: `"Gradia App" <${EMAIL_USER}>`,
         to: email,
-        subject: "Your OTP Code",
+        subject: `Your OTP Code for ${purpose}`,
         html: `
           <div style="font-family: Arial, sans-serif; color: #333;">
             <h3>Hello ${user.username || user.email},</h3>
-            <p>Your OTP code is:</p>
+            <p>Your OTP code for <b>${purpose}</b> is:</p>
             <h2 style="letter-spacing: 4px; color: #007bff;">${otpCode}</h2>
-            <p>This code is valid until <b>${new Date(expiresAt).toLocaleString()}</b>.</p>
+            <p>This code is valid until <b>${new Date(
+              expiresAt
+            ).toLocaleString()}</b>.</p>
             <br/>
             <p>Thank you,<br/>The Gradia Team</p>
           </div>
@@ -102,11 +108,13 @@ export default async function sendOtp(req, res) {
 
       await transporter.sendMail(mailOptions);
 
+      // 🔹 Kirim respons sukses
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
           message: `OTP successfully sent to ${email}`,
           otp_code: otpCode,
+          expires_at: expiresAt,
         })
       );
     } catch (err) {
