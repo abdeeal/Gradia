@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "remixicon/fonts/remixicon.css";
-import { getWorkspaceId } from "../../../components/getWorkspaceID";
+import { getWorkspaceId } from "../../../components/GetWorkspace";
 /** Parse "HH:mm"/"HH.mm" ke Date hari ini */
 function parseHM(hm) {
   if (!hm) return null;

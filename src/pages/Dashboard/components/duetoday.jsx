@@ -1,5 +1,5 @@
 import React from "react";
-import { getWorkspaceId } from "../../../components/getWorkspaceID";
+import { getWorkspaceId } from "../../../components/GetWorkspace";
 
 const MIN_SKELETON_MS = 200; // ✅ sama dengan CoursesToday
 

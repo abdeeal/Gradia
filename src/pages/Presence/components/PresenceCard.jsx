@@ -1,6 +1,6 @@
 // src/pages/Presence/components/PresenceCard.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { getWorkspaceId } from "../../../components/getWorkspaceID";
+import { getWorkspaceId } from "../../../components/GetWorkspace";
 
 const CARD_W = 269;
 const CARD_H = 191;

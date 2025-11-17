@@ -15,7 +15,7 @@ import {
 } from "@/utils/coursesRoomCache";
 
 // 🔥 pakai helper yang sama seperti DueToday / Tasks / Courses
-import { getWorkspaceId } from "../../components/getWorkspaceID";
+import { getWorkspaceId } from "../../components/GetWorkspace.js";
 
 // 🔁 workspace diambil dari local/session via helper
 const WORKSPACE_ID = getWorkspaceId();
