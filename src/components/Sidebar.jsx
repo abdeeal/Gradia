@@ -1,9 +1,10 @@
 import React, { useRef } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import gsap from "gsap";
 
 const Sidebar = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const sidebarRef = useRef(null);
 
   // Menganggap "/" dan "/dashboard" itu sama-sama Dashboard
@@ -32,6 +33,40 @@ const Sidebar = () => {
     { to: "/courses", icon: "ri-git-repository-line", label: "Courses" },
     { to: "/presences", icon: "ri-user-shared-line", label: "Presences" },
   ];
+
+  // ====== HANDLE LOGOUT (panggil API tanpa ubah backend) ======
+  const handleLogout = async () => {
+    try {
+      // Panggil API auth dengan action: "logout"
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "logout" }),
+      });
+
+      // Kalau API error, tetap lanjut bersihin sesi di FE
+      if (!res.ok) {
+        console.error("Logout API failed", await res.text());
+      }
+
+      // Bersihkan storage lokal (kalau kamu pakai id_workspace, id_user, dll)
+      try {
+        sessionStorage.clear();
+        localStorage.clear();
+      } catch (e) {
+        console.warn("Failed to clear storage", e);
+      }
+
+      // Arahkan balik ke halaman login
+      navigate("/login");
+    } catch (err) {
+      console.error("Logout error:", err);
+      // Kalau fetch-nya aja error, tetap lempar user ke login biar aman
+      navigate("/login");
+    }
+  };
 
   return (
     <div className="pr-[20px] w-[285px] shrink-0">
@@ -95,12 +130,14 @@ const Sidebar = () => {
               <i className="ri-arrow-left-circle-line text-[17px]" /> Back
             </Link>
 
-            <Link
-              to="/auth/logout"
+            {/* Logout pakai tombol supaya bisa panggil API */}
+            <button
+              type="button"
+              onClick={handleLogout}
               className="flex items-center gap-3 text-white hover:text-red-500 py-[4px] text-[15px]"
             >
               <i className="ri-door-open-line text-[17px]" /> Logout
-            </Link>
+            </button>
           </div>
         </div>
       </aside>

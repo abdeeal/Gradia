@@ -24,7 +24,7 @@ const toObjRecord = (r, idx) => {
     datetime: `${date} ${time}`.trim(),
     status: r.status || "",
     note: r.note || "",
-    room: r.room || "", // <-- tetap disimpan, tapi TIDAK ditampilkan
+    room: r.room || "", // tetap disimpan, tapi TIDAK ditampilkan
     _no: String(r.no ?? idx + 1).padStart(2, "0"),
   };
 };
@@ -97,6 +97,36 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
 
   return (
     <div className="space-y-3">
+      {/* ✅ CSS shimmer untuk skeleton */}
+      <style>{`
+        .presence-shimmer-row {
+          position: relative;
+          overflow: hidden;
+        }
+        .presence-shimmer-row .gradia-shimmer {
+          position: absolute;
+          inset: 0;
+          background-image: linear-gradient(
+            90deg,
+            rgba(15, 15, 15, 0) 0%,
+            rgba(63, 63, 70, 0.9) 50%,
+            rgba(15, 15, 15, 0) 100%
+          );
+          transform: translateX(-100%);
+          animation: gradia-shimmer-move 1.2s infinite;
+          background-size: 200% 100%;
+          pointer-events: none;
+        }
+        @keyframes gradia-shimmer-move {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+      `}</style>
+
       {/* Header bar */}
       <div className="flex items-center justify-between">
         <h3 className="text-foreground text-[16px] font-semibold">
@@ -182,11 +212,17 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
           ))}
         </div>
 
-        {/* Rows */}
-        <div className="bg-black rounded-xl min-h-[64px]">
+        {/* Rows area – tinggi fix 240px */}
+        <div className="bg-black rounded-xl h-[240px]">
           {isLoading && (
-            <div className="px-3 py-6 text-center text-foreground-secondary text-base">
-              Loading…
+            // ✅ SHIMMER: bentuk sama persis kayak "No data" (tengah), tapi dengan efek shimmer
+            <div className="presence-shimmer-row h-full rounded-xl">
+              <div className="gradia-shimmer" />
+              <div className="h-full flex items-center justify-center opacity-0">
+                <div className="text-center text-foreground-secondary text-base">
+                  No data
+                </div>
+              </div>
             </div>
           )}
 
@@ -233,9 +269,12 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
               );
             })}
 
+          {/* ✅ NO DATA: sama kaya sebelumnya, bentuk sama dengan area shimmer */}
           {!isLoading && pageRows.length === 0 && (
-            <div className="px-3 py-6 text-center text-foreground-secondary text-base">
-              No data
+            <div className="h-[240px] flex items-center justify-center">
+              <div className="text-center text-foreground-secondary text-base">
+                No data
+              </div>
             </div>
           )}
         </div>

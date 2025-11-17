@@ -12,6 +12,10 @@ const REGISTER_SUCCESS_ROUTE   = "/auth/success/register";
 const VERIFY_ENDPOINT  = "/api/auth/verifyOtp";
 const RESEND_ENDPOINT  = "/api/auth/sendotp";
 
+// Purpose constants (hanya dipakai di FE)
+const PURPOSE_REGISTRATION  = "registration";
+const PURPOSE_RESET_PASSWORD = "reset-password";
+
 const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
@@ -168,11 +172,16 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
     setActiveIndex(Math.min(text.length, OTP_LENGTH - 1));
   };
 
-  // Auto-send OTP sekali untuk reset-password
+  /* ===== Auto-send OTP untuk KEDUA MODE (registration & reset-password) ===== */
   const sentOnceRef = useRef(false);
-  const sendOtpResetOnce = async () => {
+
+  const sendOtpOnce = async () => {
     if (sentOnceRef.current) return;
     if (!emailToUse) return;
+
+    const purposeToUse =
+      mode === "reset-password" ? PURPOSE_RESET_PASSWORD : PURPOSE_REGISTRATION;
+
     try {
       sentOnceRef.current = true;
       await fetch(RESEND_ENDPOINT, {
@@ -180,7 +189,7 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: emailToUse,
-          purpose: "reset-password",
+          purpose: purposeToUse,
         }),
       });
       setSecondsLeft(5 * 60);
@@ -190,9 +199,8 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
   };
 
   useEffect(() => {
-    if (mode === "reset-password") {
-      sendOtpResetOnce();
-    }
+    // Sekarang: begitu masuk ke halaman VerifyOtp → auto kirim OTP
+    sendOtpOnce();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, emailToUse]);
 
@@ -213,7 +221,7 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
     try {
       setSubmitting(true);
 
-      // === API: hanya kirim email & otp_code
+      // === API: hanya kirim email & otp_code (TIDAK mengubah verify API)
       const res = await fetch(VERIFY_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -257,10 +265,13 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
     try {
       setResending(true);
 
-      const payload =
-        mode === "reset-password"
-          ? { email: emailToUse, purpose: "reset-password" }
-          : { email: emailToUse };
+      const payload = {
+        email: emailToUse,
+        purpose:
+          mode === "reset-password"
+            ? PURPOSE_RESET_PASSWORD
+            : PURPOSE_REGISTRATION,
+      };
 
       const res = await fetch(RESEND_ENDPOINT, {
         method: "POST",
@@ -287,7 +298,7 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
     }
   };
 
-  /* ===== Mobile/Tablet: tetap pakai layout Mobile tanpa ubah API ===== */
+  /* ===== Mobile/Tablet: tetap pakai layout Mobile tanpa ubah API/UI ===== */
   if (isMobile || isTablet) {
     return (
       <Mobile email={email} expiredAt={expiredAt} from={from} user={user} purpose={purpose} />

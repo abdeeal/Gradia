@@ -1,4 +1,3 @@
-// 📄 AddCourse.jsx
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
 import React, { useState } from "react";
@@ -43,11 +42,13 @@ const AddCourse = ({ onClose, onAdd }) => {
       return;
     }
 
-    // Susun payload untuk API
+    // Susun payload untuk API (id_workspace ditambah di toApiCourse / Courses.jsx)
     const newCourse = {
       ...formData,
       sks: formData.sks ? Number(formData.sks) : 0,
-      time: `${formData.startTime || ""} - ${formData.endTime || ""}`.trim(),
+      time: `${formData.startTime || ""} - ${
+        formData.endTime || ""
+      }`.trim(),
       // id_courses auto di DB, id_workspace akan ditambahkan di toApiCourse (Courses.jsx)
     };
 
@@ -55,7 +56,6 @@ const AddCourse = ({ onClose, onAdd }) => {
     setSubmitting(true);
 
     try {
-      // Tunggu proses add (bisa sync/async)
       if (typeof onAdd === "function") {
         await onAdd(newCourse);
       }
@@ -72,7 +72,6 @@ const AddCourse = ({ onClose, onAdd }) => {
 
       onClose?.();
     } catch (err) {
-      // Gagal → tampilkan error, jangan tutup drawer
       const msg =
         err?.message ||
         err?.response?.data?.message ||
@@ -214,7 +213,11 @@ const DayField = ({ icon, label, value, onChange }) => (
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400">{label}</span>
     <div className="flex-1 max-w-[360px] flex items-center">
-      <SelectUi placeholder={"Select a day"} value={value || undefined} onValueChange={onChange}>
+      <SelectUi
+        placeholder={"Select a day"}
+        value={value || undefined}
+        onValueChange={onChange}
+      >
         <SelectLabel>Day</SelectLabel>
         {dayOrder.map((item) => (
           <SelectItem key={item} value={item}>

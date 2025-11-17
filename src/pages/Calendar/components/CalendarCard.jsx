@@ -9,12 +9,38 @@ const monthNames = [
 ];
 const daysOfWeek = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
-/* 6 rows × 7 cols, Monday-first */
+// minimal skeleton (samain dengan komponen lain)
+const MIN_SKELETON_MS = 200;
+
+/* Shimmer styles (HARUS persis dengan komponen lain) */
+const ShimmerStyles = () => (
+  <style>{`
+    .gradia-shimmer {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(
+        90deg,
+        rgba(15, 15, 15, 0) 0%,
+        rgba(63, 63, 70, 0.9) 50%,
+        rgba(15, 15, 15, 0) 100%
+      );
+      transform: translateX(-100%);
+      animation: gradia-shimmer 1.25s infinite;
+    }
+    @keyframes gradia-shimmer {
+      100% {
+        transform: translateX(100%);
+      }
+    }
+  `}</style>
+);
+
+/* 5 rows × 7 cols, Monday-first */
 const getMonthDays = (year, month) => {
   const first = new Date(year, month, 1);
   const last  = new Date(year, month + 1, 0);
   const start = (first.getDay() + 6) % 7; // Mon=0 ... Sun=6
-  const total = 42;
+  const total = 35; // 🔥 5 baris × 7 kolom
   const days = [];
 
   const prevLast = new Date(year, month, 0).getDate();
@@ -46,35 +72,56 @@ export const BADGE_COLORS = {
 
 const normalize = (v = "") => String(v).trim().toLowerCase();
 
+// ✅ high + in progress = Purple, walaupun overdue
 export const computeBadgeStyle = (task) => {
   const pr = normalize(task.priority || task.priority_level || task.level);
   const st = normalize(task.status || task.state);
 
   const now = new Date();
-  thedeadline: {
-    const deadline = task.deadline ? new Date(task.deadline) : null;
-    const isOverdue = deadline && !isNaN(+deadline) && deadline < now && st !== "completed";
-    if (isOverdue && pr === "high") return BADGE_COLORS.Red;
-    if (isOverdue && pr === "medium") return BADGE_COLORS.Orange;
+  const deadline = task.deadline ? new Date(task.deadline) : null;
+  const isOverdue =
+    deadline && !isNaN(+deadline) && deadline < now && st !== "completed";
+
+  // 1. Completed dulu
+  if (st === "completed" || st === "done" || st === "selesai") {
+    return BADGE_COLORS.Green;
   }
 
-  if (st === "completed" || st === "done" || st === "selesai") return BADGE_COLORS.Green;
-
+  // 2. Kombinasi priority + status (ini HARUS menang dari overdue)
   if (pr === "high") {
-    if (st === "in progress" || st === "ongoing" || st === "progress") return BADGE_COLORS.Purple;
-    if (st === "not started" || st === "todo" || st === "backlog") return BADGE_COLORS.Pink;
+    if (st === "in progress" || st === "ongoing" || st === "progress") {
+      return BADGE_COLORS.Purple;   // 🔥 high + in progress = ungu
+    }
+    if (st === "not started" || st === "todo" || st === "backlog") {
+      return BADGE_COLORS.Pink;
+    }
   }
 
   if (pr === "medium") {
-    if (st === "in progress" || st === "ongoing" || st === "progress") return BADGE_COLORS.Blue;
-    if (st === "not started" || st === "todo" || st === "backlog") return BADGE_COLORS.Yellow;
+    if (st === "in progress" || st === "ongoing" || st === "progress") {
+      return BADGE_COLORS.Blue;
+    }
+    if (st === "not started" || st === "todo" || st === "backlog") {
+      return BADGE_COLORS.Yellow;
+    }
   }
 
   if (pr === "low") {
-    if (st === "in progress" || st === "ongoing" || st === "progress") return BADGE_COLORS.Cyan;
-    if (st === "not started" || st === "todo" || st === "backlog") return BADGE_COLORS.Gray;
+    if (st === "in progress" || st === "ongoing" || st === "progress") {
+      return BADGE_COLORS.Cyan;
+    }
+    if (st === "not started" || st === "todo" || st === "backlog") {
+      return BADGE_COLORS.Gray;
+    }
   }
 
+  // 3. Baru setelah itu rule overdue (untuk task yang tidak kena mapping di atas)
+  if (isOverdue) {
+    if (pr === "high") return BADGE_COLORS.Red;
+    if (pr === "medium") return BADGE_COLORS.Orange;
+  }
+
+  // 4. Default
   return BADGE_COLORS.Gray;
 };
 
@@ -127,8 +174,12 @@ export default function MonthCalendar({
   const [pickerMode, setPickerMode] = useState("date"); // "date" | "month" | "year"
   const [eventsByDate, setEventsByDate] = useState({});
   const [query, setQuery] = useState("");               // <-- search query
+  const [loading, setLoading] = useState(true);         // 🔥 state loading utk skeleton
   const pickerRef = useRef(null);
   const gridRef = useRef(null);
+
+  // 🔁 flag supaya auto-open today cuma sekali
+  const autoOpenedTodayRef = useRef(false);
 
   // === Ambil idWorkspace dari sessionStorage (fallback 1) ===
   const sessionIdWorkspace = useMemo(() => {
@@ -163,6 +214,10 @@ export default function MonthCalendar({
   /* Fetch tasks → group per tanggal (pakai field deadline) */
   useEffect(() => {
     let isCancelled = false;
+    const started = Date.now();
+
+    setLoading(true);
+
     (async () => {
       try {
         const res = await fetch(finalTasksApi);
@@ -205,9 +260,18 @@ export default function MonthCalendar({
       } catch (e) {
         console.error("Fetch tasks failed:", e);
         setEventsByDate({});
+      } finally {
+        const elapsed = Date.now() - started;
+        const wait = Math.max(0, MIN_SKELETON_MS - elapsed);
+        setTimeout(() => {
+          if (!isCancelled) setLoading(false);
+        }, wait);
       }
     })();
-    return () => { isCancelled = true; };
+
+    return () => {
+      isCancelled = true;
+    };
   }, [finalTasksApi]);
 
   /* Tutup picker saat klik di luar */
@@ -221,7 +285,7 @@ export default function MonthCalendar({
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  /* Pertama kali: pilih HARI INI dan kirim detailnya */
+  /* Pertama kali: pilih HARI INI dan kirim detailnya (init kosong) */
   useEffect(() => {
     const today = new Date();
     onChange?.(today);
@@ -229,6 +293,21 @@ export default function MonthCalendar({
     onOpenDetails?.(today, (eventsByDate[tk] || []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ✅ AUTO: kalau hari ini punya event, detail panel langsung keisi
+  useEffect(() => {
+    if (autoOpenedTodayRef.current) return;
+
+    const today = new Date();
+    const key = toKeyLocal(today);
+    const evs = eventsByDate[key];
+
+    if (Array.isArray(evs) && evs.length > 0) {
+      autoOpenedTodayRef.current = true;
+      onChange?.(today);
+      onOpenDetails?.(today, evs);
+    }
+  }, [eventsByDate, onChange, onOpenDetails]);
 
   const selKey = toKeyLocal(value);
   const today = new Date();
@@ -265,93 +344,94 @@ export default function MonthCalendar({
 
   return (
     <React.Fragment>
-{/* ===== TOP HEADER (di luar kalender) ===== */}
-<div
-  style={{
-    width: 788,
-    padding: "16px 32px 32px 0px",
-    display: "grid",
-    gridTemplateColumns: "1fr 280px",   // kiri fleksibel, kanan fixed
-    gridTemplateRows: "auto auto",      // row1 title, row2 subtitle
-    columnGap: 16,
-    background: "rgba(0,0,0,0)",
-    alignItems: "center",
-  }}
->
-  {/* Title (row 1, col 1) */}
-  <div
-    style={{
-      gridColumn: "1 / 2",
-      gridRow: "1 / 2",
-      font: 'Montserrat',
-      fontSize: 20,
-      fontWeight: 600,
-      color: "rgba(250,250,250,1)",
-      lineHeight: 1.6,
-    }}
-  >
-    Calendar
-  </div>
+      {/* Shimmer CSS global */}
+      <ShimmerStyles />
 
-  {/* Subtitle (row 2, col 1) */}
-  <div
-    className="text-foreground-secondary"
-    style={{
-      gridColumn: "1 / 2",
-      gridRow: "2 / 3",
-      fontFamily:
-        'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
-      fontSize: 18,
-      fontWeight: 400,
-      lineHeight: 1.4,
-      // biar tidak patah per kata karena ruang sempit
-      whiteSpace: "normal",
-      wordBreak: "keep-all",
-      marginBottom: -4,
-    }}
-  >
-    Stay on Track everyday with your smart Calendar
-  </div>
+      {/* ===== TOP HEADER (di luar kalender) ===== */}
+      <div
+        style={{
+          width: 788,
+          padding: "16px 32px 32px 0px",
+          display: "grid",
+          gridTemplateColumns: "1fr 280px",
+          gridTemplateRows: "auto auto",
+          columnGap: 16,
+          background: "rgba(0,0,0,0)",
+          alignItems: "center",
+        }}
+      >
+        {/* Title */}
+        <div
+          style={{
+            gridColumn: "1 / 2",
+            gridRow: "1 / 2",
+            font: "Montserrat",
+            fontSize: 20,
+            fontWeight: 600,
+            color: "rgba(250,250,250,1)",
+            lineHeight: 1.6,
+          }}
+        >
+          Calendar
+        </div>
 
-  {/* Search (col 2, span 2 row; center vertikal) */}
-  <div
-    style={{
-      paddingLeft: 10,
-      gridColumn: "2 / 3",
-      gridRow: "1 / span 2",
-      alignSelf: "center",
-      justifySelf: "end",
-      width: 300,
-      height: 44,
-      border: "1px solid rgba(101,101,101,0.5)",
-      borderRadius: 12,
-      display: "flex",
-      alignItems: "center",
-      padding: "0 12px",
-      gap: 8,
-      background: "rgba(0,0,0,0)",
-    }}
-  >
-    <i className="ri-search-line" style={{ fontSize: 18, color: "rgba(156,163,175,1)" }} />
-    <input
-      value={query}
-      onChange={(e) => setQuery(e.target.value ?? "")}
-      placeholder="Search"
-      style={{
-        flex: 1,
-        background: "transparent",
-        border: "none",
-        outline: "none",
-        color: "rgba(229,231,235,1)",
-        fontFamily:
-          'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
-        fontSize: 16,
-        fontWeight: 400,
-      }}
-    />
-  </div>
-</div>
+        {/* Subtitle */}
+        <div
+          className="text-foreground-secondary"
+          style={{
+            gridColumn: "1 / 2",
+            gridRow: "2 / 3",
+            fontFamily:
+              'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
+            fontSize: 18,
+            fontWeight: 400,
+            lineHeight: 1.4,
+            whiteSpace: "normal",
+            wordBreak: "keep-all",
+            marginBottom: -4,
+          }}
+        >
+          Stay on Track everyday with your smart Calendar
+        </div>
 
+        {/* Search di kanan header */}
+        <div
+          style={{
+            paddingLeft: 10,
+            gridColumn: "2 / 3",
+            gridRow: "1 / span 2",
+            alignSelf: "center",
+            justifySelf: "end",
+            width: 300,
+            height: 44,
+            border: "1px solid rgba(101,101,101,0.5)",
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            padding: "0 12px",
+            gap: 8,
+            background: "rgba(0,0,0,0)",
+          }}
+        >
+          <i className="ri-search-line" style={{ fontSize: 18, color: "rgba(156,163,175,1)" }} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value ?? "")}
+            placeholder="Search"
+            style={{
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: "rgba(229,231,235,1)",
+              fontFamily:
+                'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
+              fontSize: 16,
+              fontWeight: 400,
+            }}
+          />
+        </div>
+      </div>
 
       {/* ===== KALENDER (asli) ===== */}
       <div
@@ -362,7 +442,8 @@ export default function MonthCalendar({
           overflow: "hidden",
           background: "rgba(9,9,11,1)",
           position: "relative",
-          fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
+          fontFamily:
+            'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
         }}
       >
         {/* HEADER */}
@@ -376,7 +457,7 @@ export default function MonthCalendar({
             gap: 10,
           }}
         >
-          {/* Kotak tanggal (LABEL) */}
+          {/* Kotak tanggal */}
           <div
             style={{
               width: 80,
@@ -575,7 +656,7 @@ export default function MonthCalendar({
             width: 753,
             display: "grid",
             gridTemplateColumns: "repeat(7, 1fr)",
-            gridTemplateRows: "34px repeat(6, 112px)",
+            gridTemplateRows: "34px repeat(5, 112px)", // 🔥 5 baris
             borderTop: "1px solid rgba(101,101,101,0.5)",
           }}
         >
@@ -598,134 +679,163 @@ export default function MonthCalendar({
             </div>
           ))}
 
-          {/* Cells 6×7 */}
-          {useMemo(() => getMonthDays(year, month), [year, month]).map(({ date, outside }, idx) => {
-            const col = idx % 7;
-            const row = Math.floor(idx / 7);
-            const dateStr = toKeyLocal(date);
-            const isSel = dateStr === selKey;
-            const isToday = isSameLocalDay(date, today);
-            const events = getEventsForDate(date);
-
-            const shown = events.slice(0, 2);
-            const moreCount = Math.max(0, events.length - 2);
-
-            return (
-              <button
-                key={idx}
-                onClick={() => {
-                  onChange?.(date);
-                  onOpenDetails?.(date, events);
-                }}
-                style={{
-                  position: "relative",
-                  borderRight: col === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
-                  borderBottom: row === 5 ? "none" : "1px solid rgba(101,101,101,0.5)",
-                  background: outside ? "rgba(36,36,36,1)" : "rgba(0,0,0,0)",
-                  padding: 8,
-                  textAlign: "left",
-                  cursor: "pointer",
-                  height: "100%",
-                  overflow: "hidden",
-                  // Selection stroke around the whole cell (not yellow circle)
-                  boxShadow: isSel ? `inset 0 0 0 2px ${strokeColor}` : "none",
-                }}
-              >
-                {/* angka tanggal + lingkaran 22×22 HANYA untuk HARI INI */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    left: 8,
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    background: isToday ? "rgba(255,235,59,1)" : "rgba(0,0,0,0)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 12,
-                    fontWeight: 800,
-                    color: isToday
-                      ? "rgba(17,24,39,1)"
-                      : (outside ? "rgba(107,114,128,1)" : "rgba(229,231,235,1)"),
-                  }}
-                >
-                  {date.getDate()}
-                </div>
-
-                {/* event badges (maks 2) + "x more..." */}
-                <div
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "flex-start",
-                    alignItems: "stretch",
-                    gap: 4,                 // jarak antar label dipersempit 4px
-                    paddingTop: 25,
-                  }}
-                >
-                  {shown.map((ev) => (
+          {/* Cells 5×7 */}
+          {loading
+            ? // 🔥 Skeleton shimmer per sel, FULL sel
+              Array.from({ length: 7 * 5 }).map((_, idx) => {
+                const col = idx % 7;
+                const row = Math.floor(idx / 7);
+                return (
+                  <div
+                    key={`sk-${idx}`}
+                    style={{
+                      position: "relative",
+                      borderRight: col === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      borderBottom: row === 4 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      background: "rgba(0,0,0,0)",
+                      overflow: "hidden",
+                    }}
+                  >
                     <div
-                      key={ev.id}
-                      title={ev.title}
                       style={{
-                        display: "inline-block",
-                        width: "100%",
-                        maxWidth: "95%",
-                        marginLeft: 0,
+                        position: "absolute",
+                        inset: 0,              // ⬅️ FULL satu sel
+                        background: "rgba(24,24,27,1)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div className="gradia-shimmer" />
+                    </div>
+                  </div>
+                );
+              })
+            : // Normal kalender (events)
+              days.map(({ date, outside }, idx) => {
+                const col = idx % 7;
+                const row = Math.floor(idx / 7);
+                const dateStr = toKeyLocal(date);
+                const isSel = dateStr === selKey;
+                const isToday = isSameLocalDay(date, today);
+                const events = getEventsForDate(date);
+
+                const shown = events.slice(0, 2);
+                const moreCount = Math.max(0, events.length - 2);
+
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      onChange?.(date);
+                      onOpenDetails?.(date, events);
+                    }}
+                    style={{
+                      position: "relative",
+                      borderRight: col === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      borderBottom: row === 4 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      background: outside ? "rgba(36,36,36,1)" : "rgba(0,0,0,0)",
+                      padding: 8,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      height: "100%",
+                      overflow: "hidden",
+                      boxShadow: isSel ? `inset 0 0 0 2px ${strokeColor}` : "none",
+                    }}
+                  >
+                    {/* angka tanggal + lingkaran 22×22 HANYA untuk HARI INI */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 6,
+                        left: 8,
+                        width: 22,
                         height: 22,
-                        lineHeight: "22px",
-                        borderRadius: 4,     // 4px rounded
-                        padding: "0 10px",
-                        overflow: "hidden",
-                        whiteSpace: "nowrap",
-                        textOverflow: "ellipsis",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        background: ev.style?.bg || "rgba(82,82,91,1)",
-                        color: ev.style?.text || "rgba(229,229,229,1)",
-                        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
-                        textAlign: "left",   // teks kiri
+                        borderRadius: "50%",
+                        background: isToday ? "rgba(255,235,59,1)" : "rgba(0,0,0,0)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: isToday
+                          ? "rgba(17,24,39,1)"
+                          : (outside ? "rgba(107,114,128,1)" : "rgba(229,231,235,1)"),
                       }}
                     >
-                      {normalizeLabelText(ev.title)}
+                      {date.getDate()}
                     </div>
-                  ))}
 
-                  {moreCount > 0 && (
+                    {/* event badges (maks 2) + "x more..." */}
                     <div
-                      onClick={() => onOpenDetails?.(date, events)}
-                      title="View all"
                       style={{
                         width: "100%",
-                        maxWidth: "95%",
-                        marginLeft: 0,
-                        height: 20,
-                        lineHeight: "20px",
-                        borderRadius: 4,
-                        padding: "0 6px",
-                        overflow: "hidden",
-                        whiteSpace: "nowrap",
-                        textOverflow: "ellipsis",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        background: "rgba(39,39,42,0.6)",
-                        color: "rgba(156,163,175,1)",
-                        boxShadow: "inset 0 0 0 1px rgba(101,101,101,0.25)",
-                        textAlign: "left",
-                        cursor: "pointer",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "flex-start",
+                        alignItems: "stretch",
+                        gap: 4,
+                        paddingTop: 25,
                       }}
                     >
-                      {moreCount} more...
+                      {shown.map((ev) => (
+                        <div
+                          key={ev.id}
+                          title={ev.title}
+                          style={{
+                            display: "inline-block",
+                            width: "100%",
+                            maxWidth: "95%",
+                            marginLeft: 0,
+                            height: 22,
+                            lineHeight: "22px",
+                            borderRadius: 4,
+                            padding: "0 10px",
+                            overflow: "hidden",
+                            whiteSpace: "nowrap",
+                            textOverflow: "ellipsis",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: ev.style?.bg || "rgba(82,82,91,1)",
+                            color: ev.style?.text || "rgba(229,229,229,1)",
+                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
+                            textAlign: "left",
+                          }}
+                        >
+                          {normalizeLabelText(ev.title)}
+                        </div>
+                      ))}
+
+                      {moreCount > 0 && (
+                        <div
+                          onClick={() => onOpenDetails?.(date, events)}
+                          title="View all"
+                          style={{
+                            width: "100%",
+                            maxWidth: "95%",
+                            marginLeft: 0,
+                            height: 20,
+                            lineHeight: "20px",
+                            borderRadius: 4,
+                            padding: "0 6px",
+                            overflow: "hidden",
+                            whiteSpace: "nowrap",
+                            textOverflow: "ellipsis",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: "rgba(39,39,42,0.6)",
+                            color: "rgba(156,163,175,1)",
+                            boxShadow: "inset 0 0 0 1px rgba(101,101,101,0.25)",
+                            textAlign: "left",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {moreCount} more...
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                  </button>
+                );
+              })}
         </div>
 
         {/* BOTTOM NAV */}

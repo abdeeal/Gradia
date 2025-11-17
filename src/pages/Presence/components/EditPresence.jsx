@@ -1,11 +1,8 @@
 // src/pages/Presence/components/EditPresence.jsx
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-// ⬇️ pakai useAlert seperti di Task/AddTask
 import { useAlert } from "@/hooks/useAlert";
 import { getRoom, peekRoom, setRoom as cacheSetRoom } from "@/utils/coursesRoomCache";
-
-// (HAPUS: import Swal & showCustomAlert)
 
 /** "DD/MM/YYYY HH:MM:SS" -> "DD/MM/YY" & "HH:MM:SS" (fallback ISO) */
 const formatDDMMYY_HHMMSS = (dtStr) => {
@@ -44,13 +41,13 @@ const EditPresence = ({
   onAppendLog,
   contentPaddingLeft = 272,
 }) => {
-  const { showAlert } = useAlert(); // ⬅️ gunakan useAlert
+  const { showAlert } = useAlert();
 
   const [status, setStatus] = useState(record?.status || "");
   const [note, setNote] = useState(record?.note || "");
   const idForCourse = record?.id_course ?? record?.courseId ?? null;
 
-  // Optimistic: pakai record.room dulu, lalu cache, lalu fetch
+  // Room hanya info (tidak diedit), tapi tetap diambil dari record/cache/server
   const [courseRoom, setCourseRoom] = useState(
     () => record?.room ?? (idForCourse ? peekRoom(idForCourse) : "") ?? ""
   );
@@ -103,10 +100,14 @@ const EditPresence = ({
   const courseTitle = record?.courseTitle || "—";
   const { d: dateShort, t: timeFull } = formatDDMMYY_HHMMSS(record?.datetime);
 
+  // 🚀 Versi super cepat:
+  // - validasi
+  // - tutup popup
+  // - langsung show alert sukses (optimistic)
+  // - jalankan onSave di background, kalau gagal → timpa dengan alert error
   const submit = () => {
     const normalized = normStatus(status);
     if (normalized !== "present" && normalized !== "absent") {
-      // ⬇️ alert destructive ala AddTask
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Pilih status dulu",
@@ -126,7 +127,7 @@ const EditPresence = ({
       courseId: record?.courseId ?? record?.id_course,
       status: finalStatus,
       note,
-      room: courseRoom, // kirim ROOM raw dari courses
+      room: courseRoom, // hanya info, tidak ada input untuk ubah
     };
 
     // simpan ke cache supaya buka ulang langsung tampil
@@ -134,49 +135,69 @@ const EditPresence = ({
       cacheSetRoom(updated.courseId, courseRoom);
     }
 
-    try {
-      onSave?.(updated);
+    // 🔥 1) Tutup popup dulu supaya langsung hilang
+    onClose?.();
 
-      if (typeof onAppendLog === "function") {
-        const now = new Date();
-        onAppendLog({
-          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          loggedAt: now.toISOString(),
-          loggedAtReadable: `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}`,
-          courseId: updated.courseId,
-          courseTitle: updated.courseTitle,
-          room: courseRoom,
-          status: updated.status,
-          note: updated.note,
-          timeRange: record?.timeRange,
+    // 🔥 2) TAMPILKAN alert sukses SECARA OPTIMISTIK (instan)
+    showAlert({
+      icon: "ri-checkbox-circle-fill",
+      title: "Updated",
+      desc: `${record?.courseTitle || "Course"} set to ${finalStatus}.`,
+      variant: "success",
+      width: 676,
+      height: 380,
+    });
+
+    // 🔥 3) Proses simpan ke server di background
+    (async () => {
+      try {
+        const ok = (await onSave?.(updated)) ?? true;
+
+        // kalau backend bilang gagal → timpa dengan alert error
+        if (!ok) {
+          showAlert({
+            icon: "ri-error-warning-fill",
+            title: "Error",
+            desc: "Failed to save presence. Please try again.",
+            variant: "destructive",
+            width: 676,
+            height: 380,
+          });
+          return;
+        }
+
+        if (typeof onAppendLog === "function") {
+          const now = new Date();
+          onAppendLog({
+            id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            loggedAt: now.toISOString(),
+            loggedAtReadable: `${now.toLocaleDateString()} ${now.toLocaleTimeString(
+              [],
+              {
+                hour: "2-digit",
+                minute: "2-digit",
+              }
+            )}`,
+            courseId: updated.courseId,
+            courseTitle: updated.courseTitle,
+            room: courseRoom,
+            status: updated.status,
+            note: updated.note,
+            timeRange: record?.timeRange,
+          });
+        }
+      } catch (err) {
+        // kalau network / error lain → juga timpa dengan alert error
+        showAlert({
+          icon: "ri-error-warning-fill",
+          title: "Error",
+          desc: "Failed to save presence. Please try again.",
+          variant: "destructive",
+          width: 676,
+          height: 380,
         });
       }
-
-      // ⬇️ success ala AddTask
-      showAlert({
-        icon: "ri-checkbox-circle-fill",
-        title: "Updated",
-        desc: `${record?.courseTitle || "Course"} set to ${finalStatus}.`,
-        variant: "success",
-        width: 676,
-        height: 380,
-      });
-
-      onClose?.();
-    } catch (err) {
-      // (opsional) fallback error ala AddTask
-      showAlert({
-        icon: "ri-error-warning-fill",
-        title: "Error",
-        desc: "Failed to save presence. Please try again.",
-        variant: "destructive",
-        width: 676,
-        height: 380,
-      });
-    }
+    })();
   };
 
   if (!record) return null;
@@ -232,7 +253,10 @@ const EditPresence = ({
                   <span className="tabular-nums">{dateShort}</span>
                 </div>
                 {dateShort !== "—" && timeFull && (
-                  <span className="mx-3 text-zinc-500/80 select-none" aria-hidden="true">
+                  <span
+                    className="mx-3 text-zinc-500/80 select-none"
+                    aria-hidden="true"
+                  >
                     /
                   </span>
                 )}
@@ -256,8 +280,17 @@ const EditPresence = ({
                         : "bg-[#1b1b1b] border-[#2c2c2c] hover:bg-[#242424]"
                     }`}
                 >
-                  {isPresence && <i className="ri-check-line text-sm" style={{ color: "#00A13E" }} />}
-                  <span className={`${isPresence ? "text-[#4ADE80]" : "text-zinc-300"} leading-none`}>
+                  {isPresence && (
+                    <i
+                      className="ri-check-line text-sm"
+                      style={{ color: "#00A13E" }}
+                    />
+                  )}
+                  <span
+                    className={`${
+                      isPresence ? "text-[#4ADE80]" : "text-zinc-300"
+                    } leading-none`}
+                  >
                     Present
                   </span>
                 </button>
@@ -274,14 +307,25 @@ const EditPresence = ({
                         : "bg-[#1b1b1b] border-[#2c2c2c] hover:bg-[#242424]"
                     }`}
                 >
-                  {isAbsent && <i className="ri-check-line text-sm" style={{ color: "#830404" }} />}
-                  <span className={`${isAbsent ? "text-[#D45F5F]" : "text-zinc-300"} leading-none`}>
+                  {isAbsent && (
+                    <i
+                      className="ri-check-line text-sm"
+                      style={{ color: "#830404" }}
+                    />
+                  )}
+                  <span
+                    className={`${
+                      isAbsent ? "text-[#D45F5F]" : "text-zinc-300"
+                    } leading-none`}
+                  >
                     Absent
                   </span>
                 </button>
               </div>
 
-              <label className="mt-5 text-sm text-zinc-400 font-inter">Add Notes</label>
+              <label className="mt-5 text-sm text-zinc-400 font-inter">
+                Add Notes
+              </label>
               <textarea
                 rows={2}
                 value={note}

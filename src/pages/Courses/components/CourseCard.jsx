@@ -12,11 +12,32 @@ const CourseCard = ({ course, onClick }) => {
     );
   }, []);
 
-  const circleColor =
-    (course.title || "").includes("Tata Tulis Ilmiah") ||
-    (course.alias || "").toLowerCase() === "tatul"
-      ? "bg-[#FDE047]"
-      : "bg-[#F87171]";
+  /* ===== Determine ONGOING status ===== */
+  const isOnGoing = (() => {
+    if (!course?.time) return false;
+
+    const [startStr, endStr] = course.time.split(" - ").map((s) => s.trim());
+    if (!startStr || !endStr) return false;
+
+    const now = new Date();
+
+    const parseHM = (hm) => {
+      const [h, m] = hm.split(":").map(Number);
+      const d = new Date();
+      d.setHours(h);
+      d.setMinutes(m);
+      d.setSeconds(0);
+      return d;
+    };
+
+    const start = parseHM(startStr);
+    const end = parseHM(endStr);
+
+    return now >= start && now < end;
+  })();
+
+  /* ===== Circle color ===== */
+  const circleColor = isOnGoing ? "bg-[#FDE047]" : "bg-[#F87171]";
 
   return (
     <div

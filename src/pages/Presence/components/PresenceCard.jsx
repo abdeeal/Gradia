@@ -1,10 +1,12 @@
 // src/pages/Presence/components/PresenceCard.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { getWorkspaceId } from "../../../components/getWorkspaceID";
 
 const CARD_W = 269;
 const CARD_H = 191;
 const GAP = 10;
 const MAX_W = 864;
+const MIN_SKELETON_MS = 200; // ✅ minimal skeleton muncul
 
 const PresenceCard = ({
   courses: coursesProp = [],
@@ -13,29 +15,38 @@ const PresenceCard = ({
   totalsTodayOverride = null,
   isLoading: isLoadingProp = null,
 }) => {
-  /* ===== Ambil id_workspace ===== */
-  const idWorkspace = useMemo(() => {
-    try {
-      if (typeof window !== "undefined" && window.sessionStorage) {
-        const v = Number(window.sessionStorage.getItem("id_workspace"));
-        return Number.isFinite(v) && v > 0 ? v : 1;
-      }
-    } catch {}
-    return 1;
-  }, []);
+  /* ===== Ambil id_workspace pakai helper (sama seperti CoursesToday) ===== */
+  const workspace = useMemo(() => getWorkspaceId(), []);
+
+  /* ===== Build endpoint /api/courses?q=today&idWorkspace=... (mirip CoursesToday) ===== */
+  const endpoint = useMemo(() => {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    const url = new URL("/api/courses", origin);
+    const sp = new URLSearchParams(url.search);
+
+    if (!sp.get("q")) sp.set("q", "today");
+    if (!sp.get("idWorkspace")) sp.set("idWorkspace", String(workspace));
+
+    url.search = sp.toString();
+
+    // kalau di server, ambil hanya path + query
+    return typeof window !== "undefined"
+      ? url.toString()
+      : `${url.pathname}${url.search}`;
+  }, [workspace]);
 
   /* ===== State courses hari ini (ambil dari /api/courses) ===== */
   const [coursesState, setCoursesState] = useState([]);
-  const [loadingState, setLoadingState] = useState(false);
+  const [loadingState, setLoadingState] = useState(true); // ✅ mulai true
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoadingState(true);
+      const startTime = Date.now(); // ✅ ukur durasi untuk skeleton
       try {
-        const res = await fetch(
-          `/api/courses?q=today&idWorkspace=${encodeURIComponent(idWorkspace)}`
-        );
+        const res = await fetch(endpoint, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const arr = Array.isArray(data)
@@ -47,13 +58,23 @@ const PresenceCard = ({
       } catch {
         if (alive) setCoursesState([]);
       } finally {
-        if (alive) setLoadingState(false);
+        const endTime = Date.now();
+        const elapsed = endTime - startTime;
+        const finish = () => {
+          if (alive) setLoadingState(false);
+        };
+        // ✅ pastikan skeleton minimal tampil MIN_SKELETON_MS
+        if (elapsed < MIN_SKELETON_MS) {
+          setTimeout(finish, MIN_SKELETON_MS - elapsed);
+        } else {
+          finish();
+        }
       }
     })();
     return () => {
       alive = false;
     };
-  }, [idWorkspace]);
+  }, [endpoint]);
 
   const usingParentCourses = coursesProp && coursesProp.length > 0;
   const rawCourses = usingParentCourses ? coursesProp : coursesState;
@@ -135,17 +156,42 @@ const PresenceCard = ({
     });
   }, [courses, rows]);
 
-  /* ===== CSS: sembunyikan scrollbar + auto-cols 269 ===== */
+  /* ===== CSS: sembunyikan scrollbar + shimmer + auto-cols 269 ===== */
   const HideScrollbar = () => (
     <style>{`
       .hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none;}
       .hide-scrollbar::-webkit-scrollbar{display:none;}
       .presence-grid{grid-auto-columns:${CARD_W}px;}
+
+      .gradia-shimmer {
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(
+          90deg,
+          rgba(15, 15, 15, 0) 0%,
+          rgba(63, 63, 70, 0.9) 50%,
+          rgba(15, 15, 15, 0) 100%
+        );
+        transform: translateX(-100%);
+        animation: gradia-shimmer-move 1.2s infinite;
+        background-size: 200% 100%;
+        pointer-events: none;
+      }
+
+      @keyframes gradia-shimmer-move {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
+        }
+      }
     `}</style>
   );
 
-  const Box = ({ children }) => {
-    const boxStyle = isLoading
+  // ✅ bg + border sekarang TIDAK tergantung isLoading lagi
+  const Box = ({ children, withFrame = false }) => {
+    const boxStyle = withFrame
       ? {
           height: `${CARD_H}px`,
           background: "linear-gradient(180deg, #070707 0%, #141414 100%)",
@@ -167,8 +213,9 @@ const PresenceCard = ({
     );
   };
 
+  // ✅ No Schedule Today saja yang pakai frame
   const BoxFull = ({ text }) => (
-    <Box>
+    <Box withFrame>
       <div className="h-full w-full flex items-center justify-center">
         <p className="text-white font-semibold">{text}</p>
       </div>
@@ -177,6 +224,8 @@ const PresenceCard = ({
 
   const noScheduleToday = !isLoading && coursesWithPresence.length === 0;
 
+  const SKELETON_COUNT = 4;
+
   return (
     <div className="font-[Montserrat]">
       <HideScrollbar />
@@ -184,7 +233,56 @@ const PresenceCard = ({
         {/* LEFT: container fix 864×191 */}
         <div className="flex-1 max-w-[864px]">
           {isLoading ? (
-            <BoxFull text="Loading..." />
+            // ✅ Shimmer skeleton, ukuran kartu ikut CARD_W/CARD_H
+            <Box>
+              <div
+                className="h-full w-full hide-scrollbar overflow-x-auto overflow-y-hidden flex items-stretch"
+                style={{ gap: `${GAP}px` }}
+              >
+                {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
+                  <div
+                    key={idx}
+                    className="relative rounded-xl px-3.5 py-3 overflow-hidden flex flex-col shadow"
+                    style={{
+                      width: `${CARD_W}px`,
+                      height: `${CARD_H}px`,
+                      background: "#242424",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div className="gradia-shimmer" />
+
+                    {/* konten dummy disembunyikan, hanya untuk bentuk layout */}
+                    <div className="opacity-0">
+                      {/* TOP: time + badge */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-gray-500" />
+                          <p className="text-[16px]">00:00 - 00:00</p>
+                        </div>
+                        <span className="text-[16px] px-1.5 py-[2px] rounded-md">
+                          STATUS
+                        </span>
+                      </div>
+
+                      {/* MIDDLE: title + room */}
+                      <div className="flex-1 flex flex-col justify-center">
+                        <h3 className="text-[16px] font-semibold leading-snug line-clamp-2 break-words">
+                          Dummy Course Title
+                        </h3>
+                        <p className="text-[16px] mt-1">ROOM</p>
+                      </div>
+
+                      {/* BOTTOM: button */}
+                      <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2">
+                        Log Presence{" "}
+                        <i className="ri-logout-circle-r-line ml-1" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Box>
           ) : noScheduleToday ? (
             <BoxFull text="No Schedule Today" />
           ) : (
@@ -272,7 +370,9 @@ const PresenceCard = ({
                         {/* BOTTOM */}
                         <button
                           onClick={
-                            alreadyPresenced ? undefined : () => onOpenAddPresence?.(c)
+                            alreadyPresenced
+                              ? undefined
+                              : () => onOpenAddPresence?.(c)
                           }
                           className={[
                             "bg-gradient-to-l from-[#28073B] to-[#34146C] transition-all px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2",

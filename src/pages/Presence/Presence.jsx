@@ -7,10 +7,19 @@ import AddPresence from "./components/AddPresence.jsx";
 import EditPresence from "./components/EditPresence.jsx";
 import Mobile from "./layouts/Mobile.jsx";
 import { useMediaQuery } from "react-responsive";
-import { prewarmRooms, getRoom, peekRoom, setRoom } from "@/utils/coursesRoomCache";
+import {
+  prewarmRooms,
+  getRoom,
+  peekRoom,
+  setRoom,
+} from "@/utils/coursesRoomCache";
 
-const WORKSPACE_ID = 1;
-const idWorkspace = sessionStorage.getItem("id_workspace");
+// 🔥 pakai helper yang sama seperti DueToday / Tasks / Courses
+import { getWorkspaceId } from "../../components/getWorkspaceID";
+
+// 🔁 workspace diambil dari local/session via helper
+const WORKSPACE_ID = getWorkspaceId();
+const idWorkspace = WORKSPACE_ID;
 
 /* ===== Helpers tanggal/status ===== */
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -23,8 +32,10 @@ function timeRangeStrFromApi(row) {
   const s = row.course_start ? new Date(row.course_start) : null;
   const e = row.course_end ? new Date(row.course_end) : null;
   if (!s || !e || isNaN(s) || isNaN(e)) return "";
-  const sh = pad2(s.getHours()), sm = pad2(s.getMinutes());
-  const eh = pad2(e.getHours()), em = pad2(e.getMinutes());
+  const sh = pad2(s.getHours()),
+    sm = pad2(s.getMinutes());
+  const eh = pad2(e.getHours()),
+    em = pad2(e.getMinutes());
   return `${sh}:${sm} - ${eh}:${em}`;
 }
 function windowTodayFromRange(rangeStr) {
@@ -53,7 +64,10 @@ async function safeJson(res) {
   if (!ct.includes("application/json")) {
     const text = await res.text();
     throw new Error(
-      `Expected JSON, got ${res.status} ${res.statusText}. First bytes: ${text.slice(0,200)}`
+      `Expected JSON, got ${res.status} ${res.statusText}. First bytes: ${text.slice(
+        0,
+        200
+      )}`
     );
   }
   return res.json();
@@ -99,21 +113,33 @@ async function fetchCoursesToday() {
   try {
     const r = await fetch(`/api/courses?q=today&idWorkspace=${idWorkspace}`);
     const data = await safeJson(r);
-    const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+    const arr = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.data)
+      ? data.data
+      : [];
 
     // Map ke shape yang dipakai PresenceCard + kebutuhan logic lama
     const mapped = arr.map((c) => {
-      const id = c.id ?? c.id_course ?? c.course_id;
+      const id =
+        c.id_courses ??
+        c.id_course ??
+        c.course_id ??
+        c.id ??
+        c.courseId; // ✅ perbaikan: cover id_courses
+
       const title = c.name ?? c.title ?? c.course_name ?? "-";
       const room = c.room ?? c.course_room ?? "";
       const start = toHHMM(c.start ?? c.course_start ?? c.time?.split("-")?.[0]);
-      const end   = toHHMM(c.end   ?? c.course_end   ?? c.time?.split("-")?.[1]);
+      const end = toHHMM(c.end ?? c.course_end ?? c.time?.split("-")?.[1]);
 
-      // time untuk UI: "HH:MM & HH:MM" (permintaanmu)
-      const timeAmpersand = (start && end) ? `${start} & ${end}` : (start || end || "");
+      // time untuk UI: "HH:MM & HH:MM"
+      const timeAmpersand =
+        start && end ? `${start} & ${end}` : start || end || "";
 
-      // rangeDash hanya dipakai untuk perhitungan status oleh helper lama (TIDAK mengubah logic lain)
-      const rangeDash = (start && end) ? `${start} - ${end}` : (start || end || "");
+      // rangeDash hanya dipakai untuk perhitungan status
+      const rangeDash =
+        start && end ? `${start} - ${end}` : start || end || "";
 
       return {
         id,
@@ -158,6 +184,20 @@ function Presence() {
   const [totalsGlobal, setTotalsGlobal] = useState({ presence: 0, absent: 0 });
   const [loadingTotals, setLoadingTotals] = useState(false);
 
+  // 🎯 Selalu sinkronkan total present/absent dengan records di client
+  useEffect(() => {
+    let presence = 0;
+    let absent = 0;
+
+    for (const r of records) {
+      const s = normStatus(r.status);
+      if (s === "present") presence += 1;
+      else if (s === "absent") absent += 1;
+    }
+
+    setTotalsGlobal({ presence, absent });
+  }, [records]);
+
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
   if (isMobile || isTablet) return <Mobile />;
@@ -166,10 +206,12 @@ function Presence() {
   const fetchTotalsGlobalFromServer = async () => {
     setLoadingTotals(true);
 
-    // 1) Coba endpoint stats ringkas tanpa parameter tanggal
+    // 1) Coba endpoint stats ringkas (sekarang ikut workspace)
     const tryStats = async () => {
       try {
-        const r = await fetch(`/api/presences/stats`);
+        const r = await fetch(
+          `/api/presences/stats?idWorkspace=${idWorkspace}`
+        );
         if (r.ok) {
           const data = await safeJson(r);
           if (typeof data === "object") {
@@ -243,7 +285,9 @@ function Presence() {
 
       // ===== presences
       const presRaw = await safeJson(presR);
-      const mappedRecords = (Array.isArray(presRaw) ? presRaw : []).map(mapServerRow);
+      const mappedRecords = (Array.isArray(presRaw) ? presRaw : []).map(
+        mapServerRow
+      );
 
       // rekonsiliasi record → isi room dari courses kalau kosong
       const reconciledRecords = mappedRecords.map((r) => {
@@ -276,7 +320,9 @@ function Presence() {
         prev.map((c) => {
           // hitung status pakai logic lama (range "HH:MM - HH:MM") tetapi TIDAK mengubah properti time yang ber-ampersand
           const dashRange =
-            c.start && c.end ? `${c.start} - ${c.end}` : (c.start || c.end || "");
+            c.start && c.end
+              ? `${c.start} - ${c.end}`
+              : c.start || c.end || "";
           return { ...c, status: statusFromNow(dashRange) };
         })
       );
@@ -289,6 +335,7 @@ function Presence() {
 
   /* ===== Utils Optimistic ===== */
   function upsertRecord(list, rec) {
+    if (!rec) return list; // ✅ guard kalau rec undefined
     const id = rec.id_presence || rec.id;
     const idx = list.findIndex((x) => (x.id_presence || x.id) === id);
     if (idx === -1) return [...list, rec];
@@ -337,7 +384,8 @@ function Presence() {
           id_course: courseId,
           status, // kirim apa adanya: "Present" atau "Absent"
           note,
-          id_workspace: WORKSPACE_ID,
+          // 🔗 kirim workspace yang aktif, bukan 1 fix
+          id_workspace: idWorkspace,
         }),
       });
 
@@ -365,47 +413,59 @@ function Presence() {
     }
   };
 
-  // EditPresence → Optimistic update
+  // 🔧 EditPresence → SELALU update row yang sama (PUT), BUKAN bikin id baru
   const onSaveEdit = async (updated) => {
     const key = updated.id_presence || updated.id;
+    const keyStr = String(key).trim();
     const prevSnap = records.find((x) => (x.id_presence || x.id) === key);
+
+    if (!prevSnap) return false; // kalau nggak ketemu, gagal
+
+    const finalRoom =
+      (updated.room != null && String(updated.room).trim() !== ""
+        ? updated.room
+        : null) ?? peekRoom(updated.courseId) ?? prevSnap?.room ?? "-";
 
     const nextLocal = {
       ...prevSnap,
       status: updated.status, // "Present" | "Absent"
       note: updated.note ?? prevSnap?.note ?? "",
-      room:
-        (updated.room != null && String(updated.room).trim() !== ""
-          ? updated.room
-          : null) ??
-        peekRoom(updated.courseId) ??
-        prevSnap?.room ??
-        "-",
+      room: finalRoom, // room tetap hanya info
     };
+
+    // Optimistic update di UI
     setRecords((prev) => upsertRecord(prev, nextLocal));
 
     try {
+      // ✅ SELALU pakai PUT → update id_presence yang sama di DB
       const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id_presence: updated.id_presence || updated.id,
+          id_presence: keyStr,
           id_course: updated.courseId,
-          status: updated.status, // "Present" | "Absent"
+          status: updated.status,
           note: updated.note,
+          // kalau backend butuh workspace di body, bisa dibuka:
+          // id_workspace: idWorkspace,
         }),
       });
 
       if (!res.ok) {
         const t = await res.text();
         console.error("PUT failed:", res.status, t);
-        setRecords((prev) => upsertRecord(prev, prevSnap)); // rollback
-      } else {
-        fetchTotalsGlobalFromServer();
+        // rollback ke data lama kalau gagal
+        setRecords((prev) => upsertRecord(prev, prevSnap));
+        return false;
       }
+
+      fetchTotalsGlobalFromServer();
+      return true;
     } catch (e) {
-      console.error("PUT error:", e);
-      setRecords((prev) => upsertRecord(prev, prevSnap)); // rollback
+      console.error("onSaveEdit error:", e);
+      // rollback juga kalau error network
+      setRecords((prev) => upsertRecord(prev, prevSnap));
+      return false;
     }
   };
 
@@ -414,8 +474,10 @@ function Presence() {
     const checkAutoAbsent = async () => {
       const now = new Date();
       for (const c of courses) {
+        if (!c.id) continue; // ✅ jangan proses course tanpa id
+
         const win = windowTodayFromRange(
-          c.start && c.end ? `${c.start} - ${c.end}` : (c.start || c.end || "")
+          c.start && c.end ? `${c.start} - ${c.end}` : c.start || c.end || ""
         );
         if (!win) continue;
         if (now <= win.end) continue;
@@ -449,22 +511,28 @@ function Presence() {
           setRecords((prev) => upsertRecord(prev, optimistic));
 
           try {
-            const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                id_course: c.id,
-                status: "Absent",
-                note: "Auto-Absent (lewat end-time)",
-                id_workspace: WORKSPACE_ID,
-              }),
-            });
+            const res = await fetch(
+              `/api/presences?idWorkspace=${idWorkspace}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  id_course: c.id,
+                  status: "Absent",
+                  note: "Auto-Absent (lewat end-time)",
+                  // 🔗 lagi-lagi pakai workspace aktif
+                  id_workspace: idWorkspace,
+                }),
+              }
+            );
             if (res.ok) {
               try {
                 const body = await safeJson(res);
                 const realId = body?.id_presence || body?.id || null;
                 if (realId) {
-                  setRecords((prev) => replaceTempId(prev, tempId, realId));
+                  setRecords((prev) =>
+                    replaceTempId(prev, tempId, realId)
+                  );
                 }
                 fetchTotalsGlobalFromServer();
               } catch {}
@@ -508,7 +576,8 @@ function Presence() {
               Presence
             </h1>
             <p className="text-foreground-secondary mt-1 font-[Montserrat] text-[16px]">
-              Monitor and manage attendance records with access to presence logs.
+              Monitor and manage attendance records with access to presence
+              logs.
             </p>
           </header>
 
@@ -526,7 +595,7 @@ function Presence() {
           <section>
             <PresenceTable
               rows={records}
-              isLoading={initialLoading}   // ⬅️ hanya loading saat fetch data awal
+              isLoading={initialLoading} // ⬅️ hanya loading saat fetch data awal
               onRowClick={onRowClick}
             />
           </section>

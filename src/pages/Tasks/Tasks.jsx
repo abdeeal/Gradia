@@ -1,3 +1,4 @@
+// src/pages/Tasks/index.jsx (atau path yang kamu pakai)
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import gsap from "gsap";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -6,6 +7,55 @@ import TaskDetail from "./components/TaskDetail.jsx";
 import AddTask from "./components/AddTask.jsx";
 import Mobile from "./layouts/Mobile.jsx";
 import { useMediaQuery } from "react-responsive";
+
+/* ===== Shimmer constants (samain dengan TasksSection) ===== */
+const SKELETON_TASK_H = 140;
+const SKELETON_COUNT = 1;
+
+const ShimmerStyles = () => (
+  <style>{`
+    .gradia-shimmer {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(
+        90deg,
+        rgba(15, 15, 15, 0) 0%,
+        rgba(63, 63, 70, 0.9) 50%,
+        rgba(15, 15, 15, 0) 100%
+      );
+      transform: translateX(-100%);
+      animation: gradia-shimmer-move 1.2s infinite;
+      background-size: 200% 100%;
+      pointer-events: none;
+    }
+
+    @keyframes gradia-shimmer-move {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(100%);
+      }
+    }
+  `}</style>
+);
+
+/* ===== Helper ambil id_workspace dari local/session ===== */
+const getWorkspaceId = () => {
+  try {
+    if (typeof window === "undefined") return 1;
+
+    const fromLocal = window.localStorage?.getItem("id_workspace");
+    const fromSession = window.sessionStorage?.getItem("id_workspace");
+
+    const raw = fromLocal ?? fromSession ?? "1";
+    const num = Number(raw);
+
+    return Number.isFinite(num) && num > 0 ? num : 1;
+  } catch {
+    return 1;
+  }
+};
 
 /* ===== Helpers ===== */
 const normalizeStatusKey = (s = "") => {
@@ -27,7 +77,8 @@ const Tasks = () => {
   const [showAddPanel, setShowAddPanel] = useState(false);
   const taskContainerRef = useRef(null);
 
-  const id_workspace = Number(sessionStorage.getItem("id_workspace") || "1");
+  // ✅ pakai helper getWorkspaceId()
+  const id_workspace = getWorkspaceId();
 
   const [tasksByCol, setTasksByCol] = useState({
     notStarted: [],
@@ -74,7 +125,7 @@ const Tasks = () => {
         const grouped = { notStarted: [], inProgress: [], completed: [], overdue: [] };
         (Array.isArray(data) ? data : []).forEach((t) => {
           const key = normalizeStatusKey(t.status || "");
-          if (!grouped[key]) grouped[key] = [];     // ✅ guard
+          if (!grouped[key]) grouped[key] = []; // ✅ guard
           grouped[key].push(t);
         });
         setTasksByCol(grouped);
@@ -117,7 +168,7 @@ const Tasks = () => {
     const grouped = { notStarted: [], inProgress: [], completed: [], overdue: [] };
     (Array.isArray(fresh) ? fresh : []).forEach((t) => {
       const key = normalizeStatusKey(t.status || "");
-      if (!grouped[key]) grouped[key] = [];       // ✅ guard
+      if (!grouped[key]) grouped[key] = []; // ✅ guard
       grouped[key].push(t);
     });
     setTasksByCol(grouped);
@@ -126,7 +177,7 @@ const Tasks = () => {
 
   const addTask = async (payload) => {
     try {
-      const res = await fetch(`/api/tasks?idWorkspace=${id_workspace}`, { // ✅ perbaiki URL
+      const res = await fetch(`/api/tasks?idWorkspace=${id_workspace}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -135,6 +186,7 @@ const Tasks = () => {
       await refreshList();
     } catch (e) {
       console.error("POST /api/tasks failed:", e);
+      throw e; // ✅ biar AddTask bisa nunjukin error alert
     }
   };
 
@@ -151,6 +203,7 @@ const Tasks = () => {
       if (latest) setSelectedTask(latest);
     } catch (e) {
       console.error("PUT /api/tasks failed:", e);
+      throw e; // ✅ biar TaskDetail bisa nunjukin error alert
     }
   };
 
@@ -226,7 +279,9 @@ const Tasks = () => {
       const { task } = e.detail || {};
       if (!task) return;
       setTasksByCol((prev) => placeTask(prev, task));
-      setSelectedTask((curr) => (curr && curr.id_task === task.id_task ? { ...curr, ...task } : curr));
+      setSelectedTask((curr) =>
+        curr && curr.id_task === task.id_task ? { ...curr, ...task } : curr
+      );
     };
 
     const onDeleted = (e) => {
@@ -259,6 +314,9 @@ const Tasks = () => {
       <Sidebar />
 
       <div ref={taskContainerRef} className="flex-1 pt-[20px] pb-6 overflow-y-auto bg-background">
+        {/* Shimmer global untuk halaman ini */}
+        <ShimmerStyles />
+
         <div className="mb-[24px] px-0 pr-6">
           <h1 className="text-[20px] font-Monsterrat font-semibold">Tasks</h1>
           <p className="text-gray-400 text-[16px] font-Monsterrat">
@@ -305,48 +363,49 @@ const Tasks = () => {
         <div className="border-t border-[#464646] mb-[14px] mr-6"></div>
 
         <div className="bg-background-secondary p-5 rounded-2xl mr-6 border border-[#2c2c2c]">
-          {loading ? (
-            <div className="text-gray-400 text-sm">Loading tasks…</div>
-          ) : (
-            <div className="grid grid-cols-4 gap-2">
-              <TaskCategory
-                title="Not Started"
-                icon="ri-file-edit-line"
-                iconBg="bg-[#6B7280]/20"
-                iconColor="#D4D4D8"
-                tasks={tasksByCol.notStarted}
-                onCardClick={handleCardClick}
-                courses={courses}
-              />
-              <TaskCategory
-                title="In Progress"
-                icon="ri-progress-2-line"
-                iconBg="bg-[#06B6D4]/20"
-                iconColor="#22D3EE"
-                tasks={tasksByCol.inProgress}
-                onCardClick={handleCardClick}
-                courses={courses}
-              />
-              <TaskCategory
-                title="Completed"
-                icon="ri-checkbox-circle-line"
-                iconBg="bg-[#22C55E]/20"
-                iconColor="#4ADE80"
-                tasks={tasksByCol.completed}
-                onCardClick={handleCardClick}
-                courses={courses}
-              />
-              <TaskCategory
-                title="Overdue"
-                icon="ri-alarm-warning-line"
-                iconBg="bg-[#EF4444]/20"
-                iconColor="#F87171"
-                tasks={tasksByCol.overdue}
-                onCardClick={handleCardClick}
-                courses={courses}
-              />
-            </div>
-          )}
+          {/* ✅ Selalu render grid 4 kolom, tapi tiap kolom aware sama `loading` */}
+          <div className="grid grid-cols-4 gap-2">
+            <TaskCategory
+              title="Not Started"
+              icon="ri-file-edit-line"
+              iconBg="bg-[#6B7280]/20"
+              iconColor="#D4D4D8"
+              tasks={tasksByCol.notStarted}
+              onCardClick={handleCardClick}
+              courses={courses}
+              loading={loading}
+            />
+            <TaskCategory
+              title="In Progress"
+              icon="ri-progress-2-line"
+              iconBg="bg-[#06B6D4]/20"
+              iconColor="#22D3EE"
+              tasks={tasksByCol.inProgress}
+              onCardClick={handleCardClick}
+              courses={courses}
+              loading={loading}
+            />
+            <TaskCategory
+              title="Completed"
+              icon="ri-checkbox-circle-line"
+              iconBg="bg-[#22C55E]/20"
+              iconColor="#4ADE80"
+              tasks={tasksByCol.completed}
+              onCardClick={handleCardClick}
+              courses={courses}
+              loading={loading}
+            />
+            <TaskCategory
+              title="Overdue"
+              icon="ri-alarm-warning-line"
+              iconBg="bg-[#EF4444]/20"
+              iconColor="#F87171"
+              tasks={tasksByCol.overdue}
+              onCardClick={handleCardClick}
+              courses={courses}
+              loading={loading}
+            />
+          </div>
         </div>
       </div>
 
@@ -360,11 +419,8 @@ const Tasks = () => {
           <TaskDetail
             task={selectedTask}
             onClose={closeAllDrawer}
-            onSave={updateTask}
-            onDelete={async (id) => {
-              await deleteTask(id);
-              closeAllDrawer();
-            }}
+            onSave={updateTask}     // ✅ Tasks yang ngurus PUT ke DB
+            onDelete={deleteTask}   // ✅ Tasks yang ngurus DELETE ke DB
             courses={courses}
           />
         </div>
@@ -373,7 +429,11 @@ const Tasks = () => {
       {/* Drawer Add */}
       {showAddPanel && (
         <div className="drawer-panel fixed top-0 right-0 h-full z-50">
-          <AddTask onClose={closeAllDrawer} onSubmit={addTask} courses={courses} />
+          <AddTask
+            onClose={closeAllDrawer}
+            onSubmit={addTask}      // ✅ Tasks yang ngurus POST ke DB
+            courses={courses}
+          />
         </div>
       )}
     </div>
@@ -381,7 +441,16 @@ const Tasks = () => {
 };
 
 /* -------------------------- Task Category -------------------------- */
-const TaskCategory = ({ title, icon, iconBg, iconColor, tasks, onCardClick, courses }) => {
+const TaskCategory = ({
+  title,
+  icon,
+  iconBg,
+  iconColor,
+  tasks,
+  onCardClick,
+  courses,
+  loading,
+}) => {
   const sectionRef = useRef(null);
 
   useEffect(() => {
@@ -404,14 +473,64 @@ const TaskCategory = ({ title, icon, iconBg, iconColor, tasks, onCardClick, cour
       </div>
 
       <div className="flex flex-col gap-2 w-full">
-        {tasks.map((task) => {
-          const course_title = task.course_title || getCourseTitle(courses, task.id_course);
-          return (
-            <div key={task.id_task} onClick={() => onCardClick(task)} className="w-full cursor-pointer">
-              <TaskCard {...task} course_title={course_title} />
+        {loading ? (
+          // ===== SHIMMER LOADING: persis pattern TasksSection =====
+          Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
+            <div
+              key={idx}
+              className="relative rounded-xl overflow-hidden w-full"
+              style={{
+                height: `${SKELETON_TASK_H}px`,
+                background: "#242424",
+                flexShrink: 0,
+              }}
+            >
+              <div className="gradia-shimmer" />
+              {/* Dummy layout untuk bentuk, tapi disembunyikan */}
+              <div className="opacity-0 h-full p-4 flex flex-col justify-between">
+                {/* Bagian waktu */}
+                <div className="relative pl-5 mb-5">
+                  <div className="w-[10px] h-[10px] rounded-full bg-gray-500 absolute left-0 top-1/2 -translate-y-1/2" />
+                  <div className="h-4 w-32 bg-gray-600 rounded mb-1" />
+                </div>
+
+                {/* Body */}
+                <div className="w-[90%] mb-4">
+                  <div className="h-4 w-48 bg-gray-600 rounded mb-2" />
+                  <div className="h-4 w-40 bg-gray-700 rounded mb-2" />
+                  <div className="h-4 w-56 bg-gray-800 rounded" />
+                </div>
+
+                {/* Badge priority & status */}
+                <div className="flex gap-2">
+                  <div className="h-7 w-24 bg-gray-700 rounded-md" />
+                  <div className="h-7 w-24 bg-gray-700 rounded-md" />
+                </div>
+              </div>
             </div>
-          );
-        })}
+          ))
+        ) : tasks && tasks.length > 0 ? (
+          tasks.map((task) => {
+            const course_title = task.course_title || getCourseTitle(courses, task.id_course);
+            return (
+              <div
+                key={task.id_task}
+                onClick={() => onCardClick(task)}
+                className="w-full cursor-pointer"
+              >
+                <TaskCard {...task} course_title={course_title} />
+              </div>
+            );
+          })
+        ) : (
+          // ===== NO DATA: ukuran & rounded sama kayak skeleton =====
+          <div
+            className="rounded-xl border border-[#464646]/50 bg-[#000000] flex items-center justify-center text-[16px] text-neutral-500 w-full"
+            style={{ height: `${SKELETON_TASK_H}px` }}
+          >
+            No Task
+          </div>
+        )}
       </div>
     </div>
   );

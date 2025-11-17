@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useMediaQuery } from "react-responsive";
 import Mobile from "./Layout/Mobile"; // Mobile kamu yang sudah jalan
 import { useNavigate, Link } from "react-router-dom";
+import { useAlert } from "@/hooks/useAlert"; // ✅ pakai alert sama seperti Workspace
 
 const Login = () => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -14,6 +15,7 @@ const Login = () => {
 
 function DesktopLoginPage() {
   const navigate = useNavigate();
+  const { showAlert } = useAlert(); // ✅ init alert
 
   // normal login (email & password)
   const [email, setEmail] = useState("");
@@ -70,11 +72,83 @@ function DesktopLoginPage() {
     outline: "none",
   };
 
-  // === Normal login (dummy) -> /workspaces ===
-  const handleLogin = (e) => {
+  // === Normal login -> /workspace ===
+  const handleLogin = async (e) => {
     e.preventDefault();
-    // TODO: kalau mau, samain dengan /api/auth (seperti Mobile)
-    navigate("/workspace");
+    setErrorMsg("");
+
+    try {
+      const res = await fetch("/api/index", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login", // ⬅️ sesuaikan dengan switch(action) di /api/index
+          email,
+          password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        const message =
+          data.error || "Login failed. Please check your credentials.";
+        setErrorMsg(message);
+        showAlert({
+          icon: "ri-error-warning-fill",
+          title: "Login Failed",
+          desc: message,
+          variant: "destructive",
+          width: 676,
+          height: 380,
+        });
+        return;
+      }
+
+      // fleksibel: { id_user, username, email } atau { data: { ... } }
+      const idUser =
+        data?.id_user ?? data?.data?.id_user ?? data?.user?.id_user;
+      const username =
+        data?.username ?? data?.data?.username ?? data?.user?.username;
+      const emailFromApi =
+        data?.email ?? data?.data?.email ?? data?.user?.email ?? email;
+
+      const user = {
+        id_user: idUser,
+        username: username,
+        email: emailFromApi,
+      };
+
+      // ✅ simpan objek user (id_user tetap number di dalam JSON)
+      localStorage.setItem("user", JSON.stringify(user));
+
+      // ✅ simpan id_user sebagai angka (INT8, tidak di-JSON.stringify)
+      if (idUser != null) {
+        localStorage.setItem("id_user", idUser);
+      }
+
+      // ✅ username & email disimpan sebagai TEXT
+      if (username) {
+        localStorage.setItem("username", username);
+      }
+      if (emailFromApi) {
+        localStorage.setItem("email", emailFromApi);
+      }
+
+      navigate("/workspace");
+    } catch (err) {
+      console.error("Login error:", err);
+      const message = "Login failed. Please try again.";
+      setErrorMsg(message);
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Login Error",
+        desc: message,
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
+    }
   };
 
   // === Google Login: sama endpoint dengan Mobile ===
@@ -87,22 +161,52 @@ function DesktopLoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Google login failed");
+        const message = data.error || "Google login failed";
+        // ✅ alert error dari server
+        showAlert({
+          icon: "ri-error-warning-fill",
+          title: "Google Login Failed",
+          desc: message,
+          variant: "destructive",
+          width: 676,
+          height: 380,
+        });
+        throw new Error(message);
       }
 
       if (data.url) {
         window.location.href = data.url;
       } else {
-        throw new Error("No redirect URL from server");
+        const message = "No redirect URL from server";
+        showAlert({
+          icon: "ri-error-warning-fill",
+          title: "Google Login Error",
+          desc: message,
+          variant: "destructive",
+          width: 676,
+          height: 380,
+        });
+        throw new Error(message);
       }
     } catch (err) {
       console.error("Google login error (desktop):", err);
-      setErrorMsg(err.message || "Google login failed. Please try again.");
+      const message =
+        err?.message || "Google login failed. Please try again.";
+      setErrorMsg(message);
+      // ✅ alert error catch
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Google Login Error",
+        desc: message,
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
       setGoogleLoading(false);
     }
   };
 
-  // === Callback Google: simpan user & redirect ke /workspaces ===
+  // === Callback Google: simpan user & redirect ke /workspace ===
   useEffect(() => {
     const hash = window.location.hash;
     if (!hash.includes("access_token")) return;
@@ -123,34 +227,89 @@ function DesktopLoginPage() {
         console.log("GOOGLE CALLBACK DATA (desktop):", data);
 
         if (data.error) {
-          setErrorMsg(data.error || "Google login callback failed.");
+          const message =
+            data.error || "Google login callback failed.";
+          setErrorMsg(message);
+          // ✅ alert callback error
+          showAlert({
+            icon: "ri-error-warning-fill",
+            title: "Google Login Callback Failed",
+            desc: message,
+            variant: "destructive",
+            width: 676,
+            height: 380,
+          });
           return;
         }
 
-        // dari log kita tahu struktur: { id_user, username, email }
+        // dari log: { id_user, username, email }
         if (data.email) {
+          const idUser =
+            data?.id_user ?? data?.data?.id_user ?? data?.user?.id_user;
+          const username =
+            data?.username ?? data?.data?.username ?? data?.user?.username;
+          const emailFromApi =
+            data?.email ?? data?.data?.email ?? data?.user?.email;
+
           const user = {
-            id_user: data.id_user,
-            username: data.username,
-            email: data.email,
+            id_user: idUser,
+            username: username,
+            email: emailFromApi,
           };
 
+          // ✅ Simpan full user (JSON)
           localStorage.setItem("user", JSON.stringify(user));
+
+          // ✅ Simpan id_user sebagai INT8 (angka, tidak di-JSON)
+          if (idUser != null) {
+            localStorage.setItem("id_user", idUser);
+          }
+
+          // ✅ username & email sebagai TEXT
+          if (username) {
+            localStorage.setItem("username", username);
+          }
+          if (emailFromApi) {
+            localStorage.setItem("email", emailFromApi);
+          }
+
           navigate("/workspace");
         } else {
-          setErrorMsg("Google login failed: invalid response from server.");
+          const message =
+            "Google login failed: invalid response from server.";
+          setErrorMsg(message);
+          // ✅ alert invalid response
+          showAlert({
+            icon: "ri-error-warning-fill",
+            title: "Google Login Error",
+            desc: message,
+            variant: "destructive",
+            width: 676,
+            height: 380,
+          });
         }
       })
       .catch((err) => {
         console.error("Google callback error (desktop):", err);
-        setErrorMsg("Google login failed. Please try again.");
+        const message = "Google login failed. Please try again.";
+        setErrorMsg(message);
+        // ✅ alert catch callback
+        showAlert({
+          icon: "ri-error-warning-fill",
+          title: "Google Login Callback Error",
+          desc: message,
+          variant: "destructive",
+          width: 676,
+          height: 380,
+        });
       })
       .finally(() => {
-        // hapus hash supaya URL bersih
-        window.history.replaceState({}, document.title, "/auth/login");
+        // 🔁 Hapus hash tapi TIDAK lagi paksa ke /auth/login
+        const cleanUrl = window.location.pathname + window.location.search;
+        window.history.replaceState({}, document.title, cleanUrl);
         setGoogleLoading(false);
       });
-  }, [navigate]);
+  }, [navigate, showAlert]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black text-white">

@@ -77,6 +77,32 @@ const monthNames = [
   "July","August","September","October","November","December"
 ];
 
+/* 🔥 Helper: format jam START–END
+   - START selalu "00:00"
+   - END diambil dari deadline (timestamptz, ambil HH:mm aja)
+*/
+const formatTimeRange = (ev) => {
+  const START = "00:00";
+
+  // deadline dari DB, bentuk timestamptz
+  const rawDeadline = ev?.raw?.deadline ?? ev?.deadline ?? null;
+
+  if (rawDeadline) {
+    const d = new Date(rawDeadline);
+    if (!Number.isNaN(d.getTime())) {
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      const END = `${hh}:${mm}`;
+      return `${START} - ${END}`;
+    }
+  }
+
+  // fallback kalau tidak ada / gagal parse deadline → pakai logic lama
+  if (ev.start && ev.end) return `${ev.start} - ev.end`;
+  if (ev.start) return ev.start;
+  return "00:00 - 23:59";
+};
+
 export default function EventDetailsPanel({
   selectedDate,
   events = [],
@@ -169,11 +195,8 @@ export default function EventDetailsPanel({
                     backgroundColor: dotColorFor(ev),
                   }}
                 />
-                {ev.start && ev.end
-                  ? `${ev.start} - ${ev.end}`
-                  : ev.start
-                  ? ev.start
-                  : "00:00 - 23:59"}
+                {/* 🔥 Jam: START = 00:00, END = dari deadline (HH:mm) */}
+                {formatTimeRange(ev)}
               </span>
 
               <button
@@ -203,12 +226,20 @@ export default function EventDetailsPanel({
             {/* Badges */}
             <div className="flex gap-2 mt-auto">
               {ev.priority && (
-                <Badge label={canon(ev.priority, PRIORITY_CANON) || ev.priority} theme={PRIORITY_COLORS[canon(ev.priority, PRIORITY_CANON) || ev.priority]} />
+                <Badge
+                  label={canon(ev.priority, PRIORITY_CANON) || ev.priority}
+                  theme={
+                    PRIORITY_COLORS[canon(ev.priority, PRIORITY_CANON) || ev.priority]
+                  }
+                />
               )}
               {ev.status && (
                 <Badge
                   label={canon(ev.status, STATUS_CANON) || ev.status}
-                  theme={STATUS_COLORS[canon(ev.status, STATUS_CANON) || ev.status] || STATUS_COLORS["Not started"]}
+                  theme={
+                    STATUS_COLORS[canon(ev.status, STATUS_CANON) || ev.status] ||
+                    STATUS_COLORS["Not started"]
+                  }
                 />
               )}
             </div>

@@ -1,5 +1,5 @@
 // src/pages/Dashboard/index.jsx
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import Mobile from "./Layout/Mobile";
 
@@ -16,15 +16,71 @@ export default function Dashboard() {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
 
-  // On mobile & tablet use the dedicated mobile layout
   if (isMobile || isTablet) {
     return <Mobile />;
   }
 
-  // Desktop layout below
   const now = useMemo(() => new Date(), []);
-  // Night = 18:00–05:59
   const isNight = now.getHours() >= 18 || now.getHours() < 6;
+
+  // state user
+  const [username, setUsername] = useState("User"); // default
+  const [id_user, setIdUser] = useState(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // 🔹 Ambil username & id_user langsung dari localStorage (tanpa fetch API)
+  useEffect(() => {
+    try {
+      const storedId = localStorage.getItem("id_user");
+      const storedUsername = localStorage.getItem("username");
+      const storedUserRaw = localStorage.getItem("user");
+
+      if (storedId) {
+        const numericId = Number(storedId);
+        if (!Number.isNaN(numericId)) {
+          setIdUser(numericId);
+        }
+      }
+
+      let finalUsername = storedUsername || null;
+
+      // kalau key "username" kosong, coba ambil dari objek "user" atau dari email
+      if (!finalUsername && storedUserRaw) {
+        try {
+          const u = JSON.parse(storedUserRaw) || {};
+
+          // beberapa kemungkinan nama field
+          finalUsername =
+            u.username ||
+            u.UserName ||
+            u.name ||
+            u.fullname ||
+            null;
+
+          // fallback terakhir: ambil dari email sebelum "@"
+          if (!finalUsername && u.email) {
+            const beforeAt = String(u.email).split("@")[0];
+            if (beforeAt) {
+              finalUsername = beforeAt;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to parse localStorage user:", e);
+        }
+      }
+
+      if (finalUsername) {
+        setUsername(finalUsername);
+        // simpan lagi supaya kedepannya cukup baca "username"
+        localStorage.setItem("username", finalUsername);
+      }
+
+      setIsLoaded(true);
+    } catch (e) {
+      console.error("Error loading user from localStorage:", e);
+      setIsLoaded(true);
+    }
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-black text-white">
@@ -36,7 +92,11 @@ export default function Dashboard() {
         {/* Header */}
         <header className="mb-4 px-0 pr-6">
           <h1 className="text-2xl font-bold">
-            Welcome in, <span className="text-amber-300">Abdee Alamsyah</span>
+            Welcome in,{" "} 
+            <span className="text-foreground-300">
+  {isLoaded ? `${username}!` : "..."}
+</span>
+
           </h1>
           <p className="text-gray-400">
             Track your learning progress, courses and tasks for today

@@ -1,7 +1,6 @@
-// 📄 src/components/CoursesToday.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import "remixicon/fonts/remixicon.css";
-
+import { getWorkspaceId } from "../../../components/getWorkspaceID";
 /** Parse "HH:mm"/"HH.mm" ke Date hari ini */
 function parseHM(hm) {
   if (!hm) return null;
@@ -9,8 +8,10 @@ function parseHM(hm) {
   const [h, m] = cleaned.split(".").map((x) => parseInt(x, 10));
   const d = new Date();
   d.setSeconds(0, 0);
-  d.setMinutes(Number.isFinite(m) ? m : 0);
-  d.setHours(Number.isFinite(h) ? h : 0);
+  const mm = Number.isFinite(m) ? m : 0;
+  const hh = Number.isFinite(h) ? h : 0;
+  d.setMinutes(mm);
+  d.setHours(hh);
   return d;
 }
 
@@ -47,10 +48,7 @@ function toHM(value) {
   return "";
 }
 
-/**
- * Ambil hanya baris pertama dari lecturer.
- * - Jika ada <br> atau newline, baris kedua dan seterusnya dihapus.
- */
+/** Ambil hanya baris pertama dari lecturer. */
 function firstLineOnlyLecturer(value) {
   if (!value) return "";
   const normalized = String(value).replace(/<br\s*\/?>/gi, "\n");
@@ -61,38 +59,26 @@ function firstLineOnlyLecturer(value) {
   return lines[0] || "";
 }
 
-/**
- * Potong string dengan ellipsis tapi hanya pada batas kata.
- * Jika panjang <= maxChars -> balikin apa adanya.
- * Jika tidak ada spasi sebelum batas -> pakai batas karakter (fallback).
- */
+/** Potong string dengan ellipsis tapi hanya pada batas kata. */
 function ellipsizeAtWord(text, maxChars = 42) {
   const s = String(text).trim();
   if (!s) return "";
   if (s.length <= maxChars) return s;
-  // cari spasi terakhir sebelum maxChars
   const cut = s.lastIndexOf(" ", maxChars);
   if (cut > 0) return s.slice(0, cut).trimEnd() + " …";
-  // fallback kalau tidak ada spasi (nama single-token panjang)
   return s.slice(0, maxChars).trimEnd() + " …";
 }
+
+const MIN_SKELETON_MS = 200; // ✅ minimal skeleton muncul 600ms
 
 export default function CoursesToday({ apiBase = "/api/courses" }) {
   const [now, setNow] = useState(new Date());
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);   // ✅ mulai true
   const [error, setError] = useState(null);
 
-  // baca id_workspace dari sessionStorage
-  const workspace = useMemo(() => {
-    try {
-      if (typeof window !== "undefined" && window.sessionStorage) {
-        const val = Number(window.sessionStorage.getItem("id_workspace"));
-        return Number.isFinite(val) && val > 0 ? val : 1;
-      }
-    } catch {}
-    return 1;
-  }, []);
+  // ✅ PAKAI FUNGSI getWorkspaceId YANG SUDAH DIBUAT
+  const workspace = useMemo(() => getWorkspaceId(), []);
 
   // refresh waktu tiap 60 detik
   useEffect(() => {
@@ -118,16 +104,15 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
     async function fetchCourses() {
       setLoading(true);
       setError(null);
+      const startTime = Date.now(); // ✅ buat ukur durasi
       try {
         const res = await fetch(endpoint, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const arr = Array.isArray(json) ? json : json.data || [];
 
-        // ⬇️ hanya gunakan field: c.start, c.end, c.room, c.name, c.lecturer
         const normalized = arr.map((c) => {
           const firstLineLecturer = firstLineOnlyLecturer(c.lecturer || "");
-          // perkiraan panjang aman untuk lebar 245px @14px font -> ~40-44 chars
           const lecturerOneLine = ellipsizeAtWord(firstLineLecturer, 44);
           return {
             start: toHM(c.start ?? ""),
@@ -135,7 +120,7 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
             title: c.name || "",
             room: c.room || "",
             lecturer: lecturerOneLine,
-            lecturerFull: firstLineLecturer, // untuk tooltip
+            lecturerFull: firstLineLecturer,
           };
         });
 
@@ -146,7 +131,16 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
           setError(e?.message || "Failed to load");
         }
       } finally {
-        if (active) setLoading(false);
+        const endTime = Date.now();
+        const elapsed = endTime - startTime;
+        const finish = () => {
+          if (active) setLoading(false);
+        };
+        if (elapsed < MIN_SKELETON_MS) {
+          setTimeout(finish, MIN_SKELETON_MS - elapsed);
+        } else {
+          finish();
+        }
       }
     }
     fetchCourses();
@@ -172,6 +166,8 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
     return { backgroundColor: "#22C55E33", color: "#4ADE80", fontWeight: 600 };
   };
 
+  const SKELETON_COUNT = 4;
+
   return (
     <div
       id="id_course"
@@ -189,6 +185,30 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
       <style>{`
         #id_course .hide-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
         #id_course .hide-scrollbar::-webkit-scrollbar { width:0; height:0; display:none; }
+
+        .gradia-shimmer {
+          position: absolute;
+          inset: 0;
+          background-image: linear-gradient(
+            90deg,
+            rgba(15, 15, 15, 0) 0%,
+            rgba(63, 63, 70, 0.9) 50%,
+            rgba(15, 15, 15, 0) 100%
+          );
+          transform: translateX(-100%);
+          animation: gradia-shimmer-move 1.2s infinite;
+          background-size: 200% 100%;
+          pointer-events: none;
+        }
+
+        @keyframes gradia-shimmer-move {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
       `}</style>
 
       {/* Header */}
@@ -223,11 +243,87 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
 
       {/* Content */}
       {loading ? (
+        // SKELETON
         <div
-          className="flex items-center justify-center flex-1"
-          style={{ fontFamily: "Inter, sans-serif", color: "#9CA3AF", fontSize: 14 }}
+          className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar"
+          style={{ gap: 8, alignItems: "flex-start", flex: 1 }}
         >
-          Loading...
+          {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
+            <article
+              key={idx}
+              className="relative snap-start rounded-2xl px-4 py-3 shadow overflow-hidden"
+              style={{
+                minWidth: 245,
+                width: 245,
+                height: 162,
+                background: "#242424",
+                fontFamily: "Inter, ui-sans-serif, system-ui",
+                flexShrink: 0,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-start",
+              }}
+            >
+              <div className="gradia-shimmer" />
+
+              <div className="opacity-0">
+                <p
+                  className="text-gray-300 flex items-center gap-2"
+                  style={{ fontSize: 14, lineHeight: 1.25 }}
+                >
+                  <i
+                    className="ri-time-line text-[#643EB2]"
+                    style={{ fontSize: 16, marginLeft: -3 }}
+                  />
+                  00:00 - 00:00
+                </p>
+
+                <h3
+                  className="text-white font-semibold leading-snug"
+                  style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
+                >
+                  Dummy Title
+                </h3>
+
+                <p
+                  className="text-gray-300"
+                  style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
+                >
+                  ROOM
+                </p>
+
+                <p
+                  className="text-gray-300"
+                  style={{
+                    fontSize: 16,
+                    marginTop: 6,
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: "100%",
+                  }}
+                >
+                  LECTURER
+                </p>
+
+                <div className="mt-1 pt-1 border-t border-white/30">
+                  <span
+                    className="inline-block rounded"
+                    style={{
+                      marginTop: 6,
+                      fontSize: 16,
+                      height: 26,
+                      padding: "0 16px",
+                      borderRadius: 4,
+                    }}
+                  >
+                    STATUS
+                  </span>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
       ) : error ? (
         <div
@@ -262,7 +358,7 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
       ) : (
         <div
           className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar"
-          style={{ gap: 8, alignItems: "flex-start", flex: 1 }} // gap diperkecil
+          style={{ gap: 8, alignItems: "flex-start", flex: 1 }}
         >
           {withComputed.map((c, idx) => (
             <article
@@ -293,7 +389,7 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
 
               <h3
                 className="text-white font-semibold leading-snug"
-                style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }} // mt diperkecil
+                style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
               >
                 {c.title}
               </h3>
@@ -301,7 +397,7 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
               {c.room && (
                 <p
                   className="text-gray-300"
-                  style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }} // mt diperkecil
+                  style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
                 >
                   {c.room}
                 </p>
@@ -312,9 +408,9 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
                   className="text-gray-300"
                   style={{
                     fontSize: 16,
-                    marginTop: 6,         // mt diperkecil
-                    lineHeight: 1.2,      // rapatkan line-height
-                    whiteSpace: "nowrap", // tetap 1 baris
+                    marginTop: 6,
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     maxWidth: "100%",
@@ -325,7 +421,7 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
                 </p>
               )}
 
-              <div className="mt-1 pt-1 border-t border-white/30"> {/* jarak label & garis diperkecil */}
+              <div className="mt-1 pt-1 border-t border-white/30">
                 <span
                   className="inline-block rounded"
                   style={{
@@ -333,7 +429,7 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
                     marginTop: 6,
                     fontSize: 16,
                     height: 26,
-                    padding: "0 16px", // sedikit dipadatkan
+                    padding: "0 16px",
                     borderRadius: 4,
                   }}
                 >

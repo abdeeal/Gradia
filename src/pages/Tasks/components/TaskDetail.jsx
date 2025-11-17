@@ -1,7 +1,7 @@
 // src/pages/Tasks/components/TaskDetail.jsx
 import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import axios from "axios";
+// ⛔ axios DIHAPUS – DB di-handle Tasks
 import { useAlert } from "@/hooks/useAlert";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
@@ -128,13 +128,17 @@ const statusValueClass = (val) => {
 /* ---------- Row & Inputs ---------- */
 const Row = ({ icon, label, children, onClick, className = "" }) => (
   <div
-    className={`flex items-center gap-3 group h-[30px] ${onClick ? "cursor-pointer" : ""} ${className}`}
+    className={`flex items-center gap-3 group h-[30px] ${
+      onClick ? "cursor-pointer" : ""
+    } ${className}`}
     onClick={onClick}
   >
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400 whitespace-nowrap">{label}</span>
     <div className="flex-1 min-w-0 flex items-center h-[30px]">
-      <div className="field-slot w-full h-[30px] flex items-center pl-2">{children}</div>
+      <div className="field-slot w-full h-[30px] flex items-center pl-2">
+        {children}
+      </div>
     </div>
   </div>
 );
@@ -199,7 +203,7 @@ const uniqBy = (arr, keyFn) => {
   return Array.from(m.values());
 };
 
-/* Seed dari task agar label trigger langsung muncul (tanpa nunggu fetch) */
+/* Seed dari task agar label trigger langsung muncul */
 const seedCoursesFromTask = (task) => {
   const id =
     task?.id_course ?? task?.course_id ?? task?.relatedCourse ?? task?.course?.id;
@@ -210,23 +214,23 @@ const seedCoursesFromTask = (task) => {
 
 const TaskDetail = ({
   task,
-  setDrawer,          // opsional (backward compat)
-  refreshTasks,       // opsional
+  setDrawer,
+  refreshTasks, // dibiarkan untuk compat, tidak dipakai DB
   courses: coursesProp,
-  onTaskUpdated,      // opsional
-  onTaskDeleted,      // opsional
-  onClose,            // opsional
-  onSave,             // opsional
+  onTaskUpdated, // compat
+  onTaskDeleted, // compat
+  onClose,
+  onSave, // ✅ parent (Tasks) update DB
+  onDelete, // ✅ parent (Tasks) delete DB
 }) => {
   const { showAlert } = useAlert();
   const drawerRef = useRef(null);
+  const deadlineEditRef = useRef(null); // 🔹 ref khusus container edit deadline
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  /* ---------- idWorkspace ---------- */
   const idWorkspace = getIdWorkspace();
 
-  /* ---------- Form state ---------- */
   const [form, setForm] = useState({
     id_task: task?.id_task,
     title: task?.title || "",
@@ -246,14 +250,12 @@ const TaskDetail = ({
   });
   const [editingKey, setEditingKey] = useState(null);
 
-  /* ---------- Courses state ---------- */
   const [courses, setCourses] = useState(() => {
-    const fromTask = seedCoursesFromTask(task);     // label langsung ada
+    const fromTask = seedCoursesFromTask(task);
     const fromProp = normalizeCourses(coursesProp || []);
     return uniqBy([...fromTask, ...fromProp], (c) => String(c.id_courses));
   });
 
-  // Fetch control (fetch hanya saat dropdown dibuka)
   const [coursesFetching, setCoursesFetching] = useState(false);
   const [coursesFetched, setCoursesFetched] = useState(false);
   const [isCourseOpen, setIsCourseOpen] = useState(false);
@@ -263,10 +265,10 @@ const TaskDetail = ({
     setCoursesFetching(true);
     const t0 = Date.now();
     try {
-      // === tambahkan idWorkspace pada request ===
-      const r = await fetch(`/api/courses?idWorkspace=${encodeURIComponent(idWorkspace)}`, {
-        cache: "no-store",
-      });
+      const r = await fetch(
+        `/api/courses?idWorkspace=${encodeURIComponent(idWorkspace)}`,
+        { cache: "no-store" }
+      );
       if (!r.ok) throw new Error("courses request failed");
       const raw = await r.json();
       const list = normalizeCourses(raw);
@@ -277,30 +279,32 @@ const TaskDetail = ({
         )
       );
 
-      // kalau form.id_course bukan ID valid (data lama simpan nama), coba cocokan by name
-      const hasId = list.some((c) => String(c.id_courses) === String(form.id_course));
+      const hasId = list.some(
+        (c) => String(c.id_courses) === String(form.id_course)
+      );
       if (!hasId && form.id_course) {
-        const byName = list.find((c) => String(c.name) === String(form.id_course));
-        if (byName) setForm((p) => ({ ...p, id_course: String(byName.id_courses) }));
+        const byName = list.find(
+          (c) => String(c.name) === String(form.id_course)
+        );
+        if (byName)
+          setForm((p) => ({ ...p, id_course: String(byName.id_courses) }));
       }
 
       setCoursesFetched(true);
     } catch {
-      // (opsional) bisa tambah fallback dari /api/tasks bila perlu
+      // ignore
     } finally {
       const elapsed = Date.now() - t0;
-      if (elapsed < 1000) await wait(1000 - elapsed); // min 1s untuk UX mulus
+      if (elapsed < 1000) await wait(1000 - elapsed);
       setCoursesFetching(false);
     }
   };
 
-  /* Prefetch on mount (tidak ubah logic lain) */
   useEffect(() => {
     fetchCoursesOnce();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* Sinkron saat task berubah (tetap seed agar label aman) */
   useEffect(() => {
     if (!task) return;
     setForm((prev) => ({
@@ -324,21 +328,28 @@ const TaskDetail = ({
     setEditingKey(null);
 
     setCourses((prev) =>
-      uniqBy([...prev, ...seedCoursesFromTask(task)], (c) => String(c.id_courses))
+      uniqBy([...prev, ...seedCoursesFromTask(task)], (c) =>
+        String(c.id_courses)
+      )
     );
   }, [task]);
 
-  /* Animasi drawer */
   useEffect(() => {
-    gsap.fromTo(drawerRef.current, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
-    return () => gsap.to(drawerRef.current, { x: "100%", duration: 0.4, ease: "power2.in" });
+    gsap.fromTo(
+      drawerRef.current,
+      { x: "100%" },
+      { x: 0, duration: 0.5, ease: "power3.out" }
+    );
+    return () =>
+      gsap.to(drawerRef.current, {
+        x: "100%",
+        duration: 0.4,
+        ease: "power2.in",
+      });
   }, []);
 
   const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
-  /* =========================
-     SAVE (Optimistic, capped 1s, lalu success + tutup drawer)
-     ========================= */
   const closeDrawer = () => {
     if (onClose) onClose();
     else setDrawer?.(false);
@@ -374,8 +385,10 @@ const TaskDetail = ({
     const payload = {
       id_task: task.id_task,
       title: form.title,
+      subtitle: form.subtitle,
       description: form.subtitle || null,
-      deadline: combinedDeadline,
+      // ⬇️ deadline dikirim sebagai ISO string (timestamptz)
+      deadline: combinedDeadline ? combinedDeadline.toISOString() : null,
       priority: form.priority || null,
       status: normalizeStatus(form.status) || null,
       score: form.score === "" ? null : Number(form.score),
@@ -384,42 +397,29 @@ const TaskDetail = ({
         form.id_course != null && form.id_course !== ""
           ? Number(form.id_course)
           : null,
+      id_workspace: idWorkspace,
     };
 
-    const optimisticTask = {
-      ...task,
-      title: payload.title,
-      description: payload.description,
-      deadline: payload.deadline,
-      priority: payload.priority,
-      status: payload.status,
-      score: payload.score,
-      link: payload.link,
-      id_course: payload.id_course,
-    };
+    if (typeof onSave !== "function") {
+      console.warn("TaskDetail: onSave tidak diberikan, tidak mengirim ke DB.");
+      return;
+    }
 
     try {
       setLoading(true);
+      const savePromise = onSave(payload);
+      const [saveResult] = await Promise.allSettled([
+        savePromise,
+        wait(1000), // min 1s UX
+      ]);
 
-      // Update optimistik (list & detail) langsung
-      window.dispatchEvent(new CustomEvent("tasks:updated", { detail: { task: optimisticTask } }));
-      if (typeof onTaskUpdated === "function") onTaskUpdated(optimisticTask);
+      if (saveResult.status === "rejected") {
+        throw saveResult.reason;
+      }
 
-      // === sertakan idWorkspace pada request ===
-      const req = axios
-        .put(`/api/tasks?idWorkspace=${encodeURIComponent(idWorkspace)}`, payload)
-        .then(async () => {
-          if (typeof onSave === "function") {
-            try { await onSave(payload); } catch (_) {}
-          }
-        })
-        .catch((err) => {
-          // sengaja tidak menampilkan error alert
-          console.log(err?.response?.data || err?.message);
-        });
-
-      // Batasi proses saving di UI: tepat 1 detik lalu tampilkan success
-      await wait(1000);
+      if (typeof onTaskUpdated === "function") {
+        onTaskUpdated(payload);
+      }
 
       showAlert({
         icon: "ri-checkbox-circle-fill",
@@ -431,33 +431,38 @@ const TaskDetail = ({
       });
 
       setEditingKey(null);
-
-      // Tutup drawer segera setelah sukses (biarkan request tetap berjalan)
       requestAnimationFrame(() => closeDrawer());
-
-      void req;
+    } catch (err) {
+      console.log(err?.response?.data || err?.message || err);
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Error",
+        desc: "Failed to update task. Please try again.",
+        variant: "destructive",
+        width: 676,
+        height: 380,
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  /* =========================
-     DELETE (Optimistic) — min 1s + tutup drawer
-     ========================= */
   const handleDelete = async () => {
+    if (!task?.id_task) return;
+    if (typeof onDelete !== "function") {
+      console.warn("TaskDetail: onDelete tidak diberikan, tidak mengirim ke DB.");
+      return;
+    }
+
     const t0 = Date.now();
     try {
       setLoading(true);
 
-      window.dispatchEvent(new CustomEvent("tasks:deleted", { detail: { id_task: task.id_task } }));
+      if (typeof onTaskDeleted === "function") {
+        onTaskDeleted(task.id_task);
+      }
 
-      if (typeof onTaskDeleted === "function") onTaskDeleted(task.id_task);
-      else if (typeof refreshTasks === "function") refreshTasks();
-
-      // === sertakan idWorkspace pada request ===
-      await axios.delete(
-        `/api/tasks?id=${encodeURIComponent(task.id_task)}&idWorkspace=${encodeURIComponent(idWorkspace)}`
-      );
+      await onDelete(task.id_task);
 
       showAlert({
         icon: "ri-delete-bin-2-line",
@@ -470,8 +475,7 @@ const TaskDetail = ({
 
       requestAnimationFrame(() => closeDrawer());
     } catch (err) {
-      console.log(err?.response?.data || err?.message);
-
+      console.log(err?.response?.data || err?.message || err);
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Error",
@@ -480,23 +484,31 @@ const TaskDetail = ({
         width: 676,
         height: 380,
       });
-
-      if (typeof refreshTasks === "function") refreshTasks();
+      refreshTasks?.();
     } finally {
       const elapsed = Date.now() - t0;
-      if (elapsed < 1000) await wait(1000 - elapsed); // min 1s agar UX konsisten
+      if (elapsed < 1000) await wait(1000 - elapsed);
       setLoading(false);
     }
   };
 
-  /* ---------- Derived: selected course label ---------- */
   const selectedCourseName =
-    courses.find((c) => String(c.id_courses) === String(form.id_course))?.name || "";
+    courses.find((c) => String(c.id_courses) === String(form.id_course))
+      ?.name || "";
 
-  /* Lock dropdown sampai fetch pertama selesai */
   const isCourseLocked = !coursesFetched;
 
   if (!task) return null;
+
+  // 🔹 helper untuk onBlur khusus deadline: tutup edit hanya jika fokus keluar container
+  const handleDeadlineBlur = () => {
+    setTimeout(() => {
+      if (!deadlineEditRef.current) return;
+      if (!deadlineEditRef.current.contains(document.activeElement)) {
+        setEditingKey(null);
+      }
+    }, 0);
+  };
 
   return (
     <div
@@ -512,17 +524,15 @@ const TaskDetail = ({
           line-height:30px!important;padding-top:0!important;padding-bottom:0!important;margin:0!important;width:auto!important}
         [data-slot="select-value"]{display:inline-flex!important;align-items:center!important;margin:0!important}
 
-        /* util: sembunyikan scrollbar */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Dropdown: fixed & nudge ke kanan */
         .course-select [data-slot="select-content"]{
           max-width: calc(100vw - 24px);
           transform: translateX(8px);
         }
-        .course-select [data-slot="select-trigger"]{ padding-right: 0 !important; }
-        .course-select [data-slot="select-value"]{ padding-right: 0 !important; }
+        .course-select [data-slot="select-trigger"]{ padding right: 0 !important; }
+        .course-select [data-slot="select-value"]{ padding right: 0 !important; }
       `}</style>
 
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
@@ -546,33 +556,50 @@ const TaskDetail = ({
 
         <div className="ml-12 mr-12 max-w-[473px] flex flex-col">
           <div className="font-inter text-[16px] space-y-6">
-            <Row icon="ri-sticky-note-line" label="Description" onClick={() => setEditingKey("subtitle")}>
+            <Row
+              icon="ri-sticky-note-line"
+              label="Description"
+              onClick={() => setEditingKey("subtitle")}
+            >
               {editingKey === "subtitle" ? (
                 <InputBase
                   value={form.subtitle}
                   onChange={(e) => setVal("subtitle", e.target.value)}
                   onBlur={() => setEditingKey(null)}
-                  onKeyDown={(e) => e.key === "Enter" && setEditingKey(null)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && setEditingKey(null)
+                  }
                   placeholder="Add a short description"
                   autoFocus
                 />
               ) : (
                 <div className="w-full text-gray-200 truncate">
-                  {form.subtitle || <span className="text-gray-500">Add a short description</span>}
+                  {form.subtitle || (
+                    <span className="text-gray-500">
+                      Add a short description
+                    </span>
+                  )}
                 </div>
               )}
             </Row>
 
-            <Row icon="ri-calendar-2-line" label="Deadline" onClick={() => setEditingKey("deadline_time")}>
+            <Row
+              icon="ri-calendar-2-line"
+              label="Deadline"
+              onClick={() => setEditingKey("deadline_time")}
+            >
               {editingKey === "deadline_time" ? (
-                <div className="flex items-center gap-2 w-full h-[30px]">
+                <div
+                  ref={deadlineEditRef}
+                  className="flex items-center gap-2 w-full h-[30px]"
+                >
                   <div className="w-[65%]">
                     <InputBase
                       as="input"
                       type="date"
                       value={form.deadline}
                       onChange={(e) => setVal("deadline", e.target.value)}
-                      onBlur={() => setEditingKey(null)}
+                      onBlur={handleDeadlineBlur} // 🔹 khusus deadline
                       placeholder="dd/mm/yyyy"
                       autoFocus
                     />
@@ -583,7 +610,7 @@ const TaskDetail = ({
                       type="time"
                       value={form.time}
                       onChange={(e) => setVal("time", e.target.value)}
-                      onBlur={() => setEditingKey(null)}
+                      onBlur={handleDeadlineBlur} // 🔹 khusus deadline
                       placeholder="--:--"
                     />
                   </div>
@@ -592,7 +619,9 @@ const TaskDetail = ({
                 <div className="w-full flex items-center gap-2 h-[30px]">
                   <div className="w-[65%] truncate">
                     {form.deadline ? (
-                      <span className="text-gray-200">{formatDateDDMMYYYY(form.deadline)}</span>
+                      <span className="text-gray-200">
+                        {formatDateDDMMYYYY(form.deadline)}
+                      </span>
                     ) : (
                       <span className="text-gray-500">dd/mm/yyyy</span>
                     )}
@@ -608,12 +637,19 @@ const TaskDetail = ({
               )}
             </Row>
 
-            {/* Related Course — label langsung tampil; fetch saat dibuka */}
             <Row icon="ri-links-line" label="Related Course">
-              <div className={`flex items-center h-[30px] w-full ${isCourseLocked ? "pointer-events-none opacity-70" : ""}`}>
+              <div
+                className={`flex items-center h-[30px] w-full ${
+                  isCourseLocked ? "pointer-events-none opacity-70" : ""
+                }`}
+              >
                 <SelectUi
-                  value={form.id_course != null ? String(form.id_course) : undefined}
-                  onValueChange={(val) => setVal("id_course", val ? String(val) : null)}
+                  value={
+                    form.id_course != null ? String(form.id_course) : undefined
+                  }
+                  onValueChange={(val) =>
+                    setVal("id_course", val ? String(val) : null)
+                  }
                   placeholder={selectedCourseName || "select course"}
                   className="course-select !w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
                   valueClassFn={() => ""}
@@ -621,9 +657,9 @@ const TaskDetail = ({
                   strategy="fixed"
                   sideOffset={6}
                   alignOffset={8}
-                  open={isCourseOpen && !isCourseLocked}                 /* tetap tertutup saat locked */
+                  open={isCourseOpen && !isCourseLocked}
                   onOpenChange={(o) => {
-                    if (isCourseLocked) return;                          /* blokir buka saat locked */
+                    if (isCourseLocked) return;
                     setIsCourseOpen(o);
                     if (o) fetchCoursesOnce();
                   }}
@@ -637,21 +673,28 @@ const TaskDetail = ({
 
                   {coursesFetching && !coursesFetched ? (
                     <>
-                      {/* Sisipkan item terpilih saat ini supaya label trigger aman */}
-                      {form.id_course && (() => {
-                        const cur = courses.find((c) => String(c.id_courses) === String(form.id_course));
-                        if (!cur) return null;
-                        return (
-                          <SelectItem
-                            key={`__current_${cur.id_courses}`}
-                            value={String(cur.id_courses)}
-                            className="text-[16px] font-inter"
-                          >
-                            {cur.name}
-                          </SelectItem>
-                        );
-                      })()}
-                      <SelectItem value="__loading__" disabled className="text-[16px] font-inter">
+                      {form.id_course &&
+                        (() => {
+                          const cur = courses.find(
+                            (c) =>
+                              String(c.id_courses) === String(form.id_course)
+                          );
+                          if (!cur) return null;
+                          return (
+                            <SelectItem
+                              key={`__current_${cur.id_courses}`}
+                              value={String(cur.id_courses)}
+                              className="text-[16px] font-inter"
+                            >
+                              {cur.name}
+                            </SelectItem>
+                          );
+                        })()}
+                      <SelectItem
+                        value="__loading__"
+                        disabled
+                        className="text-[16px] font-inter"
+                      >
                         Loading...
                       </SelectItem>
                     </>
@@ -692,7 +735,11 @@ const TaskDetail = ({
               />
             </Row>
 
-            <Row icon="ri-trophy-line" label="Score" onClick={() => setEditingKey("score")}>
+            <Row
+              icon="ri-trophy-line"
+              label="Score"
+              onClick={() => setEditingKey("score")}
+            >
               {editingKey === "score" ? (
                 <InputBase
                   as="input"
@@ -700,7 +747,9 @@ const TaskDetail = ({
                   value={form.score}
                   onChange={(e) => setVal("score", e.target.value)}
                   onBlur={() => setEditingKey(null)}
-                  onKeyDown={(e) => e.key === "Enter" && setEditingKey(null)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && setEditingKey(null)
+                  }
                   placeholder="e.g. 95"
                   autoFocus
                 />
@@ -715,13 +764,19 @@ const TaskDetail = ({
               )}
             </Row>
 
-            <Row icon="ri-share-box-line" label="Link" onClick={() => setEditingKey("link")}>
+            <Row
+              icon="ri-share-box-line"
+              label="Link"
+              onClick={() => setEditingKey("link")}
+            >
               {editingKey === "link" ? (
                 <InputBase
                   value={form.link}
                   onChange={(e) => setVal("link", e.target.value)}
                   onBlur={() => setEditingKey(null)}
-                  onKeyDown={(e) => e.key === "Enter" && setEditingKey(null)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && setEditingKey(null)
+                  }
                   placeholder="https://..."
                   autoFocus
                 />
@@ -741,7 +796,6 @@ const TaskDetail = ({
             </Row>
           </div>
 
-          {/* Actions */}
           <div className="mt-12 flex justify-end items-center gap-[15px] font-inter">
             <button
               onClick={() => setShowConfirm(true)}
@@ -759,7 +813,9 @@ const TaskDetail = ({
               disabled={loading || !task?.id_task}
             >
               <i className="ri-save-3-line text-foreground text-[16px]" />
-              <span className="text-[15px] font-medium">{loading ? "Saving..." : "Save Changes"}</span>
+              <span className="text-[15px] font-medium">
+                {loading ? "Saving..." : "Save Changes"}
+              </span>
             </button>
           </div>
         </div>

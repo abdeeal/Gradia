@@ -1,10 +1,8 @@
-// 📄 CourseDetail.jsx
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
 import React, { useEffect, useState } from "react";
 import { useAlert } from "@/hooks/useAlert";
 import DeletePopup from "@/components/Delete";
-import axios from "axios";
 
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -35,7 +33,9 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
     const updated = {
       ...formData,
       sks: formData.sks ? Number(formData.sks) : 0,
-      time: `${formData.startTime || ""} - ${formData.endTime || ""}`.trim(),
+      time: `${formData.startTime || ""} - ${
+        formData.endTime || ""
+      }`.trim(),
     };
     delete updated.startTime;
     delete updated.endTime;
@@ -43,7 +43,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
     try {
       setLoading(true);
       if (typeof onSave === "function") {
-        await onSave(updated); // tunggu (bisa ke backend)
+        await onSave(updated); // tunggu (ke backend di Courses.jsx)
       }
 
       showAlert({
@@ -55,7 +55,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
         height: 380,
       });
 
-      onClose?.(); // <- tutup drawer setelah sukses
+      onClose?.(); // tutup drawer setelah sukses
     } catch (err) {
       const msg =
         err?.message ||
@@ -81,19 +81,25 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
 
   const doDelete = async () => {
     const courseId =
-      course?.id_courses ?? course?.id_course ?? course?.id ?? course?.course_id;
+      course?.id_courses ??
+      course?.id_course ??
+      course?.id ??
+      course?.course_id;
 
     try {
       setLoading(true);
 
-      // Optimistic event (opsional)
+      // Event opsional ke global listener
       window.dispatchEvent(
-        new CustomEvent("courses:deleted", { detail: { id_course: courseId } })
+        new CustomEvent("courses:deleted", {
+          detail: { id_course: courseId },
+        })
       );
 
-      await axios.delete(`/api/courses?id=${courseId}`);
-
-      if (typeof onDelete === "function") onDelete(courseId);
+      // 🔥 Serahkan delete API ke parent (Courses.jsx)
+      if (typeof onDelete === "function") {
+        await onDelete(courseId);
+      }
 
       showAlert({
         icon: "ri-delete-bin-2-line",
@@ -104,7 +110,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
         height: 380,
       });
 
-      onClose?.(); // <- tutup drawer setelah sukses delete
+      onClose?.(); // tutup drawer setelah sukses delete
     } catch (e) {
       console.error(e);
       showAlert({
@@ -162,7 +168,10 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
               rightAdornment={
                 formData.phone ? (
                   <a
-                    href={`https://wa.me/${(formData.phone || "").replace(/[^0-9]/g, "")}`}
+                    href={`https://wa.me/${(formData.phone || "").replace(
+                      /[^0-9]/g,
+                      ""
+                    )}`}
                     target="_blank"
                     rel="noreferrer"
                     className="shrink-0"
@@ -204,7 +213,12 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
               onChange={(v) => setVal("link", v)}
               rightAdornment={
                 formData.link?.startsWith("https://") ? (
-                  <a href={formData.link} target="_blank" rel="noreferrer" className="shrink-0">
+                  <a
+                    href={formData.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="shrink-0"
+                  >
                     <i className="ri-share-forward-line text-xl text-gray-400" />
                   </a>
                 ) : null
@@ -279,7 +293,11 @@ const DayField = ({ icon, label, value, onChange }) => (
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400">{label}</span>
     <div className="flex-1 max-w-[360px] flex items-center">
-      <SelectUi placeholder={"Select a day"} value={value || undefined} onValueChange={onChange}>
+      <SelectUi
+        placeholder={"Select a day"}
+        value={value || undefined}
+        onValueChange={onChange}
+      >
         <SelectLabel>Day</SelectLabel>
         {dayOrder.map((item) => (
           <SelectItem key={item} value={item}>

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+const MIN_SKELETON_MS = 200; // skeleton minimal 6 detik
+
 export default function TaskSummary({
   tasks = [],
   taskIds = null,
@@ -47,9 +49,21 @@ export default function TaskSummary({
     () =>
       new Set(
         [
-          "not started", "not_started", "not-started", "todo", "to do", "pending",
-          "backlog", "new", "open", "ready", "queued", "created", "belummulai",
-          0, "0",
+          "not started",
+          "not_started",
+          "not-started",
+          "todo",
+          "to do",
+          "pending",
+          "backlog",
+          "new",
+          "open",
+          "ready",
+          "queued",
+          "created",
+          "belummulai",
+          0,
+          "0",
         ].map(keyfy)
       ),
     []
@@ -59,9 +73,20 @@ export default function TaskSummary({
     () =>
       new Set(
         [
-          "in progress", "in_progress", "in-progress", "on progress", "ongoing",
-          "processing", "doing", "wip", "progress", "started", "active",
-          "sedangdikerjakan", 1, "1",
+          "in progress",
+          "in_progress",
+          "in-progress",
+          "on progress",
+          "ongoing",
+          "processing",
+          "doing",
+          "wip",
+          "progress",
+          "started",
+          "active",
+          "sedangdikerjakan",
+          1,
+          "1",
         ].map(keyfy)
       ),
     []
@@ -87,17 +112,23 @@ export default function TaskSummary({
 
   // ==== Gabung query params (priority: queryParams > prop idWorkspace > session) ====
   const mergedQuery = useMemo(() => {
-    const hasQP = !!(queryParams && Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace"));
-    const effective = hasQP ? undefined : (idWorkspace ?? sessionIdWorkspace);
+    const hasQP =
+      !!(queryParams && Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace"));
+    const effective = hasQP ? undefined : idWorkspace ?? sessionIdWorkspace;
     const base = effective != null ? { idWorkspace: effective } : {};
     return { ...base, ...(queryParams || {}) };
   }, [queryParams, idWorkspace, sessionIdWorkspace]);
 
   const queryString = useMemo(() => {
-    const entries = Object.entries(mergedQuery).filter(([, v]) => v !== undefined && v !== null && v !== "");
+    const entries = Object.entries(mergedQuery).filter(
+      ([, v]) => v !== undefined && v !== null && v !== ""
+    );
     if (entries.length === 0) return "";
     return (
-      "?" + entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&")
+      "?" +
+      entries
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .join("&")
     );
   }, [mergedQuery]);
 
@@ -111,8 +142,9 @@ export default function TaskSummary({
     }
 
     const ctrl = new AbortController();
-    setLoading(true);     // 🔴 aktifkan loader sebelum async
+    setLoading(true);
     setErr("");
+    const startTime = Date.now();
 
     (async () => {
       try {
@@ -126,7 +158,16 @@ export default function TaskSummary({
       } catch (e) {
         if (e.name !== "AbortError") setErr(e?.message || "Gagal memuat tasks");
       } finally {
-        setLoading(false);
+        const endTime = Date.now();
+        const elapsed = endTime - startTime;
+        const finish = () => {
+          if (!ctrl.signal.aborted) setLoading(false);
+        };
+        if (elapsed < MIN_SKELETON_MS) {
+          setTimeout(finish, MIN_SKELETON_MS - elapsed);
+        } else {
+          finish();
+        }
       }
     })();
 
@@ -146,7 +187,9 @@ export default function TaskSummary({
 
   // ==== Ringkasan ====
   const summary = useMemo(() => {
-    let pending = 0, inProgress = 0, completed = 0;
+    let pending = 0,
+      inProgress = 0,
+      completed = 0;
     const seen = new Set();
 
     for (const t of sourceTasks) {
@@ -178,28 +221,64 @@ export default function TaskSummary({
   ];
 
   if (loading) {
+    // 🔹 Loading: kotak kosong + shimmer, ukuran sama persis dengan card normal
     return (
-      <div className="flex justify-start gap-4 flex-wrap" role="status" aria-live="polite" aria-label="Loading...">
-        <span className="sr-only">Loading...</span>
-        {cards.map((card, idx) => (
-          <div
-            key={idx}
-            style={{
-              width: `${card.width}px`,
-              height: "161px",
-              fontFamily: "Montserrat, sans-serif",
-              borderColor: "rgba(70,70,70,0.5)",
-              backgroundImage: "linear-gradient(to bottom, #070707, #141414)",
-            }}
-            className="rounded-2xl border bg-clip-padding animate-pulse"
-          >
-            <div className="h-full p-5 flex flex-col items-start text-left">
-              <p className="text-white/60 text-[20px] leading-none font-semibold">{card.label}</p>
-              <span className="mt-4 text-[#FFEB3B]/60 text-[64px] leading-none font-bold">…</span>
+      <>
+        <style>{`
+          .gradia-shimmer {
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(
+              90deg,
+              rgba(15, 15, 15, 0) 0%,
+              rgba(63, 63, 70, 0.9) 50%,
+              rgba(15, 15, 15, 0) 100%
+            );
+            transform: translateX(-100%);
+            animation: gradia-shimmer-move 1.2s infinite;
+            background-size: 200% 100%;
+            pointer-events: none;
+          }
+
+          @keyframes gradia-shimmer-move {
+            0% {
+              transform: translateX(-100%);
+            }
+            100% {
+              transform: translateX(100%);
+            }
+          }
+        `}</style>
+
+        <div
+          className="flex justify-start gap-4 flex-wrap"
+          role="status"
+          aria-live="polite"
+          aria-label="Loading..."
+        >
+          <span className="sr-only">Loading...</span>
+          {cards.map((card, idx) => (
+            <div
+              key={idx}
+              style={{
+                width: `${card.width}px`,
+                height: "161px", // sama persis dengan kartu normal
+                fontFamily: "Montserrat, sans-serif",
+                borderColor: "rgba(70,70,70,0.5)",
+                backgroundImage: "linear-gradient(to bottom, #070707, #141414)",
+                position: "relative",
+                overflow: "hidden",
+              }}
+              className="rounded-2xl border bg-clip-padding"
+            >
+              {/* shimmer overlay */}
+              <div className="gradia-shimmer" />
+
+              {/* isi kosong, nggak ada text / angka */}
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </>
     );
   }
 
@@ -227,7 +306,9 @@ export default function TaskSummary({
         >
           <div className="h-full p-5 flex flex-col items-start text-left">
             <p className="text-white text-[20px] leading-none font-semibold">{card.label}</p>
-            <span className="mt-4 text-[#FFEB3B] text-[64px] leading-none font-bold">{card.value}</span>
+            <span className="mt-4 text-[#FFEB3B] text-[64px] leading-none font-bold">
+              {card.value}
+            </span>
           </div>
         </div>
       ))}
