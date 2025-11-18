@@ -35,7 +35,7 @@ export default function AppRoutes() {
         <Route path="/auth/success/register" element={<SuccessMsg type="register" />} />
         <Route path="/auth/success/reset" element={<SuccessMsg type="reset" />} />
 
-        <Route path="/workspace" element={<WorkspacesPage />} />
+        <Route path="/workspaces" element={<WorkspacesPage />} />
 
         <Route path="/presences" element={<Navigate to="/presence" replace />} />
         <Route path="/" element={<Navigate to="/auth/login" replace />} />
