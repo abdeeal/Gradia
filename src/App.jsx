@@ -5,22 +5,17 @@ import "./App.css";
 import { Navbar } from "./components/Navbar";
 
 function App() {
-  const location = useLocation();
-
-  const hideNavbar =
-    location.pathname.startsWith("/auth") ||
-    location.pathname === "/workspaces";
-
+  const { pathname } = useLocation();
   sessionStorage.setItem("id_workspace", "1");
+  const isAuthPage =
+    pathname.startsWith("/auth") || pathname.startsWith("/workspace");
 
-  const msg =
-    "Jangan otak atik file ini, kalau mau edit file course ada di /Pages/courses/ buat ngakses halamannya ada di /courses";
+  const isDashboard = pathname.startsWith("/dashboard");
 
   return (
     <>
-      {location.pathname === "/" ? msg : ""}
-      <Container>
-        {!hideNavbar && <Navbar />}
+      {!isAuthPage && <Navbar />}
+      <Container noPadding={isAuthPage} noPaddingRight={isDashboard}>
         <AppRoutes />
       </Container>
     </>

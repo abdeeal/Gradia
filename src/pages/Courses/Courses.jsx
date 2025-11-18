@@ -1,4 +1,10 @@
-import React, { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useLayoutEffect,
+} from "react";
 import gsap from "gsap";
 import { useMediaQuery } from "react-responsive";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -6,6 +12,53 @@ import CourseCard from "./components/CourseCard.jsx";
 import CourseDetail from "./components/CourseDetail.jsx";
 import AddCourse from "./components/AddCourse.jsx";
 import { Tab } from "./layouts/Tab.jsx";
+
+/* ===== Shimmer CSS (copy style dari PresenceCard) ===== */
+const ShimmerStyles = () => (
+  <style>{`
+    .gradia-shimmer {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(
+        90deg,
+        rgba(15, 15, 15, 0) 0%,
+        rgba(63, 63, 70, 0.9) 50%,
+        rgba(15, 15, 15, 0) 100%
+      );
+      transform: translateX(-100%);
+      animation: gradia-shimmer-move 1.2s infinite;
+      background-size: 200% 100%;
+      pointer-events: none;
+    }
+
+    @keyframes gradia-shimmer-move {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(100%);
+      }
+    }
+  `}</style>
+);
+
+/* ===== Helper: ambil id_workspace dari storage ===== */
+/* 🔥 PRIORITAS LOCAL STORAGE → BARU SESSION → FALLBACK 1 */
+const getWorkspaceId = () => {
+  try {
+    if (typeof window === "undefined") return 1;
+
+    const fromLocal = window.localStorage?.getItem("id_workspace");
+    const fromSession = window.sessionStorage?.getItem("id_workspace");
+
+    const raw = fromLocal ?? fromSession ?? "1";
+    const num = Number(raw);
+
+    return Number.isFinite(num) && num > 0 ? num : 1;
+  } catch {
+    return 1;
+  }
+};
 
 /* ===== Helpers: mapping API <-> UI ===== */
 const toUiCourse = (api) => ({
@@ -18,8 +71,8 @@ const toUiCourse = (api) => ({
   time: `${(api.start || "").slice(0, 5)} - ${(api.end || "").slice(0, 5)}`,
   room: api.room,
   sks: Number(api.sks) || 0,
-  link: api.link || "#",
-  color: api.color || "red",
+  link: api.link || "",
+  id_workspace: api.id_workspace ?? null,
 });
 
 const toApiCourse = (ui) => {
@@ -29,8 +82,10 @@ const toApiCourse = (ui) => {
     .split(" - ")
     .map((s) => s.trim());
 
+  const workspaceId = getWorkspaceId();
+
   return {
-    id_courses: ui.id, // undefined/null for POST
+    id_courses: ui.id, // undefined/null untuk POST
     name: ui.title || ui.alias || "",
     alias: ui.alias || "",
     lecturer: ui.lecturer || "",
@@ -41,12 +96,17 @@ const toApiCourse = (ui) => {
     room: ui.room || "",
     sks: Number(ui.sks) || 0,
     link: ui.link || "",
-    color: ui.color || "red",
+    // 🔥 selalu kirim id_workspace ke backend
+    id_workspace: workspaceId,
   };
 };
 
 /* ===== Order of days (always render) ===== */
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+// shimmer config
+const SKELETON_CARD_H = 140;
+const SKELETON_PER_DAY = 1;
 
 export const Courses = () => {
   const [courses, setCourses] = useState([]); // flat array (UI shape)
@@ -62,24 +122,37 @@ export const Courses = () => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
 
+  // 🔥 workspaceId diambil sekali dari helper
+  const workspace = useMemo(() => getWorkspaceId(), []);
+
   /* ===== Fetch from API ===== */
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    fetch("/api/courses")
+
+    // 🔥 kirim idWorkspace ke API supaya filter di backend
+    fetch(`/api/courses?idWorkspace=${workspace}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch courses");
         return res.json();
       })
       .then((data) => {
         if (!mounted) return;
-        const ui = Array.isArray(data) ? data.map(toUiCourse) : [];
+        const uiAll = Array.isArray(data) ? data.map(toUiCourse) : [];
+
+        // 🔥 tambahan filter di frontend jaga-jaga
+        const ui = uiAll.filter(
+          (c) => Number(c.id_workspace) === Number(workspace)
+        );
         setCourses(ui);
       })
       .catch((err) => console.error("Error fetching courses:", err))
       .finally(() => mounted && setLoading(false));
-    return () => (mounted = false);
-  }, []);
+
+    return () => {
+      mounted = false;
+    };
+  }, [workspace]);
 
   /* ===== Kunci scroll body saat drawer aktif ===== */
   useEffect(() => {
@@ -138,14 +211,19 @@ export const Courses = () => {
   const handleAddCourse = async (newCourseUi) => {
     try {
       const payload = toApiCourse(newCourseUi);
-      const res = await fetch("/api/courses", {
+      const res = await fetch(`/api/courses`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Failed to create course");
-      const created = await res.json(); // expect full record with id_courses
+      const json = await res.json(); // { message, data: [...] }
+      const created = Array.isArray(json?.data) ? json.data[0] : json;
       const createdUi = toUiCourse(created);
+
+      // 🔥 hanya masukkan course yg workspace-nya sama
+      if (Number(createdUi.id_workspace) !== Number(workspace)) return;
+
       setCourses((prev) => [createdUi, ...prev]);
       setShowAdd(false);
     } catch (e) {
@@ -162,22 +240,36 @@ export const Courses = () => {
 
     try {
       const payload = toApiCourse(updatedUi);
-      await fetch(`/api/courses/${updatedUi.id}`, {
+      const res = await fetch(`/api/courses/${updatedUi.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) throw new Error("Failed to update course");
       setSelectedCourse(updatedUi);
     } catch (e) {
       console.error(e);
-      // TODO: rollback or toast error if needed
+      // TODO: rollback atau toast error jika perlu
+    }
+  };
+
+  /* ===== DELETE: sinkron UI setelah API delete ===== */
+  const handleDeleteCourse = async (id) => {
+    try {
+      const res = await fetch(`/api/courses?id=${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete course");
+      setCourses((prev) => prev.filter((c) => c.id !== id));
+      setSelectedCourse(null);
+    } catch (e) {
+      console.error(e);
     }
   };
 
   /* ===== Close dengan animasi keluar lalu unmount ===== */
   const handleCloseDrawer = () => {
     if (drawerRef.current) {
-      // Animasi keluar, lalu baru reset state agar panel tidak hilang duluan
       gsap.to(drawerRef.current, {
         x: "100%",
         duration: 0.35,
@@ -198,6 +290,7 @@ export const Courses = () => {
   return (
     // gap-6 = 24px antara Sidebar dan konten (sesuai revisi)
     <div className="flex min-h-screen w-full bg-background text-foreground font-inter relative overflow-hidden gap-[0px]">
+      <ShimmerStyles />
       <Sidebar />
 
       {/* MAIN CONTENT */}
@@ -244,48 +337,84 @@ export const Courses = () => {
             selectedCourse || showAdd ? "opacity-60" : "opacity-100"
           }`}
         >
-          {loading ? (
-            <div className="text-gray-400 text-sm">Loading courses…</div>
-          ) : (
-            <div className="grid grid-cols-5 gap-4 items-start">
-              {dayOrder.map((day) => {
-                const list = groupedWithAllDays[day] || [];
-                return (
-                  <div key={day} className="flex flex-col w-full">
-                    {/* header hari */}
-                    <div className="bg-[#000000] rounded-[8px] px-3 py-5 mb-3 w-full">
-                      <div className="flex justify-between items-center">
-                        <h3 className="font-medium text-white text-[15px]">
-                          {day}
-                        </h3>
-                        <span className="bg-drop-yellow px-2 py-[2px] rounded-full text-yellow">
-                          {list.length}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 font-[Montserrat] w-full">
-                      {list.length > 0 ? (
-                        list.map((course) => (
-                          <div
-                            key={course.id}
-                            className="course-card"
-                            onClick={() => setSelectedCourse(course)}
-                          >
-                            <CourseCard course={course} />
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-neutral-600 bg-[#0f0f0f] border border-[#2a2a2a] rounded-lg p-5 text-center">
-                          No courses
-                        </div>
-                      )}
+          <div className="grid grid-cols-5 gap-4 items-start">
+            {dayOrder.map((day) => {
+              const list = groupedWithAllDays[day] || [];
+              return (
+                <div key={day} className="flex flex-col w-full">
+                  {/* header hari */}
+                  <div className="bg-[#000000] rounded-[8px] px-3 py-5 mb-3 w-full">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-medium text-white text-[16px]">
+                        {day}
+                      </h3>
+                      <span className="bg-drop-yellow px-2 py-[2px] rounded-full text-yellow">
+                        {list.length}
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+
+                  <div className="flex flex-col gap-2 font-[Montserrat] w-full">
+                    {loading ? (
+                      // ===== SHIMMER SKELETON (width ikut kolom, height 160) =====
+                      Array.from({ length: SKELETON_PER_DAY }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          className="relative rounded-xl px-3.5 py-3 overflow-hidden flex flex-col shadow w-full"
+                          style={{
+                            height: `${SKELETON_CARD_H}px`,
+                            background: "#242424",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <div className="gradia-shimmer" />
+                          {/* konten dummy disembunyikan, hanya buat bentuk layout */}
+                          <div className="opacity-0">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-2 h-2 rounded-full bg-gray-500" />
+                                <p className="text-[16px]">00:00 - 00:00</p>
+                              </div>
+                              <span className="text-[16px] px-1.5 py-[2px] rounded-md">
+                                STATUS
+                              </span>
+                            </div>
+
+                            <div className="flex-1 flex flex-col justify-center">
+                              <h3 className="text-[16px] font-semibold leading-snug line-clamp-2 break-words">
+                                Dummy Course Title
+                              </h3>
+                              <p className="text-[16px] mt-1">ROOM</p>
+                            </div>
+
+                            <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2">
+                              Button{" "}
+                              <i className="ri-logout-circle-r-line ml-1" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : list.length > 0 ? (
+                      list.map((course) => (
+                        <div
+                          key={course.id}
+                          className="course-card"
+                          onClick={() => setSelectedCourse(course)}
+                        >
+                          <CourseCard course={course} />
+                        </div>
+                      ))
+                    ) : (
+                      // ======= NO COURSES STATE (TINGGI 160PX) =======
+                      <div className="text-neutral-600 bg-[#0f0f0f] border border-[#2a2a2a] rounded-lg p-5 text-center flex items-center justify-center w-full h-[140px]">
+                        No courses
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -297,7 +426,6 @@ export const Courses = () => {
         >
           <div
             ref={drawerRef}
-            // tambahkan class "drawer-panel" agar animasi useEffect bekerja
             className="drawer-panel w-[628px] bg-[#111] h-full shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
@@ -306,6 +434,7 @@ export const Courses = () => {
                 course={selectedCourse}
                 onClose={handleCloseDrawer}
                 onSave={handleUpdateCourse}
+                onDelete={handleDeleteCourse}
               />
             )}
 

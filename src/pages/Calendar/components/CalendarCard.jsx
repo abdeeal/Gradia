@@ -1,0 +1,899 @@
+// src/pages/Calendar/MonthCalendar.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { gsap } from "gsap";
+
+/* ===== constants ===== */
+const monthNames = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December"
+];
+const daysOfWeek = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+// minimal skeleton (samain dengan komponen lain)
+const MIN_SKELETON_MS = 200;
+
+/* Shimmer styles (HARUS persis dengan komponen lain) */
+const ShimmerStyles = () => (
+  <style>{`
+    .gradia-shimmer {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(
+        90deg,
+        rgba(15, 15, 15, 0) 0%,
+        rgba(63, 63, 70, 0.9) 50%,
+        rgba(15, 15, 15, 0) 100%
+      );
+      transform: translateX(-100%);
+      animation: gradia-shimmer 1.25s infinite;
+    }
+    @keyframes gradia-shimmer {
+      100% {
+        transform: translateX(100%);
+      }
+    }
+  `}</style>
+);
+
+/* 5 rows × 7 cols, Monday-first */
+const getMonthDays = (year, month) => {
+  const first = new Date(year, month, 1);
+  const last  = new Date(year, month + 1, 0);
+  const start = (first.getDay() + 6) % 7; // Mon=0 ... Sun=6
+  const total = 35; // 🔥 5 baris × 7 kolom
+  const days = [];
+
+  const prevLast = new Date(year, month, 0).getDate();
+  for (let i = start - 1; i >= 0; i--) {
+    days.push({ date: new Date(year, month - 1, prevLast - i), outside: true });
+  }
+  for (let d = 1; d <= last.getDate(); d++) {
+    days.push({ date: new Date(year, month, d), outside: false });
+  }
+  let next = 1;
+  while (days.length < total) {
+    days.push({ date: new Date(year, month + 1, next++), outside: true });
+  }
+  return days;
+};
+
+/* === BADGE STYLE RULES (dipakai juga di detail) === */
+export const BADGE_COLORS = {
+  Blue:   { bg: "rgba(59,130,246,0.2)", text: "rgba(96,165,250,1)" },
+  Green:  { bg: "rgba(34,197,94,0.2)",  text: "rgba(74,222,128,1)" },
+  Purple: { bg: "rgba(168,85,247,0.2)", text: "rgba(192,132,252,1)" },
+  Orange: { bg: "rgba(249,115,22,0.2)", text: "rgba(251,146,60,1)" },
+  Yellow: { bg: "rgba(234,179,8,0.25)", text: "rgba(253,224,71,1)" },
+  Red:    { bg: "rgba(239,68,68,0.2)",  text: "rgba(248,113,113,1)" },
+  Cyan:   { bg: "rgba(6,182,212,0.2)",  text: "rgba(34,211,238,1)" },
+  Pink:   { bg: "rgba(236,72,153,0.2)", text: "rgba(244,114,182,1)" },
+  Gray:   { bg: "rgba(107,114,128,0.2)",text: "rgba(212,212,216,1)" },
+};
+
+const normalize = (v = "") => String(v).trim().toLowerCase();
+
+// ✅ high + in progress = Purple, walaupun overdue
+export const computeBadgeStyle = (task) => {
+  const pr = normalize(task.priority || task.priority_level || task.level);
+  const st = normalize(task.status || task.state);
+
+  const now = new Date();
+  const deadline = task.deadline ? new Date(task.deadline) : null;
+  const isOverdue =
+    deadline && !isNaN(+deadline) && deadline < now && st !== "completed";
+
+  // 1. Completed dulu
+  if (st === "completed" || st === "done" || st === "selesai") {
+    return BADGE_COLORS.Green;
+  }
+
+  // 2. Kombinasi priority + status (ini HARUS menang dari overdue)
+  if (pr === "high") {
+    if (st === "in progress" || st === "ongoing" || st === "progress") {
+      return BADGE_COLORS.Purple;   // 🔥 high + in progress = ungu
+    }
+    if (st === "not started" || st === "todo" || st === "backlog") {
+      return BADGE_COLORS.Pink;
+    }
+  }
+
+  if (pr === "medium") {
+    if (st === "in progress" || st === "ongoing" || st === "progress") {
+      return BADGE_COLORS.Blue;
+    }
+    if (st === "not started" || st === "todo" || st === "backlog") {
+      return BADGE_COLORS.Yellow;
+    }
+  }
+
+  if (pr === "low") {
+    if (st === "in progress" || st === "ongoing" || st === "progress") {
+      return BADGE_COLORS.Cyan;
+    }
+    if (st === "not started" || st === "todo" || st === "backlog") {
+      return BADGE_COLORS.Gray;
+    }
+  }
+
+  // 3. Baru setelah itu rule overdue (untuk task yang tidak kena mapping di atas)
+  if (isOverdue) {
+    if (pr === "high") return BADGE_COLORS.Red;
+    if (pr === "medium") return BADGE_COLORS.Orange;
+  }
+
+  // 4. Default
+  return BADGE_COLORS.Gray;
+};
+
+/* Util: YYYY-MM-DD (LOCAL) */
+const toKeyLocal = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+/* Today check (LOCAL) */
+const isSameLocalDay = (a, b) => {
+  return a.getFullYear() === b.getFullYear() &&
+         a.getMonth() === b.getMonth() &&
+         a.getDate() === b.getDate();
+};
+
+/* Normalisasi teks label event: trim + gabung spasi ganda */
+const normalizeLabelText = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+
+/* Helper: safely append query params to relative or absolute URL */
+function withQuery(urlLike, paramsObj) {
+  try {
+    const base = urlLike.startsWith("http")
+      ? new URL(urlLike)
+      : new URL(urlLike, window.location.origin);
+    Object.entries(paramsObj || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") {
+        base.searchParams.set(k, String(v));
+      }
+    });
+    // Return relative path if original was relative, else absolute
+    const isRelative = !urlLike.startsWith("http");
+    return isRelative ? base.pathname + base.search : base.toString();
+  } catch {
+    // Fallback: naive concatenation
+    const qs = new URLSearchParams(paramsObj).toString();
+    return urlLike.includes("?") ? `${urlLike}&${qs}` : `${urlLike}?${qs}`;
+  }
+}
+
+export default function MonthCalendar({
+  value,
+  onChange,
+  onOpenDetails,             // (date, events[]) => void
+  tasksApi = "/api/tasks",   // endpoint GET kamu
+}) {
+  const [openPicker, setOpenPicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState("date"); // "date" | "month" | "year"
+  const [eventsByDate, setEventsByDate] = useState({});
+  const [query, setQuery] = useState("");               // <-- search query
+  const [loading, setLoading] = useState(true);         // 🔥 state loading utk skeleton
+  const pickerRef = useRef(null);
+  const gridRef = useRef(null);
+
+  // 🔁 flag supaya auto-open today cuma sekali
+  const autoOpenedTodayRef = useRef(false);
+
+  // === Ambil idWorkspace dari sessionStorage (fallback 1) ===
+  const sessionIdWorkspace = useMemo(() => {
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        const v = Number(window.sessionStorage.getItem("id_workspace"));
+        return Number.isFinite(v) && v > 0 ? v : 1;
+      }
+    } catch {}
+    return 1;
+  }, []);
+
+  // === Bentuk final URL: '/api/tasks?idWorkspace={id}' ===
+  const finalTasksApi = useMemo(() => {
+    return withQuery(tasksApi, { idWorkspace: sessionIdWorkspace });
+  }, [tasksApi, sessionIdWorkspace]);
+
+  const month = value.getMonth();
+  const year  = value.getFullYear();
+  const days  = useMemo(() => getMonthDays(year, month), [year, month]);
+
+  /* Animasi grid saat ganti bulan */
+  useEffect(() => {
+    if (!gridRef.current) return;
+    gsap.fromTo(
+      gridRef.current.children,
+      { autoAlpha: 0, y: 6 },
+      { autoAlpha: 1, y: 0, duration: 0.2, stagger: 0.008, ease: "power1.out" }
+    );
+  }, [year, month]);
+
+  /* Fetch tasks → group per tanggal (pakai field deadline) */
+  useEffect(() => {
+    let isCancelled = false;
+    const started = Date.now();
+
+    setLoading(true);
+
+    (async () => {
+      try {
+        const res = await fetch(finalTasksApi);
+        const data = await res.json();
+        if (isCancelled) return;
+
+        const map = {};
+        (data || []).forEach((task) => {
+          const dateObj = task.deadline ? new Date(task.deadline) : null;
+          if (!dateObj || isNaN(dateObj)) return;
+          const k = toKeyLocal(dateObj);
+
+          const ev = {
+            id: task.id_tasks ?? task.id_task ?? task.id ?? `${k}-${task.title}`,
+            title: task.title || "(Untitled)",
+            desc: task.description || "",
+            start: task.start || task.due_time || "",
+            end: task.end || task.end_time || "",
+            priority: task.priority || task.status_priority || "Low",
+            status: task.status || task.state || "Not started",
+            style: computeBadgeStyle(task),
+            raw: task,
+          };
+          if (!map[k]) map[k] = [];
+          map[k].push(ev);
+        });
+
+        // sort: priority > status
+        Object.keys(map).forEach((k) => {
+          map[k].sort((a, b) => {
+            const rank = { high: 3, medium: 2, low: 1 };
+            const ra = rank[(a.priority || "").toLowerCase()] || 0;
+            const rb = rank[(b.priority || "").toLowerCase()] || 0;
+            if (rb !== ra) return rb - ra;
+            return String(a.status).localeCompare(String(b.status));
+          });
+        });
+
+        setEventsByDate(map);
+      } catch (e) {
+        console.error("Fetch tasks failed:", e);
+        setEventsByDate({});
+      } finally {
+        const elapsed = Date.now() - started;
+        const wait = Math.max(0, MIN_SKELETON_MS - elapsed);
+        setTimeout(() => {
+          if (!isCancelled) setLoading(false);
+        }, wait);
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [finalTasksApi]);
+
+  /* Tutup picker saat klik di luar */
+  useEffect(() => {
+    const onDown = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setOpenPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  /* Pertama kali: pilih HARI INI dan kirim detailnya (init kosong) */
+  useEffect(() => {
+    const today = new Date();
+    onChange?.(today);
+    const tk = toKeyLocal(today);
+    onOpenDetails?.(today, (eventsByDate[tk] || []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ✅ AUTO: kalau hari ini punya event, detail panel langsung keisi
+  useEffect(() => {
+    if (autoOpenedTodayRef.current) return;
+
+    const today = new Date();
+    const key = toKeyLocal(today);
+    const evs = eventsByDate[key];
+
+    if (Array.isArray(evs) && evs.length > 0) {
+      autoOpenedTodayRef.current = true;
+      onChange?.(today);
+      onOpenDetails?.(today, evs);
+    }
+  }, [eventsByDate, onChange, onOpenDetails]);
+
+  const selKey = toKeyLocal(value);
+  const today = new Date();
+
+  /* Filtering events by search query (case-insensitive) */
+  const filteredEventsByDate = useMemo(() => {
+    const q = normalize(query);
+    if (!q) return eventsByDate;
+    const out = {};
+    Object.entries(eventsByDate).forEach(([k, arr]) => {
+      const filtered = arr.filter((ev) => {
+        const t = normalizeLabelText(ev.title).toLowerCase();
+        const d = normalizeLabelText(ev.desc).toLowerCase();
+        return t.includes(q) || d.includes(q);
+      });
+      if (filtered.length) out[k] = filtered;
+    });
+    return out;
+  }, [eventsByDate, query]);
+
+  /* Helper to get events for a date with current filter */
+  const getEventsForDate = (dateObj) => filteredEventsByDate[toKeyLocal(dateObj)] || [];
+
+  const gotoMonth = (m) => onChange?.(new Date(year, m, Math.min(value.getDate(), 28)));
+  const gotoYear  = (y) => onChange?.(new Date(y, month, Math.min(value.getDate(), 28)));
+
+  const shiftMonth = (delta) => {
+    const next = new Date(year, month + delta, Math.min(value.getDate(), 28));
+    onChange?.(next);
+    onOpenDetails?.(next, getEventsForDate(next));
+  };
+
+  const strokeColor = "rgba(101,101,101,0.5)";
+
+  return (
+    <React.Fragment>
+      {/* Shimmer CSS global */}
+      <ShimmerStyles />
+
+      {/* ===== TOP HEADER (di luar kalender) ===== */}
+      <div
+        style={{
+          width: 788,
+          padding: "16px 32px 32px 0px",
+          display: "grid",
+          gridTemplateColumns: "1fr 280px",
+          gridTemplateRows: "auto auto",
+          columnGap: 16,
+          background: "rgba(0,0,0,0)",
+          alignItems: "center",
+        }}
+      >
+        {/* Title */}
+        <div
+          style={{
+            gridColumn: "1 / 2",
+            gridRow: "1 / 2",
+            font: "Montserrat",
+            fontSize: 20,
+            fontWeight: 600,
+            color: "rgba(250,250,250,1)",
+            lineHeight: 1.6,
+          }}
+        >
+          Calendar
+        </div>
+
+        {/* Subtitle */}
+        <div
+          className="text-foreground-secondary"
+          style={{
+            gridColumn: "1 / 2",
+            gridRow: "2 / 3",
+            fontFamily:
+              'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
+            fontSize: 18,
+            fontWeight: 400,
+            lineHeight: 1.4,
+            whiteSpace: "normal",
+            wordBreak: "keep-all",
+            marginBottom: -4,
+          }}
+        >
+          Stay on Track everyday with your smart Calendar
+        </div>
+
+        {/* Search di kanan header */}
+        <div
+          style={{
+            paddingLeft: 10,
+            gridColumn: "2 / 3",
+            gridRow: "1 / span 2",
+            alignSelf: "center",
+            justifySelf: "end",
+            width: 300,
+            height: 44,
+            border: "1px solid rgba(101,101,101,0.5)",
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            padding: "0 12px",
+            gap: 8,
+            background: "rgba(0,0,0,0)",
+          }}
+        >
+          <i className="ri-search-line" style={{ fontSize: 18, color: "rgba(156,163,175,1)" }} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value ?? "")}
+            placeholder="Search"
+            style={{
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: "rgba(229,231,235,1)",
+              fontFamily:
+                'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
+              fontSize: 16,
+              fontWeight: 400,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ===== KALENDER (asli) ===== */}
+      <div
+        style={{
+          width: 753,
+          border: "1px solid rgba(101,101,101,0.5)",
+          borderRadius: 10,
+          overflow: "hidden",
+          background: "rgba(9,9,11,1)",
+          position: "relative",
+          fontFamily:
+            'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
+        }}
+      >
+        {/* HEADER */}
+        <div
+          style={{
+            width: "100%",
+            minHeight: 82,
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 16px",
+            gap: 10,
+          }}
+        >
+          {/* Kotak tanggal */}
+          <div
+            style={{
+              width: 80,
+              height: 62,
+              borderRadius: 8,
+              border: "1px solid rgba(101,101,101,0.5)",
+              background: "rgba(17,17,20,1)",
+              padding: 10,
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "stretch",
+              justifyContent: "space-between",
+              gap: 4,
+            }}
+          >
+            {/* Nama bulan */}
+            <div
+              style={{
+                fontSize: 12,
+                color: "rgba(179,179,179,1)",
+                fontWeight: 700,
+                textTransform: "capitalize",
+                lineHeight: 1,
+                marginTop: 0,
+                textAlign: "center",
+              }}
+            >
+              {monthNames[month].slice(0, 3)}
+            </div>
+
+            {/* Tombol ungu (picker) */}
+            <button
+              type="button"
+              onClick={() => { setOpenPicker((o) => !o); setPickerMode("date"); }}
+              title="Pick date / month / year"
+              style={{
+                width: 60,
+                height: 25,
+                margin: "0 auto",
+                background: "rgba(100,62,178,1)",
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "rgba(255,255,255,1)",
+                fontWeight: 800,
+                cursor: "pointer",
+                outline: "none",
+                border: "none",
+              }}
+            >
+              {value.getDate()}
+            </button>
+          </div>
+
+          {/* Teks bulan */}
+          <div style={{ flex: "0 0 263px", minHeight: 62, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ color: "rgba(255,235,59,1)", fontSize: 20, fontWeight: 700 }}>
+              {monthNames[month]} {year}
+            </div>
+            <div style={{ color: "rgba(156,163,175,1)", fontSize: 14, fontWeight: 500 }}>
+              1 {monthNames[month]} – {new Date(year, month + 1, 0).getDate()} {monthNames[month]}
+            </div>
+          </div>
+        </div>
+
+        {/* POPOVER PICKER */}
+        {openPicker && (
+          <div
+            ref={pickerRef}
+            style={{
+              position: "absolute",
+              left: 16,
+              top: 82,
+              zIndex: 20,
+              background: "rgba(24,24,27,1)",
+              border: "1px solid rgba(101,101,101,0.6)",
+              borderRadius: 12,
+              padding: 10,
+              width: 260,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            }}
+          >
+            {/* Tabs */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              {["date", "month", "year"].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setPickerMode(m)}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(101,101,101,0.5)",
+                    background: pickerMode === m ? "rgba(63,63,70,1)" : "rgba(0,0,0,0)",
+                    color: "rgba(229,231,235,1)",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {m.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            {/* Mode Date */}
+            {pickerMode === "date" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+                {Array.from({ length: new Date(year, month + 1, 0).getDate() }, (_, i) => i + 1).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => {
+                      const next = new Date(year, month, d);
+                      onChange?.(next);
+                      onOpenDetails?.(next, getEventsForDate(next));
+                      setOpenPicker(false);
+                    }}
+                    style={{
+                      height: 30,
+                      borderRadius: 10,
+                      cursor: "pointer",
+                      background: d === value.getDate() ? "rgba(255,235,59,1)" : "rgba(39,39,42,1)",
+                      color: d === value.getDate() ? "rgba(17,24,39,1)" : "rgba(229,231,235,1)",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Mode Month */}
+            {pickerMode === "month" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                {monthNames.map((m, i) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      gotoMonth(i);
+                      const next = new Date(year, i, value.getDate());
+                      onOpenDetails?.(next, getEventsForDate(next));
+                      setOpenPicker(false);
+                    }}
+                    style={{
+                      height: 34,
+                      borderRadius: 10,
+                      cursor: "pointer",
+                      background: i === month ? "rgba(255,235,59,1)" : "rgba(39,39,42,1)",
+                      color: i === month ? "rgba(17,24,39,1)" : "rgba(229,231,235,1)",
+                      fontWeight: 800,
+                      fontSize: 12,
+                    }}
+                  >
+                    {m.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Mode Year */}
+            {pickerMode === "year" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, maxHeight: 200, overflow: "auto" }}>
+                {Array.from({ length: 21 }, (_, i) => year - 10 + i).map((y) => (
+                  <button
+                    key={y}
+                    onClick={() => {
+                      gotoYear(y);
+                      const next = new Date(y, month, value.getDate());
+                      onOpenDetails?.(next, getEventsForDate(next));
+                      setOpenPicker(false);
+                    }}
+                    style={{
+                      height: 34,
+                      borderRadius: 10,
+                      cursor: "pointer",
+                      background: y === year ? "rgba(255,235,59,1)" : "rgba(39,39,42,1)",
+                      color: y === year ? "rgba(17,24,39,1)" : "rgba(229,231,235,1)",
+                      fontWeight: 800,
+                      fontSize: 12,
+                    }}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* GRID */}
+        <div
+          ref={gridRef}
+          style={{
+            width: 753,
+            display: "grid",
+            gridTemplateColumns: "repeat(7, 1fr)",
+            gridTemplateRows: "34px repeat(5, 112px)", // 🔥 5 baris
+            borderTop: "1px solid rgba(101,101,101,0.5)",
+          }}
+        >
+          {/* Header hari */}
+          {daysOfWeek.map((d, i) => (
+            <div
+              key={d}
+              style={{
+                borderBottom: "1px solid rgba(101,101,101,0.5)",
+                borderRight: i === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                background: "rgba(15,15,15,1)",
+                color: "rgba(229,231,235,1)",
+              }}
+            >
+              {d}
+            </div>
+          ))}
+
+          {/* Cells 5×7 */}
+          {loading
+            ? // 🔥 Skeleton shimmer per sel, FULL sel
+              Array.from({ length: 7 * 5 }).map((_, idx) => {
+                const col = idx % 7;
+                const row = Math.floor(idx / 7);
+                return (
+                  <div
+                    key={`sk-${idx}`}
+                    style={{
+                      position: "relative",
+                      borderRight: col === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      borderBottom: row === 4 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      background: "rgba(0,0,0,0)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,              // ⬅️ FULL satu sel
+                        background: "rgba(24,24,27,1)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div className="gradia-shimmer" />
+                    </div>
+                  </div>
+                );
+              })
+            : // Normal kalender (events)
+              days.map(({ date, outside }, idx) => {
+                const col = idx % 7;
+                const row = Math.floor(idx / 7);
+                const dateStr = toKeyLocal(date);
+                const isSel = dateStr === selKey;
+                const isToday = isSameLocalDay(date, today);
+                const events = getEventsForDate(date);
+
+                const shown = events.slice(0, 2);
+                const moreCount = Math.max(0, events.length - 2);
+
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      onChange?.(date);
+                      onOpenDetails?.(date, events);
+                    }}
+                    style={{
+                      position: "relative",
+                      borderRight: col === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      borderBottom: row === 4 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      background: outside ? "rgba(36,36,36,1)" : "rgba(0,0,0,0)",
+                      padding: 8,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      height: "100%",
+                      overflow: "hidden",
+                      boxShadow: isSel ? `inset 0 0 0 2px ${strokeColor}` : "none",
+                    }}
+                  >
+                    {/* angka tanggal + lingkaran 22×22 HANYA untuk HARI INI */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 6,
+                        left: 8,
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        background: isToday ? "rgba(255,235,59,1)" : "rgba(0,0,0,0)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: isToday
+                          ? "rgba(17,24,39,1)"
+                          : (outside ? "rgba(107,114,128,1)" : "rgba(229,231,235,1)"),
+                      }}
+                    >
+                      {date.getDate()}
+                    </div>
+
+                    {/* event badges (maks 2) + "x more..." */}
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "flex-start",
+                        alignItems: "stretch",
+                        gap: 4,
+                        paddingTop: 25,
+                      }}
+                    >
+                      {shown.map((ev) => (
+                        <div
+                          key={ev.id}
+                          title={ev.title}
+                          style={{
+                            display: "inline-block",
+                            width: "100%",
+                            maxWidth: "95%",
+                            marginLeft: 0,
+                            height: 22,
+                            lineHeight: "22px",
+                            borderRadius: 4,
+                            padding: "0 10px",
+                            overflow: "hidden",
+                            whiteSpace: "nowrap",
+                            textOverflow: "ellipsis",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: ev.style?.bg || "rgba(82,82,91,1)",
+                            color: ev.style?.text || "rgba(229,229,229,1)",
+                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
+                            textAlign: "left",
+                          }}
+                        >
+                          {normalizeLabelText(ev.title)}
+                        </div>
+                      ))}
+
+                      {moreCount > 0 && (
+                        <div
+                          onClick={() => onOpenDetails?.(date, events)}
+                          title="View all"
+                          style={{
+                            width: "100%",
+                            maxWidth: "95%",
+                            marginLeft: 0,
+                            height: 20,
+                            lineHeight: "20px",
+                            borderRadius: 4,
+                            padding: "0 6px",
+                            overflow: "hidden",
+                            whiteSpace: "nowrap",
+                            textOverflow: "ellipsis",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: "rgba(39,39,42,0.6)",
+                            color: "rgba(156,163,175,1)",
+                            boxShadow: "inset 0 0 0 1px rgba(101,101,101,0.25)",
+                            textAlign: "left",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {moreCount} more...
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+        </div>
+
+        {/* BOTTOM NAV */}
+        <div
+          style={{
+            width: 753,
+            height: 34,
+            borderTop: "1px solid rgba(101,101,101,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 10px",
+            background: "rgba(15,15,15,1)",
+          }}
+        >
+          <button
+            onClick={() => shiftMonth(-1)}
+            title="Previous month"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "rgba(0,0,0,0)",
+              color: "rgba(229,231,235,1)",
+              padding: "3px 8px",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: 500,
+              fontSize: 13,
+            }}
+          >
+            <i className="ri-arrow-left-s-line" /> Prev
+          </button>
+
+          <div style={{ color: "rgba(229,231,235,1)", fontSize: 13, fontWeight: 500 }}>
+            {monthNames[month]} {year}
+          </div>
+
+          <button
+            onClick={() => shiftMonth(1)}
+            title="Next month"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "rgba(0,0,0,0)",
+              color: "rgba(229,231,235,1)",
+              padding: "3px 8px",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: 500,
+              fontSize: 13,
+            }}
+          >
+            Next <i className="ri-arrow-right-s-line" />
+          </button>
+        </div>
+      </div>
+    </React.Fragment>
+  );
+}
