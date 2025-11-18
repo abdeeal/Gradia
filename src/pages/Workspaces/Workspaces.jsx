@@ -707,7 +707,7 @@ function GradiaWorkspacePage() {
           </div>
 
           {/* Footer */}
-          <p
+          {/* <p
             className="text-[#B9B9B9] text-[16px] w-full text-center"
             style={{
               position: "fixed",
@@ -718,7 +718,7 @@ function GradiaWorkspacePage() {
             }}
           >
             © 2025 Gradia. All rights reserved.
-          </p>
+          </p> */}
         </aside>
       </div>
 
