@@ -79,6 +79,9 @@ const normStatus = (s) => {
   return v === "presence" ? "present" : v;
 };
 
+/* Helper: cek apakah ID numeric (supaya aman untuk bigint) */
+const isNumericId = (val) => /^\d+$/.test(String(val).trim());
+
 /* Buat shape record untuk tabel */
 function mapServerRow(row) {
   const dt = row.presences_at ? new Date(row.presences_at) : null;
@@ -415,9 +418,18 @@ function Presence() {
 
   // 🔧 EditPresence → SELALU update row yang sama (PUT), BUKAN bikin id baru
   const onSaveEdit = async (updated) => {
-    const key = updated.id_presence || updated.id;
-    const keyStr = String(key).trim();
-    const prevSnap = records.find((x) => (x.id_presence || x.id) === key);
+    const keyRaw = updated.id_presence ?? updated.id;
+    const keyStr = String(keyRaw).trim();
+
+    // 🚧 JANGAN kirim ID temp/auto ke backend (bigint)
+    if (!isNumericId(keyStr)) {
+      console.warn("Skip PUT: id_presence bukan numeric (masih temp/auto)", keyStr);
+      return false;
+    }
+
+    const prevSnap = records.find(
+      (x) => String(x.id_presence || x.id).trim() === keyStr
+    );
 
     if (!prevSnap) return false; // kalau nggak ketemu, gagal
 
@@ -442,7 +454,7 @@ function Presence() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id_presence: keyStr,
+          id_presence: keyStr, // sudah dipastikan numeric → aman untuk bigint
           id_course: updated.courseId,
           status: updated.status,
           note: updated.note,
@@ -530,9 +542,7 @@ function Presence() {
                 const body = await safeJson(res);
                 const realId = body?.id_presence || body?.id || null;
                 if (realId) {
-                  setRecords((prev) =>
-                    replaceTempId(prev, tempId, realId)
-                  );
+                  setRecords((prev) => replaceTempId(prev, tempId, realId));
                 }
                 fetchTotalsGlobalFromServer();
               } catch {}

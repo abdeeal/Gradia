@@ -232,24 +232,52 @@ export const Courses = () => {
   };
 
   /* ===== UPDATE: CourseDetail -> PUT -> sync UI ===== */
-  const handleUpdateCourse = async (updatedUi) => {
-    // Optimistic update
+  const handleUpdateCourse = async (partialUi) => {
+    // Gabung dengan selectedCourse supaya id & field lain terjaga
+    const merged = { ...selectedCourse, ...partialUi };
+
+    // Normalisasi id (jaga-jaga kalau bentuk id beda)
+    const id =
+      merged.id ??
+      merged.id_courses ??
+      merged.id_course ??
+      merged.course_id;
+
+    if (!id) {
+      console.error("Missing course id for update", merged);
+      throw new Error("Missing course id");
+    }
+
+    merged.id = id;
+
+    // Optimistic update di UI
     setCourses((prev) =>
-      prev.map((c) => (c.id === updatedUi.id ? { ...c, ...updatedUi } : c))
+      prev.map((c) => (c.id === id ? { ...c, ...merged } : c))
     );
 
+    // 🔥 pastikan body ke backend SELALU punya id_courses
+    const basePayload = toApiCourse(merged);
+    const payload = {
+      ...basePayload,
+      id_courses: id, // override supaya tidak pernah undefined
+    };
+
     try {
-      const payload = toApiCourse(updatedUi);
-      const res = await fetch(`/api/courses/${updatedUi.id}`, {
+      const res = await fetch(`/api/courses`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Failed to update course");
-      setSelectedCourse(updatedUi);
+
+      if (!res.ok) {
+        throw new Error("Failed to update course");
+      }
+
+      setSelectedCourse(merged);
     } catch (e) {
       console.error(e);
-      // TODO: rollback atau toast error jika perlu
+      // lempar lagi supaya CourseDetail bisa nangkep dan show alert error
+      throw e;
     }
   };
 
@@ -323,7 +351,7 @@ export const Courses = () => {
           <h2 className="text-lg font-semibold">Overview</h2>
           <button
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] shadow-[0_0_10px_rgba(147,51,234,0.3)] hover:shadow-[0_0_18px_rgba(147,51,234,0.5)] transition"
+            className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] shadow-[0_0_10px_rgba(147,51,234,0.3)] hover:shadow-[0_0_18px_rgba(147,51,234,0.5)] transition cursor-pointer"
           >
             <i className="ri-add-line text-purple-200"></i> Add Course
           </button>
@@ -387,7 +415,7 @@ export const Courses = () => {
                               <p className="text-[16px] mt-1">ROOM</p>
                             </div>
 
-                            <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2">
+                            <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer">
                               Button{" "}
                               <i className="ri-logout-circle-r-line ml-1" />
                             </button>

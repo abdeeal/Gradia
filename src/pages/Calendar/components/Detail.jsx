@@ -203,7 +203,7 @@ export default function EventDetailsPanel({
                 title="Go to tasks"
                 onClick={() => navigate("/tasks")}
                 className="inline-flex items-center justify-center rounded-full border border-white/20 hover:bg-white/10"
-                style={{ width: 22, height: 22 }}
+                style={{ width: 22, height: 22, cursor: "pointer" }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path d="M7 17L17 7M17 7H8M17 7V16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

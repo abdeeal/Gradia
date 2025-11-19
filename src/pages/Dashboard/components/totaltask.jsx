@@ -236,20 +236,20 @@ export default function TotalTask({
         </h3>
 
         {/* Tombol navigasi ke /tasks */}
-        <button
-          onClick={() => navigate("/tasks")}
-          aria-label="Go to Tasks page"
-          className="flex items-center justify-center rounded-full transition hover:brightness-90"
-          style={{ width: 32, height: 32, background: "#FAFAFA" }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-            viewBox="0 0 24 24" fill="none" stroke="#000000"
-            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-          >
-            <path d="M7 17L17 7M7 7h10v10" />
-          </svg>
-        </button>
+      <button
+  onClick={() => navigate("/tasks")}
+  aria-label="Go to Tasks page"
+  className="flex items-center justify-center rounded-full transition hover:brightness-90"
+  style={{ width: 32, height: 32, background: "#FAFAFA", cursor: "pointer" }}
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+    viewBox="0 0 24 24" fill="none" stroke="#000000"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+  >
+    <path d="M7 17L17 7M7 7h10v10" />
+  </svg>
+</button>
       </div>
 
       {/* Angka total */}

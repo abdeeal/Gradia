@@ -1,9 +1,9 @@
 // src/pages/Loginpage/Login.jsx
 import React, { useState, useEffect } from "react";
 import { useMediaQuery } from "react-responsive";
-import Mobile from "./Layout/Mobile"; // Mobile kamu yang sudah jalan
+import Mobile from "./Layout/Mobile"; 
 import { useNavigate, Link } from "react-router-dom";
-import { useAlert } from "@/hooks/useAlert"; // ✅ pakai alert sama seperti Workspace
+import { useAlert } from "@/hooks/useAlert"; 
 
 const Login = () => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -21,9 +21,10 @@ function DesktopLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // state untuk error & loading Google
+  // state untuk error & loading
   const [errorMsg, setErrorMsg] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // ✅ loading login
 
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`;
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
@@ -76,15 +77,20 @@ function DesktopLoginPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg("");
+    setLoading(true); // ✅ mulai loading
 
     try {
-      const res = await fetch("/api/index", {
+      // ⬅️ SEKARANG pakai POST + JSON body, sesuai backend
+      const res = await fetch("/api/auth/index", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
-          action: "login", // ⬅️ sesuaikan dengan switch(action) di /api/index
-          email,
-          password,
+          action: "login",
+          text: email,     // ⬅️ backend expect "text" (bisa email / username)
+          password: password,
         }),
       });
 
@@ -105,7 +111,34 @@ function DesktopLoginPage() {
         return;
       }
 
-      // fleksibel: { id_user, username, email } atau { data: { ... } }
+      // ✅ kalau backend kirim otp_required = true (akun belum verifikasi)
+      if (data.otp_required) {
+        // simpan data user sementara kalau perlu dipakai di halaman OTP
+        if (data.user) {
+          localStorage.setItem("pending_verification_user", JSON.stringify(data.user));
+        }
+
+        showAlert({
+          icon: "ri-information-line",
+          title: "Verification Required",
+          desc:
+            data.message ||
+            "Your account is not verified yet. An OTP has been sent to your email.",
+          variant: "default",
+          width: 676,
+          height: 380,
+        });
+
+        // TODO: arahkan ke halaman verifikasi OTP milikmu
+        // contoh (ganti dengan rute yang benar di app-mu):
+        // navigate("/auth/verify-otp");
+        return;
+      }
+
+      // =======================
+      //    LOGIN SUKSES
+      // =======================
+
       const idUser =
         data?.id_user ?? data?.data?.id_user ?? data?.user?.id_user;
       const username =
@@ -119,7 +152,7 @@ function DesktopLoginPage() {
         email: emailFromApi,
       };
 
-      // ✅ simpan objek user (id_user tetap number di dalam JSON)
+      // ✅ simpan objek user (JSON)
       localStorage.setItem("user", JSON.stringify(user));
 
       // ✅ simpan id_user sebagai angka (INT8, tidak di-JSON.stringify)
@@ -127,7 +160,7 @@ function DesktopLoginPage() {
         localStorage.setItem("id_user", idUser);
       }
 
-      // ✅ username & email disimpan sebagai TEXT
+      // ✅ username & email sebagai TEXT
       if (username) {
         localStorage.setItem("username", username);
       }
@@ -135,7 +168,7 @@ function DesktopLoginPage() {
         localStorage.setItem("email", emailFromApi);
       }
 
-      navigate("/workspace");
+      navigate("/workspaces");
     } catch (err) {
       console.error("Login error:", err);
       const message = "Login failed. Please try again.";
@@ -148,6 +181,8 @@ function DesktopLoginPage() {
         width: 676,
         height: 380,
       });
+    } finally {
+      setLoading(false); // ✅ berhenti loading
     }
   };
 
@@ -227,8 +262,7 @@ function DesktopLoginPage() {
         console.log("GOOGLE CALLBACK DATA (desktop):", data);
 
         if (data.error) {
-          const message =
-            data.error || "Google login callback failed.";
+          const message = data.error || "Google login callback failed.";
           setErrorMsg(message);
           // ✅ alert callback error
           showAlert({
@@ -273,7 +307,7 @@ function DesktopLoginPage() {
             localStorage.setItem("email", emailFromApi);
           }
 
-          navigate("/workspace");
+          navigate("/workspaces");
         } else {
           const message =
             "Google login failed: invalid response from server.";
@@ -494,9 +528,16 @@ function DesktopLoginPage() {
                     border: "1px solid rgba(163,163,163,0.8)",
                     borderRadius: 8,
                     opacity: googleLoading ? 0.7 : 1,
-                    cursor: googleLoading ? "not-allowed" : "pointer",
+                    cursor: googleLoading ? "not-allowed" : "pointer", // ✅ pointer hanya button
+                    transition: "filter 0.2s ease, opacity 0.2s ease", // ✅ smooth hover
                   }}
                   onClick={googleLoading ? undefined : handleGoogleLogin}
+                  onMouseEnter={(e) => {
+                    if (!googleLoading) e.currentTarget.style.filter = "brightness(1.15)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.filter = "brightness(1)";
+                  }}
                 >
                   <svg
                     width="20"
@@ -527,15 +568,25 @@ function DesktopLoginPage() {
                 {/* Log In manual */}
                 <button
                   type="submit"
-                  className="w-1/2 px-4 py-3 text-[14px] font-semibold"
+                  disabled={loading}
+                  className="w-1/2 px-4 py-3 text-[14px] font-semibold flex items-center justify-center"
                   style={{
                     background:
                       "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                     border: "none",
                     borderRadius: 8,
+                    cursor: loading ? "not-allowed" : "pointer", // ✅ pointer khusus button
+                    opacity: loading ? 0.7 : 1,
+                    transition: "filter 0.2s ease, opacity 0.2s ease", // ✅ hover halus
                   }}
                 >
-                  <span style={gradientText}>Log In</span>
+                  {/* ✅ icon loading seperti contoh */}
+                  {loading && (
+                    <i className="ri-loader-4-line animate-spin mr-2" />
+                  )}
+                  <span style={gradientText}>
+                    {loading ? "Logging in..." : "Log In"}
+                  </span>
                 </button>
               </div>
 
