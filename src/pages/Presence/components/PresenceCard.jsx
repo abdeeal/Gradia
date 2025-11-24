@@ -274,7 +274,7 @@ const PresenceCard = ({
                       </div>
 
                       {/* BOTTOM: button */}
-                      <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2">
+                      <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer">
                         Log Presence{" "}
                         <i className="ri-logout-circle-r-line ml-1" />
                       </button>
@@ -375,7 +375,7 @@ const PresenceCard = ({
                               : () => onOpenAddPresence?.(c)
                           }
                           className={[
-                            "bg-gradient-to-l from-[#28073B] to-[#34146C] transition-all px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2",
+                            "bg-gradient-to-l from-[#28073B] to-[#34146C] transition-all px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer",
                             alreadyPresenced
                               ? "opacity-50 cursor-not-allowed pointer-events-none"
                               : "hover:opacity-90",

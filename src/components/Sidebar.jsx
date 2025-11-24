@@ -124,7 +124,7 @@ const Sidebar = () => {
           {/* === FOOTER === */}
           <div className="px-5 py-5 font-inter">
             <Link
-              to="/workspace"
+              to="/workspaces"
               className="flex items-center gap-3 text-gray-400 hover:text-white py-[4px] text-[15px] mb-[12px]"
             >
               <i className="ri-arrow-left-circle-line text-[17px]" /> Back

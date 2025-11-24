@@ -216,13 +216,13 @@ export default function WeatherCard({ dateText, now }) {
       {/* Konten kiri: tanggal + kota */}
       <div
         className="absolute"
-        style={{ left: 347.5, top: 56.5, width: 200, height: 48 }}
+        style={{ left: 347.5, top: 56.5, width: 210, height: 48 }}
       >
         <div
           className="h-full flex flex-col justify-center"
           style={{
             ...montserrat,
-            fontSize: 16,
+            fontSize: 15,
             lineHeight: 1.2,
             borderLeft: "1px solid #FAFAFA",
             paddingLeft: 8,
@@ -234,21 +234,21 @@ export default function WeatherCard({ dateText, now }) {
       </div>
 
       {/* Jam besar */}
-      <div
-        className="absolute flex items-center tabular-nums"
-        style={{
-          left: 235.5,
-          top: 61,
-          width: 774 - 240.5 - 405.5,
-          height: 161 - 61 - 61,
-          ...montserrat,
-          fontSize: 30,
-          fontWeight: 600,
-          lineHeight: 1,
-        }}
-      >
-        {timeHM}
-      </div>
+<div
+  className="absolute flex items-center tabular-nums"
+  style={{
+    left: 235.5,
+    top: 61,
+    width: 774 - 240.5 - 405.5,
+    height: 161 - 61 - 61,
+    fontFamily: "Montserrat, ui-sans-serif",   // ← DITAMBAHKAN
+    fontSize: 30,
+    fontWeight: 600,
+    lineHeight: 1,
+  }}
+>
+  {timeHM}
+</div>
     </div>
   );
 }

@@ -791,7 +791,7 @@ function WorkspaceRow({
               e.stopPropagation();
               onToggleMenu();
             }}
-            className="workspace-more-trigger inline-flex h-[35px] w-[35px] items-center justify-center"
+            className="workspace-more-trigger inline-flex h-[35px] w-[35px] items-center justify-center cursor-pointer"
             title="More"
           >
             <i className="ri-more-2-line text-[22px] text-[#fafafa]" />
@@ -842,7 +842,7 @@ function WorkspaceRow({
                 e.stopPropagation();
                 onSave();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-white"
+              className="inline-flex items-center gap-2 px-4 py-2 text-white cursor-pointer"
               style={{
                 background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                 border: "none",
@@ -860,7 +860,7 @@ function WorkspaceRow({
                 e.stopPropagation();
                 onEnter();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-white"
+              className="inline-flex items-center gap-2 px-4 py-2 text-white cursor-pointer"
               style={{
                 background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                 border: "none",
@@ -886,14 +886,14 @@ function WorkspaceRow({
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            className="w-full text-left px-3 py-2 hover:bg-[#2a2a2a] text-[#FAFAFA] flex items-center gap-2"
+            className="w-full text-left px-3 py-2 hover:bg-[#2a2a2a] text-[#FAFAFA] flex items-center gap-2 cursor-pointer"
             onClick={onStartEdit}
           >
             <i className="ri-edit-line" />
             Edit
           </button>
           <button
-            className="w-full text-left px-3 py-2 hover:bg-[#2a2a2a] text-[#FF8686] flex items-center gap-2"
+            className="w-full text-left px-3 py-2 hover:bg-[#2a2a2a] text-[#FF8686] flex items-center gap-2 cursor-pointer"
             onClick={onAskDelete}
           >
             <i className="ri-delete-bin-fill" />
@@ -1000,7 +1000,7 @@ function CreateNewRow({
                 e.stopPropagation();
                 if (!disabled) onAdd();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-white disabled:opacity-60"
+              className="inline-flex items-center gap-2 px-4 py-2 text-white disabled:opacity-60 cursor-pointer"
               style={{
                 background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                 border: "none",

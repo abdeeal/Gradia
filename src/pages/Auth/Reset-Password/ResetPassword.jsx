@@ -1,4 +1,3 @@
-// src/pages/Loginpage/ResetPassword.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useMediaQuery } from "react-responsive";
 import Mobile from "./Layout/Mobile";
@@ -7,7 +6,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 export default function ResetPassword({ initialStep = "email" }) {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
-  if (isMobile || isTablet) return <Mobile />;
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -17,55 +15,104 @@ export default function ResetPassword({ initialStep = "email" }) {
 
   // === flow control ===
   // steps: 'email' | 'otp' | 'newPw' | 'success'
-  // catatan: step 'otp' local tidak dipakai utk desktop; dialihkan ke /auth/verify-otp
   const [step, setStep] = useState(initialStep === "newPw" ? "newPw" : "email");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState(Array(6).fill("")); // disimpan utk kompatibilitas mobile
+  const [otp, setOtp] = useState(Array(6).fill("")); // utk mobile / kompatibilitas
   const [pw, setPw] = useState("");
   const [cpw, setCpw] = useState("");
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false); // loading untuk kirim OTP
   const inputsRef = useRef([]);
 
   // === ROUTES ===
   const VERIFY_OTP_ROUTE = "/auth/verify-otp";
   const FORGOT_SUCCESS_ROUTE = "/auth/success/reset";
+  const LS_KEY = "reset_email";
 
-  // === detect return from Verify OTP (kompatibilitas lama) ===
-  // Mengantisipasi jika VerifyOtp mengirim state: { verified: true, type: 'reset', email }
+  // Ambil email dari localStorage saat pertama kali mount
+  useEffect(() => {
+    try {
+      const savedEmail = window.localStorage.getItem(LS_KEY);
+      if (savedEmail && !email) {
+        setEmail(savedEmail);
+      }
+    } catch (e) {
+      console.warn("Cannot read reset_email from localStorage:", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // detect return from Verify OTP: state: { verified: true, type: 'reset', email }
   useEffect(() => {
     const st = location?.state || {};
     if (st?.verified === true && st?.type === "reset") {
-      if (st?.email) setEmail(st.email);
+      if (st?.email) {
+        setEmail(st.email);
+        try {
+          window.localStorage.setItem(LS_KEY, st.email);
+        } catch (e) {
+          console.warn("Cannot save reset_email to localStorage:", e);
+        }
+      }
       setStep("newPw");
       // bersihkan state agar tidak repeat saat refresh
       window.history.replaceState({}, document.title);
     }
   }, [location?.state]);
 
-  // === styles constant ===
-  const TITLE_TOP = 110;
-  const SUB_TO_CARD = 64;
-  const CARD_W = 540;
-  const CARD_PAD_X = 65;
-  const CARD_PAD_Y = 22;
-
   // === handlers ===
-  const handleEmailSubmit = (e) => {
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
     if (!email.includes("@")) return setErr("Invalid email.");
     setErr("");
 
-    // Email -> Verify OTP (type reset)
-    // Kirim via state dan query string supaya terdeteksi di VerifyOtp
-    navigate({
-      pathname: VERIFY_OTP_ROUTE,
-      search: "?type=reset",
-    }, {
-      state: {
-        email,
-        type: "reset",
-      },
-    });
+    try {
+      setLoading(true);
+
+      // simpan email ke localStorage
+      try {
+        window.localStorage.setItem(LS_KEY, email);
+      } catch (e) {
+        console.warn("Cannot save reset_email to localStorage:", e);
+      }
+
+      // panggil API /api/auth/resetPassword -> action: send-otp
+      const resp = await fetch("/api/auth/resetPassword", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "send-otp",
+          email,
+        }),
+      });
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data?.error || "Failed to send OTP.");
+      }
+
+      // sukses -> pindah ke halaman Verify OTP
+      navigate(
+        {
+          pathname: VERIFY_OTP_ROUTE,
+          search: "?type=reset",
+        },
+        {
+          state: {
+            email,
+            type: "reset",
+          },
+        }
+      );
+    } catch (error) {
+      console.error("SEND OTP ERROR:", error);
+      setErr(error.message || "Failed to send OTP.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // (Dipertahankan untuk mobile / kemungkinan reuse; desktop tidak pakai local 'otp' step)
@@ -87,20 +134,70 @@ export default function ResetPassword({ initialStep = "email" }) {
     setStep("newPw");
   };
 
-  const handleNewPwSubmit = (e) => {
+  const handleNewPwSubmit = async (e) => {
     e.preventDefault();
     setErr("");
     if (pw.length < 8) return setErr("Password must be at least 8 chars");
     if (pw !== cpw) return setErr("Passwords do not match");
 
-    // New Password -> SuccessMsg (Type ForgotSuccess)
-    navigate(FORGOT_SUCCESS_ROUTE, {
-      state: {
-        type: "reset",
-        email, // opsional, kalau perlu ditampilkan di SuccessMsg
-      },
-      replace: true,
-    });
+    // pastikan email ada (ambil dari localStorage kalau perlu)
+    let currentEmail = email;
+    if (!currentEmail) {
+      try {
+        const savedEmail = window.localStorage.getItem(LS_KEY);
+        if (savedEmail) {
+          currentEmail = savedEmail;
+          setEmail(savedEmail);
+        }
+      } catch (e) {
+        console.warn("Cannot read reset_email from localStorage:", e);
+      }
+    }
+
+    if (!currentEmail) {
+      return setErr(
+        "Session reset tidak valid, silakan ulangi dari halaman Forgot Password."
+      );
+    }
+
+    try {
+      const resp = await fetch("/api/auth/resetPassword", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "change-password",
+          email: currentEmail,
+          new_password: pw,
+        }),
+      });
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data?.error || "Failed to reset password.");
+      }
+
+      // hapus email dari localStorage karena sudah selesai reset
+      try {
+        window.localStorage.removeItem(LS_KEY);
+      } catch (e) {
+        console.warn("Cannot remove reset_email from localStorage:", e);
+      }
+
+      // New Password -> SuccessMsg
+      navigate(FORGOT_SUCCESS_ROUTE, {
+        state: {
+          type: "reset",
+          email: currentEmail,
+        },
+        replace: true,
+      });
+    } catch (error) {
+      console.error("CHANGE PASSWORD ERROR:", error);
+      setErr(error.message || "Failed to reset password.");
+    }
   };
 
   const renderBackground = () => (
@@ -157,6 +254,8 @@ export default function ResetPassword({ initialStep = "email" }) {
 
   const btnStyle = {
     background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
   };
 
   const renderEmail = () => (
@@ -184,9 +283,12 @@ export default function ResetPassword({ initialStep = "email" }) {
         type="submit"
         className="w-full mt-2 rounded-md h-[46px] shadow-md transition hover:opacity-95"
         style={btnStyle}
+        disabled={loading}
+        onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.15)")}
+        onMouseLeave={(e) => (e.currentTarget.style.filter = "brightness(1)")}
       >
         <span className="font-semibold text-transparent bg-clip-text bg-gradient-to-b from-[#FAFAFA] to-[#B9B9B9]">
-          Reset Password
+          {loading ? "Verifying..." : "Reset Password"}
         </span>
       </button>
       <div className="text-center text-sm mt-3">
@@ -229,6 +331,8 @@ export default function ResetPassword({ initialStep = "email" }) {
         type="submit"
         className="w-full mt-2 rounded-md h-[46px] shadow-md transition hover:opacity-95"
         style={btnStyle}
+        onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.15)")}
+        onMouseLeave={(e) => (e.currentTarget.style.filter = "brightness(1)")}
       >
         <span className="font-semibold text-transparent bg-clip-text bg-gradient-to-b from-[#FAFAFA] to-[#B9B9B9]">
           Verify OTP
@@ -259,7 +363,10 @@ export default function ResetPassword({ initialStep = "email" }) {
       </div>
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <i className="ri-lock-password-line" style={{ color: "#A3A3A3" }} />
+          <i
+            className="ri-lock-password-line"
+            style={{ color: "#A3A3A3" }}
+          />
           <label style={{ color: "#A3A3A3" }}>Confirm Password</label>
         </div>
         <input
@@ -280,6 +387,8 @@ export default function ResetPassword({ initialStep = "email" }) {
         type="submit"
         className="w-full mt-3 rounded-md h-[46px] shadow-md transition hover:opacity-95"
         style={btnStyle}
+        onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.15)")}
+        onMouseLeave={(e) => (e.currentTarget.style.filter = "brightness(1)")}
       >
         <span className="font-semibold text-transparent bg-clip-text bg-gradient-to-b from-[#FAFAFA] to-[#B9B9B9]">
           Save New Password
@@ -301,6 +410,8 @@ export default function ResetPassword({ initialStep = "email" }) {
         onClick={() => navigate("/auth/login")}
         className="px-10 py-3 rounded-md shadow-md transition hover:opacity-95"
         style={btnStyle}
+        onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.15)")}
+        onMouseLeave={(e) => (e.currentTarget.style.filter = "brightness(1)")}
       >
         <span className="font-semibold text-transparent bg-clip-text bg-gradient-to-b from-[#FAFAFA] to-[#B9B9B9]">
           Go to Login
@@ -308,6 +419,9 @@ export default function ResetPassword({ initialStep = "email" }) {
       </button>
     </div>
   );
+
+  // NOTE: return <Mobile /> dipindah ke bawah supaya hooks selalu dipanggil konsisten
+  if (isMobile || isTablet) return <Mobile />;
 
   return (
     <div
@@ -332,7 +446,12 @@ export default function ResetPassword({ initialStep = "email" }) {
           </h1>
           <p
             className="mx-auto font-semibold"
-            style={{ width: "540px", fontSize: "20px", marginTop: "4px", color: "#A3A3A3" }}
+            style={{
+              width: "540px",
+              fontSize: "20px",
+              marginTop: "4px",
+              color: "#A3A3A3",
+            }}
           >
             {step === "email" && "Enter your email to reset password"}
             {step === "otp" && "Check your inbox for the verification code"}

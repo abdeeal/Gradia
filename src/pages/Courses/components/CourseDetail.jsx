@@ -92,7 +92,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
       // Event opsional ke global listener
       window.dispatchEvent(
         new CustomEvent("courses:deleted", {
-          detail: { id_course: courseId },
+          detail: { id_courses: courseId },
         })
       );
 
@@ -132,7 +132,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
         <button
           onClick={onClose}
-          className="absolute left-3 top-4 text-gray-400"
+          className="absolute left-3 top-4 text-gray-400 cursor-pointer"
           disabled={loading}
         >
           <i className="ri-arrow-right-double-line text-2xl" />
@@ -229,7 +229,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
           <div className="mt-[24px] flex justify-end items-center gap-3 pt-8 font-inter">
             <button
               onClick={handleDelete}
-              className="flex items-center justify-center w-[44px] h-[44px] rounded-lg bg-[#830404] hover:bg-[#9b0a0a] shadow-md shadow-red-900/40 transition-all disabled:opacity-60"
+              className="flex items-center justify-center w-[44px] h-[44px] rounded-lg bg-[#830404] hover:bg-[#9b0a0a] shadow-md shadow-red-900/40 transition-all disabled:opacity-60 cursor-pointer"
               disabled={loading}
               aria-label="Delete Course"
               title="Delete Course"
@@ -238,7 +238,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
             </button>
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] cursor-pointer transition-all disabled:opacity-60"
+              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] cursor-pointer transition-all disabled:opacity-60 cursor-pointer"
               disabled={loading}
             >
               <i className="ri-edit-line text-foreground text-[18px]" />

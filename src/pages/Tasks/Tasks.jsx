@@ -1,4 +1,4 @@
-// src/pages/Tasks/index.jsx (atau path yang kamu pakai)
+// src/pages/Tasks/index.jsx
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import gsap from "gsap";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -72,6 +72,36 @@ const getCourseTitle = (courses, id_course) => {
   return found?.title || found?.name || "";
 };
 
+/** Ambil Date dari berbagai kemungkinan field deadline/timestamptz di task */
+const getDeadlineDate = (task = {}) => {
+  const raw =
+    task.deadline_timestamptz ??
+    task.deadline ??
+    task.deadline_at ??
+    task.due_date ??
+    task.dueDate ??
+    null;
+
+  if (raw) {
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+
+  // fallback kalau FE pakai date + time terpisah
+  const date =
+    task.deadline_date ?? task.deadlineDate ?? task.due_date ?? task.dueDate;
+  const time =
+    task.deadline_time ?? task.deadlineTime ?? task.due_time ?? task.dueTime;
+
+  if (date) {
+    const iso = time ? `${date}T${time}` : `${date}T00:00:00`;
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+
+  return null;
+};
+
 const Tasks = () => {
   const [selectedTask, setSelectedTask] = useState(null);
   const [showAddPanel, setShowAddPanel] = useState(false);
@@ -93,6 +123,18 @@ const Tasks = () => {
   // ===== Loading state =====
   const [loading, setLoading] = useState(true);
 
+  // ===== Filter & Sort state (VIEW ONLY, tidak mengubah data/DB) =====
+  // filter progress: "all" | "notStarted" | "inProgress" | "completed" | "overdue"
+  const [filterStatus, setFilterStatus] = useState("all");
+  // sort by deadline: null (no sort) | "asc" (paling dekat dulu) | "desc" (paling jauh dulu)
+  const [sortDir, setSortDir] = useState(null);
+
+  // dropdown UI state
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const filterRef = useRef(null);
+  const sortRef = useRef(null);
+
   // === LOAD Courses & Tasks from API ===
   useEffect(() => {
     const load = async () => {
@@ -100,7 +142,9 @@ const Tasks = () => {
       try {
         // 1) Courses
         try {
-          const resCourses = await fetch(`/api/courses?idWorkspace=${id_workspace}`);
+          const resCourses = await fetch(
+            `/api/courses?idWorkspace=${id_workspace}`
+          );
           if (resCourses.ok) {
             const data = await resCourses.json();
             const mapped = (Array.isArray(data) ? data : [])
@@ -122,7 +166,12 @@ const Tasks = () => {
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
 
-        const grouped = { notStarted: [], inProgress: [], completed: [], overdue: [] };
+        const grouped = {
+          notStarted: [],
+          inProgress: [],
+          completed: [],
+          overdue: [],
+        };
         (Array.isArray(data) ? data : []).forEach((t) => {
           const key = normalizeStatusKey(t.status || "");
           if (!grouped[key]) grouped[key] = []; // ✅ guard
@@ -148,7 +197,8 @@ const Tasks = () => {
 
   // lock scroll saat drawer
   useEffect(() => {
-    document.body.style.overflow = selectedTask || showAddPanel ? "hidden" : "auto";
+    document.body.style.overflow =
+      selectedTask || showAddPanel ? "hidden" : "auto";
   }, [selectedTask, showAddPanel]);
 
   useEffect(() => {
@@ -210,7 +260,9 @@ const Tasks = () => {
   const deleteTask = async (taskId) => {
     try {
       const res = await fetch(
-        `/api/tasks?id=${encodeURIComponent(taskId)}&idWorkspace=${id_workspace}`,
+        `/api/tasks?id=${encodeURIComponent(
+          taskId
+        )}&idWorkspace=${id_workspace}`,
         { method: "DELETE" }
       ); // ✅ sertakan idWorkspace
       if (!res.ok) throw new Error(await res.text());
@@ -269,7 +321,10 @@ const Tasks = () => {
       if (!temp_id || !task) return;
       setTasksByCol((prev) => {
         const cleaned = Object.fromEntries(
-          Object.entries(prev).map(([k, arr]) => [k, arr.filter((t) => t.id_task !== temp_id)])
+          Object.entries(prev).map(([k, arr]) => [
+            k,
+            arr.filter((t) => t.id_task !== temp_id),
+          ])
         );
         return placeTask(cleaned, task);
       });
@@ -309,11 +364,58 @@ const Tasks = () => {
     };
   }, []);
 
+  /* ========= CLICK OUTSIDE untuk dropdown Filter/Sort ========= */
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        filterRef.current &&
+        !filterRef.current.contains(e.target) &&
+        sortRef.current &&
+        !sortRef.current.contains(e.target)
+      ) {
+        setShowFilterDropdown(false);
+        setShowSortDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  /* ========= Derive tasks yang tampil setelah FILTER + SORT ========= */
+  const visibleTasksByCol = useMemo(() => {
+    const sortTasks = (arr) => {
+      if (!sortDir) return arr;
+      const copy = [...arr];
+      copy.sort((a, b) => {
+        const da = getDeadlineDate(a);
+        const db = getDeadlineDate(b);
+        if (!da && !db) return 0;
+        if (!da) return 1; // yg ga punya deadline taruh belakang
+        if (!db) return -1;
+        return sortDir === "asc" ? da - db : db - da;
+      });
+      return copy;
+    };
+
+    const keys = ["notStarted", "inProgress", "completed", "overdue"];
+    const result = {};
+    keys.forEach((k) => {
+      const base = tasksByCol[k] || [];
+      const filtered =
+        filterStatus === "all" || filterStatus === k ? base : [];
+      result[k] = sortTasks(filtered);
+    });
+    return result;
+  }, [tasksByCol, filterStatus, sortDir]);
+
   return (
     <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
       <Sidebar />
 
-      <div ref={taskContainerRef} className="flex-1 pt-[20px] pb-6 overflow-y-auto bg-background">
+      <div
+        ref={taskContainerRef}
+        className="flex-1 pt-[20px] pb-6 overflow-y-auto bg-background"
+      >
         {/* Shimmer global untuk halaman ini */}
         <ShimmerStyles />
 
@@ -327,9 +429,16 @@ const Tasks = () => {
         <div className="bg-black rounded-lg mb-[24px] border border-[#656565]/80 mr-6">
           <div className="grid grid-cols-5">
             {stats.map((stat, i, arr) => (
-              <div key={stat.label} className="relative p-3 flex flex-col justify-center text-left">
-                <p className="text-[16px] text-gray-400 font-medium">{stat.label}</p>
-                <p className="font-extrabold mt-1 text-[26px] text-[#FFEB3B]">{stat.value}</p>
+              <div
+                key={stat.label}
+                className="relative p-3 flex flex-col justify-center text-left"
+              >
+                <p className="text-[16px] text-gray-400 font-medium">
+                  {stat.label}
+                </p>
+                <p className="font-extrabold mt-1 text-[26px] text-[#FFEB3B]">
+                  {stat.value}
+                </p>
                 {i < arr.length - 1 && (
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 h-[60%] border-r border-dashed border-[#656565]/80" />
                 )}
@@ -342,18 +451,62 @@ const Tasks = () => {
           <h2 className="text-[20px] font-semibold">Overview</h2>
 
           <div className="flex items-center gap-2.5">
-            <button className="flex items-center gap-1.5 px-[10px] py-[6px] rounded-md text-[16px] border border-zinc-700 hover:border-zinc-500 transition-all">
-              <i className="ri-filter-3-line text-[15px]"></i> Filter
-            </button>
+            {/* FILTER BUTTON + DROPDOWN */}
+            <div ref={filterRef} className="relative">
+              <button
+                className="flex items-center gap-1.5 px-[10px] py-[6px] rounded-md text-[16px] border border-zinc-700 hover:border-zinc-500 transition-all cursor-pointer"
+                onClick={() => {
+                  setShowFilterDropdown((v) => !v);
+                  setShowSortDropdown(false);
+                }}
+              >
+                <i className="ri-filter-3-line text-[15px]"></i> Filter
+              </button>
 
-            <button className="flex items-center gap-1.5 px-[10px] py-[6px] rounded-md text-[16px] border border-zinc-700 hover:border-zinc-500 transition-all">
-              <i className="ri-sort-desc text-[15px]"></i> Sort
-            </button>
+              {showFilterDropdown && (
+                <div className="absolute right-0 mt-2 z-30">
+                  <FilterDropdown
+                    value={filterStatus}
+                    onChange={(val) => {
+                      setFilterStatus(val);
+                      setShowFilterDropdown(false);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* SORT BUTTON + DROPDOWN */}
+            <div ref={sortRef} className="relative">
+              <button
+                className="flex items-center gap-1.5 px-[10px] py-[6px] rounded-md text-[16px] border border-zinc-700 hover:border-zinc-500 transition-all cursor-pointer"
+                onClick={() => {
+                  setShowSortDropdown((v) => !v);
+                  setShowFilterDropdown(false);
+                }}
+              >
+                <i className="ri-sort-desc text-[15px]"></i> Sort
+              </button>
+
+              {showSortDropdown && (
+                <div className="absolute right-0 mt-2 z-30">
+                  <SortDropdown
+                    value={sortDir}
+                    onChange={(val) => {
+                      setSortDir(val);
+                      setShowSortDropdown(false);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
 
             <button
               onClick={handleAddClick}
-              className="flex items-center gap-1.5 px-[12px] py-[6px] rounded-md text-[16px] text-white transition-all"
-              style={{ background: "linear-gradient(135deg, #34146C 0%, #28073B 100%)" }}
+              className="flex items-center gap-1.5 px-[12px] py-[6px] rounded-md text-[16px] text-white transition-all cursor-pointer"
+              style={{
+                background: "linear-gradient(135deg, #34146C 0%, #28073B 100%)",
+              }}
             >
               <i className="ri-add-line text-[16px]"></i> Add Task
             </button>
@@ -363,14 +516,14 @@ const Tasks = () => {
         <div className="border-t border-[#464646] mb-[14px] mr-6"></div>
 
         <div className="bg-background-secondary p-5 rounded-2xl mr-6 border border-[#2c2c2c]">
-          {/* ✅ Selalu render grid 4 kolom, tapi tiap kolom aware sama `loading` */}
+          {/* ✅ Selalu render grid 4 kolom, tapi tiap kolom aware sama `loading` / filter / sort */}
           <div className="grid grid-cols-4 gap-2">
             <TaskCategory
               title="Not Started"
               icon="ri-file-edit-line"
               iconBg="bg-[#6B7280]/20"
               iconColor="#D4D4D8"
-              tasks={tasksByCol.notStarted}
+              tasks={visibleTasksByCol.notStarted}
               onCardClick={handleCardClick}
               courses={courses}
               loading={loading}
@@ -380,7 +533,7 @@ const Tasks = () => {
               icon="ri-progress-2-line"
               iconBg="bg-[#06B6D4]/20"
               iconColor="#22D3EE"
-              tasks={tasksByCol.inProgress}
+              tasks={visibleTasksByCol.inProgress}
               onCardClick={handleCardClick}
               courses={courses}
               loading={loading}
@@ -390,7 +543,7 @@ const Tasks = () => {
               icon="ri-checkbox-circle-line"
               iconBg="bg-[#22C55E]/20"
               iconColor="#4ADE80"
-              tasks={tasksByCol.completed}
+              tasks={visibleTasksByCol.completed}
               onCardClick={handleCardClick}
               courses={courses}
               loading={loading}
@@ -400,7 +553,7 @@ const Tasks = () => {
               icon="ri-alarm-warning-line"
               iconBg="bg-[#EF4444]/20"
               iconColor="#F87171"
-              tasks={tasksByCol.overdue}
+              tasks={visibleTasksByCol.overdue}
               onCardClick={handleCardClick}
               courses={courses}
               loading={loading}
@@ -410,7 +563,10 @@ const Tasks = () => {
       </div>
 
       {(selectedTask || showAddPanel) && (
-        <div onClick={closeAllDrawer} className="fixed inset-0 bg-black/50 z-40 cursor-pointer"></div>
+        <div
+          onClick={closeAllDrawer}
+          className="fixed inset-0 bg-black/50 z-40 cursor-pointer"
+        ></div>
       )}
 
       {/* Drawer Detail */}
@@ -419,8 +575,8 @@ const Tasks = () => {
           <TaskDetail
             task={selectedTask}
             onClose={closeAllDrawer}
-            onSave={updateTask}     // ✅ Tasks yang ngurus PUT ke DB
-            onDelete={deleteTask}   // ✅ Tasks yang ngurus DELETE ke DB
+            onSave={updateTask} // ✅ Tasks yang ngurus PUT ke DB
+            onDelete={deleteTask} // ✅ Tasks yang ngurus DELETE ke DB
             courses={courses}
           />
         </div>
@@ -431,11 +587,111 @@ const Tasks = () => {
         <div className="drawer-panel fixed top-0 right-0 h-full z-50">
           <AddTask
             onClose={closeAllDrawer}
-            onSubmit={addTask}      // ✅ Tasks yang ngurus POST ke DB
+            onSubmit={addTask} // ✅ Tasks yang ngurus POST ke DB
             courses={courses}
           />
         </div>
       )}
+    </div>
+  );
+};
+
+/* -------------------- DROPDOWN COMPONENTS (mirip layout Dropdown) -------------------- */
+
+const FilterDropdown = ({ value, onChange }) => {
+  const options = [
+    { key: "all", label: "All progress", icon: "ri-checkbox-multiple-line" },
+    { key: "notStarted", label: "Not Started", icon: "ri-file-edit-line" },
+    { key: "inProgress", label: "In Progress", icon: "ri-progress-2-line" },
+    { key: "completed", label: "Completed", icon: "ri-checkbox-circle-line" },
+    { key: "overdue", label: "Overdue", icon: "ri-alarm-warning-line" },
+  ];
+
+  return (
+    <div
+      className="flex flex-col items-stretch justify-center rounded-md shadow-lg"
+      style={{
+        backgroundColor: "#141414",
+        width: "190px",
+        padding: "10px",
+      }}
+    >
+      {options.map((opt, idx) => (
+        <React.Fragment key={opt.key}>
+          <button
+            type="button"
+            className="flex items-center justify-between text-white font-inter cursor-pointer w-full"
+            style={{ fontSize: "14px" }}
+            onClick={() => onChange(opt.key)}
+          >
+            <span className="inline-flex items-center gap-2">
+              <i className={`${opt.icon} text-[16px]`} />
+              {opt.label}
+            </span>
+            {value === opt.key && (
+              <i className="ri-check-line text-[16px]" />
+            )}
+          </button>
+
+          {idx < options.length - 1 && (
+            <div style={{ height: "10px" }} /> // jarak antar tombol
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
+const SortDropdown = ({ value, onChange }) => {
+  const options = [
+    {
+      key: "asc",
+      label: "Deadline: Nearest first",
+      icon: "ri-arrow-up-line",
+    },
+    {
+      key: "desc",
+      label: "Deadline: Farthest first",
+      icon: "ri-arrow-down-line",
+    },
+    {
+      key: null,
+      label: "No sort (default)",
+      icon: "ri-close-line",
+    },
+  ];
+
+  return (
+    <div
+      className="flex flex-col items-stretch justify-center rounded-md shadow-lg"
+      style={{
+        backgroundColor: "#141414",
+        width: "210px",
+        padding: "10px",
+      }}
+    >
+      {options.map((opt, idx) => (
+        <React.Fragment key={String(opt.key)}>
+          <button
+            type="button"
+            className="flex items-center justify-between text-white font-inter cursor-pointer w-full"
+            style={{ fontSize: "14px" }}
+            onClick={() => onChange(opt.key)}
+          >
+            <span className="inline-flex items-center gap-2">
+              <i className={`${opt.icon} text-[16px]`} />
+              {opt.label}
+            </span>
+            {value === opt.key && (
+              <i className="ri-check-line text-[16px]" />
+            )}
+          </button>
+
+          {idx < options.length - 1 && (
+            <div style={{ height: "10px" }} /> // jarak antar tombol
+          )}
+        </React.Fragment>
+      ))}
     </div>
   );
 };
@@ -466,8 +722,12 @@ const TaskCategory = ({
   return (
     <div ref={sectionRef} className="flex flex-col w-full gap-2">
       <div className="flex justify-between items-center bg-[#0a0a0a] px-3 py-2 rounded-lg min-h=[42px] w-full">
-        <span className="font-semibold text-[16px] text-white capitalize">{title}</span>
-        <div className={`${iconBg} w-8 h-8 rounded-md flex items-center justify-center`}>
+        <span className="font-semibold text-[16px] text-white capitalize">
+          {title}
+        </span>
+        <div
+          className={`${iconBg} w-8 h-8 rounded-md flex items-center justify-center`}
+        >
           <i className={`${icon} text-[20px]`} style={{ color: iconColor }} />
         </div>
       </div>
@@ -511,7 +771,8 @@ const TaskCategory = ({
           ))
         ) : tasks && tasks.length > 0 ? (
           tasks.map((task) => {
-            const course_title = task.course_title || getCourseTitle(courses, task.id_course);
+            const course_title =
+              task.course_title || getCourseTitle(courses, task.id_course);
             return (
               <div
                 key={task.id_task}
