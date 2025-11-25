@@ -19,13 +19,6 @@ export default async function handler(req, res) {
 
     console.log(`🚀 Cron triggered at ${hour}:${minute} WIB (${today})`);
 
-    // Tidak perlu cek menit, cron sudah presisi
-    // if (hour !== 23) {
-    //   return res.status(200).json({
-    //     message: "⏳ Not the scheduled WIB hour (23:xx)",
-    //     now: `${hour}:${minute}`,
-    //   });
-    // }
 
     // Gunakan ISO WIB
     const nowWIB_ISO = new Date(
@@ -36,7 +29,6 @@ export default async function handler(req, res) {
       .from("task")
       .update({
         status: "Overdue",
-        updated_at: nowWIB_ISO,
       })
       .lte("deadline", nowWIB_ISO)
       .neq("status", "Completed")
