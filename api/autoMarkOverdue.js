@@ -36,7 +36,6 @@ export default async function handler(req, res) {
       .from("task")
       .update({
         status: "Overdue",
-        note: "Auto marked overdue by system",
         updated_at: nowWIB_ISO,
       })
       .lte("deadline", nowWIB_ISO)
