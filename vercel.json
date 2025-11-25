@@ -2,13 +2,14 @@
   "rewrites": [
     { "source": "/(.*)", "destination": "/" }
   ],
-  "functions": {
-    "api/autoMarkAbsent.js": {
+  "crons": [
+    {
+      "path": "/api/autoMarkAbsent",
       "schedule": "59 16 * * *"
     },
-    "api/autoMarkOverdue.js": {
+    {
+      "path": "/api/autoMarkOverdue",
       "schedule": "59 16 * * *"
     }
-  }
+  ]
 }
-
