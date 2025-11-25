@@ -6,14 +6,12 @@
   import { useMediaQuery } from "react-responsive";
   import { useEffect, useState } from "react";
 
-  function App() {
-    const { pathname } = useLocation();
-    sessionStorage.setItem("id_workspace", "1");
-    const isAuthPage = pathname.startsWith("/auth") || pathname.startsWith("/workspace");
-    const isMobile = useMediaQuery({ maxWidth: 767 });
-    const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
-
-    const isDashboard = pathname.startsWith("/dashboard");
+function App() {
+  const { pathname } = useLocation();
+  const isAuthPage = pathname.startsWith("/auth") || pathname.startsWith("/workspace");
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
+  const isDashboard = pathname.startsWith("/dashboard");
 
 return (
   <>
