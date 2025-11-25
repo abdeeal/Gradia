@@ -232,7 +232,7 @@ const AddPresence = ({
               </h2>
               <button
                 onClick={onClose}
-                className="text-foreground-secondary hover:text-white transition-colors"
+                className="text-foreground-secondary hover:text-white transition-colors cursor-pointer"
                 aria-label="Close"
               >
                 <i className="ri-close-line text-xl" />
@@ -270,7 +270,8 @@ const AddPresence = ({
                   onClick={() => setStatus("Present")}
                   className={`flex items-center ${
                     isPresence ? "justify-start pl-2.5" : "justify-center"
-                  } gap-1.5 px-2.5 h-[34px] rounded-lg border transition-colors font-inter text-[14px] min-w-[120px]
+                  } 
+                  gap-1.5 px-2.5 h-[34px] rounded-lg border transition-colors font-inter text-[14px] min-w-[120px] cursor-pointer
                     ${
                       isPresence
                         ? "bg-[#22C55E]/20 border-[#22C55E]/30"
@@ -290,7 +291,8 @@ const AddPresence = ({
                   onClick={() => setStatus("Absent")}
                   className={`flex items-center ${
                     isAbsent ? "justify-start pl-2.5" : "justify-center"
-                  } gap-1.5 px-2.5 h-[34px] rounded-lg border transition-colors font-inter text-[14px] min-w-[100px]
+                  } 
+                  gap-1.5 px-2.5 h-[34px] rounded-lg border transition-colors font-inter text-[14px] min-w-[100px] cursor-pointer
                     ${
                       isAbsent
                         ? "bg-[#EF4444]/20 border-[#EF4444]/30"
@@ -321,7 +323,7 @@ const AddPresence = ({
                 <button
                   onClick={submit}
                   className="inline-flex items-center gap-2 pl-4 pr-4 h-9 rounded-md text-sm font-inter
-                             bg-[linear-gradient(to_right,#34146C,#28073B)] hover:brightness-110 transition"
+                             bg-[linear-gradient(to_right,#34146C,#28073B)] hover:brightness-110 transition cursor-pointer"
                 >
                   <span>Submit Presence</span>
                   <i className="ri-logout-circle-r-line text-base" />

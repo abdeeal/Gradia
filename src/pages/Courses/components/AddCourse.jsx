@@ -93,7 +93,7 @@ const AddCourse = ({ onClose, onAdd }) => {
     <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
       <button
         onClick={onClose}
-        className="absolute left-3 top-4 text-gray-400"
+        className="absolute left-3 top-4 text-gray-400 cursor-pointer"
         disabled={submitting}
       >
         <i className="ri-arrow-right-double-line text-2xl" />

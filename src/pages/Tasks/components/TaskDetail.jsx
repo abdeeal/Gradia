@@ -6,6 +6,7 @@ import { useAlert } from "@/hooks/useAlert";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
 import DeletePopup from "@/components/Delete";
+import { getWorkspaceId } from "@/components/GetWorkspace";
 
 /* ---------- Helpers: date/time ---------- */
 const toDateInput = (d) => {
@@ -34,17 +35,6 @@ const formatDateDDMMYYYY = (iso) => {
 
 /* ---------- Small timing helper ---------- */
 const wait = (ms) => new Promise((res) => setTimeout(res, ms));
-
-/* ---------- Workspace helper (aman SSR/CSR) ---------- */
-function getIdWorkspace() {
-  try {
-    if (typeof window !== "undefined" && window.sessionStorage) {
-      const v = Number(window.sessionStorage.getItem("id_workspace"));
-      return Number.isFinite(v) && v > 0 ? v : 1;
-    }
-  } catch {}
-  return 1;
-}
 
 /* ---------- Title (2 baris) ---------- */
 const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
@@ -229,12 +219,13 @@ const TaskDetail = ({
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const idWorkspace = getIdWorkspace();
+  // ✅ gunakan helper global
+  const idWorkspace = getWorkspaceId();
 
   const [form, setForm] = useState({
     id_task: task?.id_task,
     title: task?.title || "",
-    subtitle: task?.description || "",
+    description: task?.description || "",
     deadline: toDateInput(task?.deadline) || "",
     time: toTimeInput(task?.deadline, task?.time) || "",
     id_course:
@@ -311,7 +302,7 @@ const TaskDetail = ({
       ...prev,
       id_task: task.id_task,
       title: task.title || "",
-      subtitle: task.description || "",
+      description: task.description || "",
       deadline: toDateInput(task.deadline) || "",
       time: toTimeInput(task.deadline, task.time) || "",
       id_course:
@@ -334,18 +325,25 @@ const TaskDetail = ({
     );
   }, [task]);
 
+  /* ---------- GSAP drawer animation (fix target null) ---------- */
   useEffect(() => {
+    const el = drawerRef.current;
+    if (!el) return;
+
     gsap.fromTo(
-      drawerRef.current,
+      el,
       { x: "100%" },
       { x: 0, duration: 0.5, ease: "power3.out" }
     );
-    return () =>
-      gsap.to(drawerRef.current, {
+
+    return () => {
+      if (!el) return;
+      gsap.to(el, {
         x: "100%",
         duration: 0.4,
         ease: "power2.in",
       });
+    };
   }, []);
 
   const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
@@ -385,8 +383,7 @@ const TaskDetail = ({
     const payload = {
       id_task: task.id_task,
       title: form.title,
-      subtitle: form.subtitle,
-      description: form.subtitle || null,
+      description: form.description || null,
       // ⬇️ deadline dikirim sebagai ISO string (timestamptz)
       deadline: combinedDeadline ? combinedDeadline.toISOString() : null,
       priority: form.priority || null,
@@ -492,9 +489,13 @@ const TaskDetail = ({
     }
   };
 
+  // 🔹 nama course yang tampil di trigger
   const selectedCourseName =
-    courses.find((c) => String(c.id_courses) === String(form.id_course))
-      ?.name || "";
+    courses.find((c) => String(c.id_courses) === String(form.id_course))?.name ||
+    task?.course?.name ||
+    task?.course_name ||
+    task?.relatedCourse ||
+    "";
 
   const isCourseLocked = !coursesFetched;
 
@@ -531,14 +532,14 @@ const TaskDetail = ({
           max-width: calc(100vw - 24px);
           transform: translateX(8px);
         }
-        .course-select [data-slot="select-trigger"]{ padding right: 0 !important; }
-        .course-select [data-slot="select-value"]{ padding right: 0 !important; }
+        .course-select [data-slot="select-trigger"]{ padding-right: 0 !important; }
+        .course-select [data-slot="select-value"]{ padding-right: 0 !important; }
       `}</style>
 
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
         <button
           onClick={closeDrawer}
-          className="absolute left-3 top-4 text-gray-400 hover:text-white"
+          className="absolute left-3 top-4 text-gray-400 hover:text-white cursor-pointer"
           disabled={loading}
         >
           <i className="ri-arrow-right-double-line text-2xl" />
@@ -559,22 +560,20 @@ const TaskDetail = ({
             <Row
               icon="ri-sticky-note-line"
               label="Description"
-              onClick={() => setEditingKey("subtitle")}
+              onClick={() => setEditingKey("description")}
             >
-              {editingKey === "subtitle" ? (
+              {editingKey === "description" ? (
                 <InputBase
-                  value={form.subtitle}
-                  onChange={(e) => setVal("subtitle", e.target.value)}
+                  value={form.description}
+                  onChange={(e) => setVal("description", e.target.value)}
                   onBlur={() => setEditingKey(null)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && setEditingKey(null)
-                  }
+                  onKeyDown={(e) => e.key === "Enter" && setEditingKey(null)}
                   placeholder="Add a short description"
                   autoFocus
                 />
               ) : (
                 <div className="w-full text-gray-200 truncate">
-                  {form.subtitle || (
+                  {form.description || (
                     <span className="text-gray-500">
                       Add a short description
                     </span>
@@ -699,7 +698,7 @@ const TaskDetail = ({
                       </SelectItem>
                     </>
                   ) : (
-                    <div className="max-h-[160px] overflow-y-auto no-scrollbar">
+                    <div className="max-h-[160px] overflow-y-auto no-scrollbar cursor-pointer">
                       {courses.map((c) => (
                         <SelectItem
                           key={String(c.id_courses)}
@@ -715,7 +714,7 @@ const TaskDetail = ({
               </div>
             </Row>
 
-            <Row icon="ri-fire-line" label="Priority">
+            <Row icon="ri-fire-line" label="Priority" cursor="pointer">
               <BadgeSelect
                 value={form.priority}
                 onChange={(val) => setVal("priority", val)}
@@ -725,7 +724,7 @@ const TaskDetail = ({
               />
             </Row>
 
-            <Row icon="ri-loader-line" label="Status">
+            <Row icon="ri-loader-line" label="Status" cursor="pointer">
               <BadgeSelect
                 value={form.status}
                 onChange={(val) => setVal("status", normalizeStatus(val))}
@@ -747,9 +746,7 @@ const TaskDetail = ({
                   value={form.score}
                   onChange={(e) => setVal("score", e.target.value)}
                   onBlur={() => setEditingKey(null)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && setEditingKey(null)
-                  }
+                  onKeyDown={(e) => e.key === "Enter" && setEditingKey(null)}
                   placeholder="e.g. 95"
                   autoFocus
                 />
@@ -774,9 +771,7 @@ const TaskDetail = ({
                   value={form.link}
                   onChange={(e) => setVal("link", e.target.value)}
                   onBlur={() => setEditingKey(null)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && setEditingKey(null)
-                  }
+                  onKeyDown={(e) => e.key === "Enter" && setEditingKey(null)}
                   placeholder="https://..."
                   autoFocus
                 />
@@ -801,7 +796,7 @@ const TaskDetail = ({
               onClick={() => setShowConfirm(true)}
               aria-label="Delete Task"
               title="Delete Task"
-              className="w-[44px] h-[36px] rounded-md bg-[#830404] flex items-center justify-center hover:brightness-110 active:scale-95 transition disabled:opacity-60"
+              className="w-[44px] h-[36px] rounded-md bg-[#830404] flex items-center justify-center hover:brightness-110 active:scale-95 transition disabled:opacity-60 cursor-pointer"
               disabled={loading || !task?.id_task}
             >
               <i className="ri-delete-bin-2-line text-white text-[16px]" />
@@ -809,7 +804,7 @@ const TaskDetail = ({
 
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 px-5 h-[36px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] transition-all disabled:opacity-60"
+              className="flex items-center gap-2 px-5 h-[36px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] transition-all disabled:opacity-60 cursor-pointer"
               disabled={loading || !task?.id_task}
             >
               <i className="ri-save-3-line text-foreground text-[16px]" />

@@ -139,7 +139,7 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
             <span>Showing</span>
             <button
               onClick={() => setOpenSizeMenu((v) => !v)}
-              className={`h-7 min-w-9 px-2 rounded-md ${pillFill} text-foreground-secondary`}
+              className={`h-7 min-w-9 px-2 rounded-md ${pillFill} text-foreground-secondary cursor-pointer`}
               title="Change rows per page"
               disabled={isLoading}
             >
@@ -147,7 +147,7 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
             </button>
             <button
               onClick={() => setOpenSizeMenu((v) => !v)}
-              className={`h-7 w-7 grid place-items-center rounded-md ${pillFill} text-foreground`}
+              className={`h-7 w-7 grid place-items-center rounded-md ${pillFill} text-foreground cursor-pointer`}
               aria-label="Toggle page size menu"
               title="Toggle page size menu"
               disabled={isLoading}
@@ -167,7 +167,7 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
                       setPageIndex(0);
                       setOpenSizeMenu(false);
                     }}
-                    className={`w-full text-left px-3 py-1.5 text-base ${
+                    className={`w-full text-left px-3 py-1.5 text-base cursor-pointer ${
                       !pageSizeIsAll && opt === pageSize
                         ? "text-foreground"
                         : "text-foreground-secondary"
@@ -185,7 +185,7 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
                     setPageIndex(0);
                     setOpenSizeMenu(false);
                   }}
-                  className={`w-full text-left px-3 py-1.5 text-base ${
+                  className={`w-full text-left px-3 py-1.5 text-base cursor-pointer ${
                     pageSizeIsAll
                       ? "text-foreground"
                       : "text-foreground-secondary"
@@ -286,7 +286,7 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
           <button
             onClick={goPrev}
             disabled={isLoading || pageIndex === 0}
-            className="flex items-center gap-1 disabled:opacity-50"
+            className="flex items-center gap-1 disabled:opacity-50 cursor-pointer"
           >
             <i className="ri-arrow-left-s-fill" />
             Previous
@@ -309,7 +309,7 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
                   className={`text-base transition-colors ${
                     p - 1 === pageIndex
                       ? "text-foreground underline-offset-4 bg-[#262626] px-2 rounded-[4px] py-1"
-                      : "text-foreground-secondary bg-background-secondary px-2 rounded-[4px] py-1 hover:bg-[#1a1a1a]"
+                      : "text-foreground-secondary bg-background-secondary px-2 rounded-[4px] py-1 hover:bg-[#1a1a1a] cursor-pointer"
                   } ${isLoading ? "opacity-50" : ""}`}
                 >
                   {String(p).padStart(2, "0")}
@@ -321,7 +321,7 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
           <button
             onClick={goNext}
             disabled={isLoading || pageIndex >= totalPages - 1}
-            className="flex items-center gap-1 disabled:opacity-50"
+            className="flex items-center gap-1 disabled:opacity-50 cursor-pointer"
           >
             Next
             <i className="ri-arrow-right-s-fill" />

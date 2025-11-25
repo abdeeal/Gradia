@@ -1,99 +1,23 @@
-// src/pages/Tasks/components/TaskDetail.jsx
+// src/pages/Tasks/components/AddTask.jsx
 import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-// ⛔ axios DIHAPUS – DB di-handle Tasks
+import axios from "axios";
 import { useAlert } from "@/hooks/useAlert";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
-import DeletePopup from "@/components/Delete";
 
-/* ---------- Helpers: date/time ---------- */
-const toDateInput = (d) => {
-  if (!d) return "";
-  if (typeof d === "string" && d.includes("-")) return d.slice(0, 10);
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return "";
-  return dt.toISOString().slice(0, 10);
-};
-const toTimeInput = (d, fallbackTime) => {
-  if (fallbackTime) return fallbackTime;
-  if (!d) return "";
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return "";
-  const hh = String(dt.getHours()).padStart(2, "0");
-  const mm = String(dt.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
-};
-/* dd/mm/yyyy (untuk view) */
-const formatDateDDMMYYYY = (iso) => {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-");
-  if (!y || !m || !d) return iso;
-  return `${d}/${m}/${y}`;
-};
-
-/* ---------- Small timing helper ---------- */
-const wait = (ms) => new Promise((res) => setTimeout(res, ms));
-
-/* ---------- Workspace helper (aman SSR/CSR) ---------- */
-function getIdWorkspace() {
-  try {
-    if (typeof window !== "undefined" && window.sessionStorage) {
-      const v = Number(window.sessionStorage.getItem("id_workspace"));
-      return Number.isFinite(v) && v > 0 ? v : 1;
-    }
-  } catch {}
-  return 1;
-}
-
-/* ---------- Title (2 baris) ---------- */
-const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
-  if (!editable) {
-    return (
-      <div className={`font-inter ${className}`}>
-        <div
-          className="text-[48px] font-bold text-foreground/90 leading-[1.1] break-words min-h-[2.2em]"
-          style={{
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {value ? (
-            value
-          ) : (
-            <>
-              <span className="text-gray-500">Enter Your Task Name</span>
-              {"\n"}
-              <span>&nbsp;</span>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className={`font-inter ${className}`}>
-      <textarea
-        rows={2}
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onFocusOut}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            onFocusOut?.();
-          }
-        }}
-        autoFocus
-        placeholder="Enter Your Task Name"
-        className="w-full bg-transparent outline-none resize-none text-[48px] font-bold no-scrollbar placeholder:text-gray-500 leading-[1.1] min-h-[2.2em]"
-      />
-    </div>
-  );
-};
+/* ---------- Title ---------- */
+const Title = ({ value, onChange, className = "" }) => (
+  <div className={`font-inter ${className}`}>
+    <textarea
+      rows={2}
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="Enter Your Task Name"
+      className="w-full bg-transparent outline-none resize-none text-[48px] font-bold no-scrollbar placeholder:text-gray-500"
+    />
+  </div>
+);
 
 /* ---------- Badge Styles ---------- */
 const BADGE_BASE =
@@ -106,14 +30,14 @@ const priorityValueClass = (val) => {
   return BADGE_BASE;
 };
 
-/* ---------- Status normalizer (kompatibel data lama) ---------- */
+/* ---------- Status: normalizer + badge color (warna sama) ---------- */
 const normalizeStatus = (s) => {
   const m = String(s || "").trim().toLowerCase();
   if (m === "in progress" || m === "inprogress") return "In progress";
   if (m === "not started" || m === "notstarted") return "Not started";
   if (m === "completed") return "Completed";
   if (m === "overdue") return "Overdue";
-  return s || "Not started";
+  return s || "";
 };
 
 const statusValueClass = (val) => {
@@ -125,63 +49,61 @@ const statusValueClass = (val) => {
   return BADGE_BASE;
 };
 
-/* ---------- Row & Inputs ---------- */
-const Row = ({ icon, label, children, onClick, className = "" }) => (
-  <div
-    className={`flex items-center gap-3 group h-[30px] ${
-      onClick ? "cursor-pointer" : ""
-    } ${className}`}
-    onClick={onClick}
-  >
+/* ---------- Row Wrapper ---------- */
+const Row = ({ icon, label, children }) => (
+  <div className="flex items-center gap-3 group h-[30px]">
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400 whitespace-nowrap">{label}</span>
     <div className="flex-1 min-w-0 flex items-center h-[30px]">
-      <div className="field-slot w-full h-[30px] flex items-center pl-2">
-        {children}
-      </div>
+      {children}
     </div>
   </div>
 );
 
-const InputBase = ({ as = "input", className = "", onBlur, ...rest }) => {
+/* ---------- Input ---------- */
+const InputBase = ({ as = "input", className = "", ...rest }) => {
   const Comp = as;
   return (
     <Comp
       {...rest}
-      onBlur={onBlur}
-      className={`h-[30px] w-full bg-transparent border-none outline-none text-gray-200 text-[16px] placeholder:text-gray-500 ${className}`}
+      className={`h-[30px] w-full bg-transparent border-none outline-none text-gray-200 text-[16px] placeholder:text-gray-500 px-2 ${className}`}
     />
   );
 };
 
-const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
-  <div className="flex items-center h-[30px] w-full">
-    <SelectUi
-      value={value}
-      onValueChange={onChange}
-      placeholder={value || label}
-      className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
-      valueClassFn={(val) => valueClassFn(val || value)}
-    >
-      <SelectLabel className="text-[14px] text-gray-400 font-inter px-2 py-1">
-        {label}
-      </SelectLabel>
-      {options.map((opt) => (
-        <SelectItem
-          key={opt}
-          value={opt}
-          className={`text-[16px] font-inter ${
-            valueClassFn(opt).match(/text-\[[^ ]+\]|text-[^ ]+/g)?.[0] || ""
-          }`}
-        >
-          {opt}
-        </SelectItem>
-      ))}
-    </SelectUi>
-  </div>
-);
+/* ---------- BadgeSelect (controlled) ---------- */
+const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => {
+  const hasValue = !!value;
+  return (
+    <div className="flex items-center h-[30px] pl-2 w-full">
+      <SelectUi
+        value={hasValue ? value : undefined}
+        onValueChange={onChange}
+        placeholder={label}
+        className="!w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
+        valueClassFn={(val) => valueClassFn(val || "")}
+      >
+        <SelectLabel className="text-[14px] text-gray-400 font-inter px-2 py-1">
+          {label}
+        </SelectLabel>
 
-/* ---------- Courses helpers ---------- */
+        {options.map((opt) => (
+          <SelectItem
+            key={opt}
+            value={opt}
+            className={`text-[16px] font-inter ${
+              valueClassFn(opt).match(/text-\[[^ ]+\]|text-[^ ]+/g)?.[0] || ""
+            }`}
+          >
+            {opt}
+          </SelectItem>
+        ))}
+      </SelectUi>
+    </div>
+  );
+};
+
+/* ---------- Helpers ---------- */
 const normalizeCourses = (list = []) =>
   list
     .map((c) => ({
@@ -203,158 +125,152 @@ const uniqBy = (arr, keyFn) => {
   return Array.from(m.values());
 };
 
-/* Seed dari task agar label trigger langsung muncul */
-const seedCoursesFromTask = (task) => {
-  const id =
-    task?.id_course ?? task?.course_id ?? task?.relatedCourse ?? task?.course?.id;
-  const name = task?.course?.name ?? task?.relatedCourse ?? task?.course_name;
-  if (!id || !name) return [];
-  return [{ id_courses: String(id), name }];
+/* ✅ Workspace getter baru: pakai localStorage dulu, lalu sessionStorage */
+const getWorkspaceId = () => {
+  try {
+    if (typeof window === "undefined") return 1;
+
+    const fromLocal = window.localStorage?.getItem("id_workspace");
+    const fromSession = window.sessionStorage?.getItem("id_workspace");
+
+    const raw = fromLocal ?? fromSession ?? "1";
+    const num = Number(raw);
+
+    return Number.isFinite(num) && num > 0 ? num : 1;
+  } catch {
+    return 1;
+  }
 };
 
-const TaskDetail = ({
-  task,
-  setDrawer,
-  refreshTasks, // dibiarkan untuk compat, tidak dipakai DB
-  courses: coursesProp,
-  onTaskUpdated, // compat
-  onTaskDeleted, // compat
+const AddTask = ({
   onClose,
-  onSave, // ✅ parent (Tasks) update DB
-  onDelete, // ✅ parent (Tasks) delete DB
+  refreshTasks, // optional, tetap dipakai kalau ada
+  setDrawer, // optional
+  courses: coursesProp,
 }) => {
   const { showAlert } = useAlert();
   const drawerRef = useRef(null);
   const [loading, setLoading] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-
-  const idWorkspace = getIdWorkspace();
 
   const [form, setForm] = useState({
-    id_task: task?.id_task,
-    title: task?.title || "",
-    subtitle: task?.description || "",
-    deadline: toDateInput(task?.deadline) || "",
-    time: toTimeInput(task?.deadline, task?.time) || "",
-    id_course:
-      task?.id_course != null
-        ? String(task.id_course)
-        : task?.relatedCourse != null
-        ? String(task.relatedCourse)
-        : null,
-    priority: task?.priority || "High",
-    status: normalizeStatus(task?.status) || "Not started",
-    score: task?.score ?? "",
-    link: task?.link || "",
-  });
-  const [editingKey, setEditingKey] = useState(null);
-
-  const [courses, setCourses] = useState(() => {
-    const fromTask = seedCoursesFromTask(task);
-    const fromProp = normalizeCourses(coursesProp || []);
-    return uniqBy([...fromTask, ...fromProp], (c) => String(c.id_courses));
+    title: "",
+    description: "",
+    deadline: "",
+    time: "",
+    id_course: null,
+    priority: "",
+    status: "",
+    score: "",
+    link: "",
   });
 
-  const [coursesFetching, setCoursesFetching] = useState(false);
-  const [coursesFetched, setCoursesFetched] = useState(false);
-  const [isCourseOpen, setIsCourseOpen] = useState(false);
+  const [courses, setCourses] = useState(
+    coursesProp && coursesProp.length ? normalizeCourses(coursesProp) : []
+  );
+  const [loadingCourses, setLoadingCourses] = useState(
+    !(coursesProp && coursesProp.length)
+  );
 
-  const fetchCoursesOnce = async () => {
-    if (coursesFetched || coursesFetching) return;
-    setCoursesFetching(true);
-    const t0 = Date.now();
-    try {
-      const r = await fetch(
-        `/api/courses?idWorkspace=${encodeURIComponent(idWorkspace)}`,
-        { cache: "no-store" }
-      );
-      if (!r.ok) throw new Error("courses request failed");
-      const raw = await r.json();
-      const list = normalizeCourses(raw);
-
-      setCourses((prev) =>
-        uniqBy([...prev, ...list], (c) => String(c.id_courses)).sort((a, b) =>
-          String(a.name).localeCompare(String(b.name))
-        )
-      );
-
-      const hasId = list.some(
-        (c) => String(c.id_courses) === String(form.id_course)
-      );
-      if (!hasId && form.id_course) {
-        const byName = list.find(
-          (c) => String(c.name) === String(form.id_course)
-        );
-        if (byName)
-          setForm((p) => ({ ...p, id_course: String(byName.id_courses) }));
-      }
-
-      setCoursesFetched(true);
-    } catch {
-      // ignore
-    } finally {
-      const elapsed = Date.now() - t0;
-      if (elapsed < 1000) await wait(1000 - elapsed);
-      setCoursesFetching(false);
-    }
-  };
+  const priorities = ["High", "Medium", "Low"];
+  const statuses = ["Not started", "In progress", "Completed", "Overdue"];
 
   useEffect(() => {
-    fetchCoursesOnce();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!drawerRef.current) return;
+    const el = drawerRef.current;
 
-  useEffect(() => {
-    if (!task) return;
-    setForm((prev) => ({
-      ...prev,
-      id_task: task.id_task,
-      title: task.title || "",
-      subtitle: task.description || "",
-      deadline: toDateInput(task.deadline) || "",
-      time: toTimeInput(task.deadline, task.time) || "",
-      id_course:
-        task?.id_course != null
-          ? String(task.id_course)
-          : task?.relatedCourse != null
-          ? String(task.relatedCourse)
-          : null,
-      priority: task.priority || "High",
-      status: normalizeStatus(task.status) || "Not started",
-      score: task.score ?? "",
-      link: task.link || "",
-    }));
-    setEditingKey(null);
-
-    setCourses((prev) =>
-      uniqBy([...prev, ...seedCoursesFromTask(task)], (c) =>
-        String(c.id_courses)
-      )
-    );
-  }, [task]);
-
-  useEffect(() => {
     gsap.fromTo(
-      drawerRef.current,
+      el,
       { x: "100%" },
       { x: 0, duration: 0.5, ease: "power3.out" }
     );
-    return () =>
-      gsap.to(drawerRef.current, {
+
+    return () => {
+      if (!el) return;
+      gsap.to(el, {
         x: "100%",
         duration: 0.4,
         ease: "power2.in",
       });
+    };
   }, []);
+
+  useEffect(() => {
+    let abort = false;
+    const idWorkspace = getWorkspaceId();
+
+    (async () => {
+      setLoadingCourses(true);
+
+      const fromProp = normalizeCourses(coursesProp || []);
+
+      let fromApiCourses = [];
+      try {
+        const r = await fetch(
+          `/api/courses?idWorkspace=${encodeURIComponent(idWorkspace)}`
+        );
+        if (r.ok) {
+          const raw = await r.json();
+          if (Array.isArray(raw)) {
+            fromApiCourses = normalizeCourses(raw);
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+
+      let fromTasks = [];
+      try {
+        const r = await fetch(
+          `/api/tasks?limit=1000&idWorkspace=${encodeURIComponent(
+            idWorkspace
+          )}`
+        );
+        if (r.ok) {
+          const tasks = await r.json();
+          if (Array.isArray(tasks)) {
+            const raw = tasks
+              .map((t) => ({
+                id_courses:
+                  t?.id_course ??
+                  t?.course_id ??
+                  t?.course?.id ??
+                  t?.id_courses ??
+                  t?.courseId,
+                name:
+                  t?.course?.name ??
+                  t?.course?.title ??
+                  t?.relatedCourse ??
+                  t?.course_name ??
+                  t?.label ??
+                  null,
+              }))
+              .filter((c) => c.id_courses && c.name);
+            fromTasks = uniqBy(raw, (c) => String(c.id_courses));
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+
+      if (abort) return;
+
+      const merged = uniqBy(
+        [...fromProp, ...fromApiCourses, ...fromTasks],
+        (c) => String(c.id_courses)
+      ).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+      setCourses(merged);
+      setLoadingCourses(false);
+    })();
+
+    return () => {
+      abort = true;
+    };
+  }, [coursesProp]);
 
   const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
-  const closeDrawer = () => {
-    if (onClose) onClose();
-    else setDrawer?.(false);
-  };
-
-  const handleSave = async () => {
+  const handleCreate = async () => {
     if (!form.title.trim()) {
       showAlert({
         icon: "ri-error-warning-fill",
@@ -366,28 +282,14 @@ const TaskDetail = ({
       });
       return;
     }
-    if (!task?.id_task) {
-      showAlert({
-        icon: "ri-error-warning-fill",
-        title: "Cannot create here",
-        desc: "Use the Add Task panel to create a new task.",
-        variant: "destructive",
-        width: 676,
-        height: 380,
-      });
-      return;
-    }
 
-    const combinedDeadline =
-      form.deadline ? new Date(`${form.deadline}T${form.time || "00:00"}`) : null;
-
+    const id_workspace = getWorkspaceId();
     const payload = {
-      id_task: task.id_task,
       title: form.title,
-      subtitle: form.subtitle,
-      description: form.subtitle || null,
-      // ⬇️ deadline dikirim sebagai ISO string (timestamptz)
-      deadline: combinedDeadline ? combinedDeadline.toISOString() : null,
+      description: form.description || null,
+      deadline: form.deadline
+        ? new Date(`${form.deadline}T${form.time || "00:00"}`).toISOString()
+        : null,
       priority: form.priority || null,
       status: normalizeStatus(form.status) || null,
       score: form.score === "" ? null : Number(form.score),
@@ -396,97 +298,96 @@ const TaskDetail = ({
         form.id_course != null && form.id_course !== ""
           ? Number(form.id_course)
           : null,
-      id_workspace: idWorkspace,
+      id_workspace,
     };
 
-    if (typeof onSave !== "function") {
-      console.warn("TaskDetail: onSave tidak diberikan, tidak mengirim ke DB.");
-      return;
-    }
+    const tempId = `temp-${Date.now()}`;
+    const optimisticTask = {
+      id_task: tempId,
+      ...payload,
+      description: form.description || "",
+    };
+
+    window.dispatchEvent(
+      new CustomEvent("tasks:created", {
+        detail: { task: optimisticTask, optimistic: true },
+      })
+    );
 
     try {
       setLoading(true);
-      const savePromise = onSave(payload);
-      const [saveResult] = await Promise.allSettled([
-        savePromise,
-        wait(1000), // min 1s UX
-      ]);
-
-      if (saveResult.status === "rejected") {
-        throw saveResult.reason;
-      }
-
-      if (typeof onTaskUpdated === "function") {
-        onTaskUpdated(payload);
-      }
+      const axiosPromise = axios.post(
+        `/api/tasks?idWorkspace=${encodeURIComponent(id_workspace)}`,
+        payload
+      );
 
       showAlert({
         icon: "ri-checkbox-circle-fill",
-        title: "Updated",
-        desc: "Task updated successfully.",
+        title: "Success",
+        desc: "Task added successfully.",
         variant: "success",
         width: 676,
         height: 380,
       });
 
-      setEditingKey(null);
-      requestAnimationFrame(() => closeDrawer());
+      requestAnimationFrame(() => {
+        if (typeof refreshTasks === "function") refreshTasks();
+        if (typeof setDrawer === "function") setDrawer(false);
+        else onClose?.();
+      });
+
+      axiosPromise
+        .then((res) => {
+          const createdTask = res?.data?.task ?? res?.data ?? null;
+          if (createdTask?.id_task) {
+            window.dispatchEvent(
+              new CustomEvent("tasks:reconcile", {
+                detail: { temp_id: tempId, task: createdTask },
+              })
+            );
+          } else {
+            window.dispatchEvent(
+              new CustomEvent("tasks:updated", {
+                detail: {
+                  task: { ...optimisticTask, ...(createdTask || {}) },
+                  fromTemp: true,
+                },
+              })
+            );
+          }
+        })
+        .catch((err) => {
+          console.log(err?.response?.data || err?.message);
+          window.dispatchEvent(
+            new CustomEvent("tasks:deleted", {
+              detail: { id_task: tempId, optimisticRollback: true },
+            })
+          );
+          showAlert({
+            icon: "ri-error-warning-fill",
+            title: "Error",
+            desc: "Failed to save task. Please try again.",
+            variant: "destructive",
+            width: 676,
+            height: 380,
+          });
+        })
+        .finally(() => setLoading(false));
     } catch (err) {
-      console.log(err?.response?.data || err?.message || err);
+      console.log(err?.response?.data || err?.message);
+      window.dispatchEvent(
+        new CustomEvent("tasks:deleted", {
+          detail: { id_task: tempId, optimisticRollback: true },
+        })
+      );
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Error",
-        desc: "Failed to update task. Please try again.",
+        desc: "Failed to save task. Please try again.",
         variant: "destructive",
         width: 676,
         height: 380,
       });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!task?.id_task) return;
-    if (typeof onDelete !== "function") {
-      console.warn("TaskDetail: onDelete tidak diberikan, tidak mengirim ke DB.");
-      return;
-    }
-
-    const t0 = Date.now();
-    try {
-      setLoading(true);
-
-      if (typeof onTaskDeleted === "function") {
-        onTaskDeleted(task.id_task);
-      }
-
-      await onDelete(task.id_task);
-
-      showAlert({
-        icon: "ri-delete-bin-2-line",
-        title: "Deleted",
-        desc: `Task "${task.title}" has been deleted successfully.`,
-        variant: "success",
-        width: 676,
-        height: 380,
-      });
-
-      requestAnimationFrame(() => closeDrawer());
-    } catch (err) {
-      console.log(err?.response?.data || err?.message || err);
-      showAlert({
-        icon: "ri-error-warning-fill",
-        title: "Error",
-        desc: "Failed to delete task. Please try again.",
-        variant: "destructive",
-        width: 676,
-        height: 380,
-      });
-      refreshTasks?.();
-    } finally {
-      const elapsed = Date.now() - t0;
-      if (elapsed < 1000) await wait(1000 - elapsed);
       setLoading(false);
     }
   };
@@ -495,10 +396,6 @@ const TaskDetail = ({
     courses.find((c) => String(c.id_courses) === String(form.id_course))
       ?.name || "";
 
-  const isCourseLocked = !coursesFetched;
-
-  if (!task) return null;
-
   return (
     <div
       ref={drawerRef}
@@ -506,202 +403,107 @@ const TaskDetail = ({
       onClick={(e) => e.stopPropagation()}
     >
       <style>{`
-        input[type="time"]::-webkit-calendar-picker-indicator{display:none;}
-        input[type="time"]{-moz-appearance:textfield;appearance:textfield;}
+        input[type="time"]::-webkit-calendar-picker-indicator{ display:none; }
+        input[type="time"]{ -moz-appearance: textfield; appearance: textfield; }
         [data-slot="select-trigger"],[role="combobox"][data-slot="select-trigger"]{
           height:30px!important;min-height:30px!important;max-height:30px!important;
-          line-height:30px!important;padding-top:0!important;padding-bottom:0!important;margin:0!important;width:auto!important}
+          line-height:30px!important;padding-top:0!important;padding-bottom:0!important;width:auto!important}
         [data-slot="select-value"]{display:inline-flex!important;align-items:center!important;margin:0!important}
-
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
         .course-select [data-slot="select-content"]{
           max-width: calc(100vw - 24px);
           transform: translateX(8px);
         }
-        .course-select [data-slot="select-trigger"]{ padding right: 0 !important; }
-        .course-select [data-slot="select-value"]{ padding right: 0 !important; }
+        .course-select [data-slot="select-trigger"]{ padding-right: 0 !important; }
+        .course-select [data-slot="select-value"]{ padding-right: 0 !important; }
       `}</style>
 
-      <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
+      <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl cursor-pointer">
         <button
-          onClick={closeDrawer}
+          onClick={onClose}
           className="absolute left-3 top-4 text-gray-400 hover:text-white"
           disabled={loading}
         >
           <i className="ri-arrow-right-double-line text-2xl" />
         </button>
 
-        <div className="ml-12 mr-12" onClick={() => setEditingKey("title")}>
+        <div className="ml-12 mr-12">
           <Title
             value={form.title}
             onChange={(v) => setVal("title", v)}
-            onFocusOut={() => setEditingKey(null)}
-            editable={editingKey === "title"}
             className="max-w-[473px] mb-12"
           />
         </div>
 
         <div className="ml-12 mr-12 max-w-[473px] flex flex-col">
           <div className="font-inter text-[16px] space-y-6">
-            <Row
-              icon="ri-sticky-note-line"
-              label="Description"
-              onClick={() => setEditingKey("subtitle")}
-            >
-              {editingKey === "subtitle" ? (
-                <InputBase
-                  value={form.subtitle}
-                  onChange={(e) => setVal("subtitle", e.target.value)}
-                  onBlur={() => setEditingKey(null)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && setEditingKey(null)
-                  }
-                  placeholder="Add a short description"
-                  autoFocus
-                />
-              ) : (
-                <div className="w-full text-gray-200 truncate">
-                  {form.subtitle || (
-                    <span className="text-gray-500">
-                      Add a short description
-                    </span>
-                  )}
-                </div>
-              )}
+            <Row icon="ri-sticky-note-line" label="Description">
+              <InputBase
+                value={form.description}
+                onChange={(e) => setVal("description", e.target.value)}
+                placeholder="Add a short description"
+              />
             </Row>
 
-            <Row
-              icon="ri-calendar-2-line"
-              label="Deadline"
-              onClick={() => setEditingKey("deadline_time")}
-            >
-              {editingKey === "deadline_time" ? (
-                <div className="flex items-center gap-2 w-full h-[30px]">
-                  <div className="w-[65%]">
-                    <InputBase
-                      as="input"
-                      type="date"
-                      value={form.deadline}
-                      onChange={(e) => setVal("deadline", e.target.value)}
-                      onBlur={() => setEditingKey(null)}
-                      placeholder="dd/mm/yyyy"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="w-[35%]">
-                    <InputBase
-                      as="input"
-                      type="time"
-                      value={form.time}
-                      onChange={(e) => setVal("time", e.target.value)}
-                      onBlur={() => setEditingKey(null)}
-                      placeholder="--:--"
-                    />
-                  </div>
+            <Row icon="ri-calendar-2-line" label="Deadline">
+              <div className="flex items-center gap-2 w-full h-[30px]">
+                <div className="w-[65%]">
+                  <InputBase
+                    as="input"
+                    type="date"
+                    value={form.deadline}
+                    onChange={(e) => setVal("deadline", e.target.value)}
+                    placeholder="dd/mm/yyyy"
+                  />
                 </div>
-              ) : (
-                <div className="w-full flex items-center gap-2 h-[30px]">
-                  <div className="w-[65%] truncate">
-                    {form.deadline ? (
-                      <span className="text-gray-200">
-                        {formatDateDDMMYYYY(form.deadline)}
-                      </span>
-                    ) : (
-                      <span className="text-gray-500">dd/mm/yyyy</span>
-                    )}
-                  </div>
-                  <div className="w-[35%] truncate">
-                    {form.time ? (
-                      <span className="text-gray-200">{form.time}</span>
-                    ) : (
-                      <span className="text-gray-500">--:--</span>
-                    )}
-                  </div>
+                <div className="w/[35%] w-[35%]">
+                  <InputBase
+                    as="input"
+                    type="time"
+                    value={form.time}
+                    onChange={(e) => setVal("time", e.target.value)}
+                    placeholder="--:--"
+                  />
                 </div>
-              )}
+              </div>
             </Row>
 
             <Row icon="ri-links-line" label="Related Course">
-              <div
-                className={`flex items-center h-[30px] w-full ${
-                  isCourseLocked
-                    ? "pointer-events-none opacity-70"
-                    : ""
-                }`}
-              >
+              <div className="flex items-center h-[30px] pl-2 w-full">
                 <SelectUi
                   value={
-                    form.id_course != null
+                    form.id_course !== null && form.id_course !== undefined
                       ? String(form.id_course)
                       : undefined
                   }
                   onValueChange={(val) =>
                     setVal("id_course", val ? String(val) : null)
                   }
-                  placeholder={selectedCourseName || "select course"}
+                  placeholder={selectedCourseName || "Select Course"}
                   className="course-select !w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
                   valueClassFn={() => ""}
                   align="start"
                   strategy="fixed"
                   sideOffset={6}
                   alignOffset={8}
-                  open={isCourseOpen && !isCourseLocked}
-                  onOpenChange={(o) => {
-                    if (isCourseLocked) return;
-                    setIsCourseOpen(o);
-                    if (o) fetchCoursesOnce();
-                  }}
+                  disabled={loadingCourses}
                 >
                   <SelectLabel className="text-[14px] font-inter text-gray-400 px-2 py-1">
                     Related Course
-                    {!coursesFetched && coursesFetching && (
-                      <i className="ri-loader-4-line animate-spin ml-2 text-gray-500" />
-                    )}
                   </SelectLabel>
 
-                  {coursesFetching && !coursesFetched ? (
-                    <>
-                      {form.id_course &&
-                        (() => {
-                          const cur = courses.find(
-                            (c) =>
-                              String(c.id_courses) ===
-                              String(form.id_course)
-                          );
-                          if (!cur) return null;
-                          return (
-                            <SelectItem
-                              key={`__current_${cur.id_courses}`}
-                              value={String(cur.id_courses)}
-                              className="text-[16px] font-inter"
-                            >
-                              {cur.name}
-                            </SelectItem>
-                          );
-                        })()}
+                  <div className="max-h-[160px] overflow-y-auto no-scrollbar">
+                    {courses.map((c) => (
                       <SelectItem
-                        value="__loading__"
-                        disabled
+                        key={String(c.id_courses)}
+                        value={String(c.id_courses)}
                         className="text-[16px] font-inter"
                       >
-                        Loading...
+                        {c.name}
                       </SelectItem>
-                    </>
-                  ) : (
-                    <div className="max-h-[160px] overflow-y-auto no-scrollbar">
-                      {courses.map((c) => (
-                        <SelectItem
-                          key={String(c.id_courses)}
-                          value={String(c.id_courses)}
-                          className="text-[16px] font-inter"
-                        >
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </SelectUi>
               </div>
             </Row>
@@ -710,7 +512,7 @@ const TaskDetail = ({
               <BadgeSelect
                 value={form.priority}
                 onChange={(val) => setVal("priority", val)}
-                options={["High", "Medium", "Low"]}
+                options={priorities}
                 valueClassFn={priorityValueClass}
                 label="Priority"
               />
@@ -720,116 +522,45 @@ const TaskDetail = ({
               <BadgeSelect
                 value={form.status}
                 onChange={(val) => setVal("status", normalizeStatus(val))}
-                options={[
-                  "Not started",
-                  "In progress",
-                  "Completed",
-                  "Overdue",
-                ]}
+                options={statuses}
                 valueClassFn={statusValueClass}
                 label="Status"
               />
             </Row>
 
-            <Row
-              icon="ri-trophy-line"
-              label="Score"
-              onClick={() => setEditingKey("score")}
-            >
-              {editingKey === "score" ? (
-                <InputBase
-                  as="input"
-                  type="number"
-                  value={form.score}
-                  onChange={(e) => setVal("score", e.target.value)}
-                  onBlur={() => setEditingKey(null)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && setEditingKey(null)
-                  }
-                  placeholder="e.g. 95"
-                  autoFocus
-                />
-              ) : (
-                <div className="w-full truncate">
-                  {form.score !== "" && form.score !== null ? (
-                    <span className="text-gray-200">{form.score}</span>
-                  ) : (
-                    <span className="text-gray-500">e.g. 95</span>
-                  )}
-                </div>
-              )}
+            <Row icon="ri-trophy-line" label="Score">
+              <InputBase
+                as="input"
+                type="number"
+                value={form.score}
+                onChange={(e) => setVal("score", e.target.value)}
+                placeholder="e.g. 95"
+              />
             </Row>
 
-            <Row
-              icon="ri-share-box-line"
-              label="Link"
-              onClick={() => setEditingKey("link")}
-            >
-              {editingKey === "link" ? (
-                <InputBase
-                  value={form.link}
-                  onChange={(e) => setVal("link", e.target.value)}
-                  onBlur={() => setEditingKey(null)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && setEditingKey(null)
-                  }
-                  placeholder="https://..."
-                  autoFocus
-                />
-              ) : form.link ? (
-                <a
-                  href={form.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="truncate text-[#60A5FA] underline decoration-[#60A5FA] underline-offset-4"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {form.link}
-                </a>
-              ) : (
-                <span className="text-gray-500">https://...</span>
-              )}
+            <Row icon="ri-share-box-line" label="Link">
+              <InputBase
+                value={form.link}
+                onChange={(e) => setVal("link", e.target.value)}
+                placeholder="https://..."
+              />
             </Row>
           </div>
 
-          <div className="mt-12 flex justify-end items-center gap-[15px] font-inter">
+          <div className="mt-12 flex justify-end items-center gap-3 font-inter">
             <button
-              onClick={() => setShowConfirm(true)}
-              aria-label="Delete Task"
-              title="Delete Task"
-              className="w-[44px] h-[36px] rounded-md bg-[#830404] flex items-center justify-center hover:brightness-110 active:scale-95 transition disabled:opacity-60"
-              disabled={loading || !task?.id_task}
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] transition-all disabled:opacity-60 cursor-pointer"
+              disabled={loading}
             >
-              <i className="ri-delete-bin-2-line text-white text-[16px]" />
-            </button>
-
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-2 px-5 h-[36px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] transition-all disabled:opacity-60"
-              disabled={loading || !task?.id_task}
-            >
-              <i className="ri-save-3-line text-foreground text-[16px]" />
-              <span className="text-[15px] font-medium">
-                {loading ? "Saving..." : "Save Changes"}
-              </span>
+              <i className="ri-add-line text-foreground text-[18px]" />
+              <span className="text-[15px] font-medium">Add Task</span>
             </button>
           </div>
         </div>
       </div>
-
-      {showConfirm && (
-        <DeletePopup
-          title="Delete Task"
-          warning={`Are you sure you want to delete "${task.title}"?`}
-          onCancel={() => setShowConfirm(false)}
-          onDelete={() => {
-            setShowConfirm(false);
-            handleDelete();
-          }}
-        />
-      )}
     </div>
   );
 };
 
-export default TaskDetail;
+export default AddTask;

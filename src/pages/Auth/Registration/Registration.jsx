@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { useNavigate } from "react-router-dom";
 import Mobile from "./Layout/Mobile";
+import VerifyOtp from "../Verify-otp/VerifyOtp"; // ⬅️ tambahan: sama seperti di Mobile
 
 const Registration = () => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -22,6 +23,12 @@ function RegisterDesktop() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState("");
+
+  // 🔁 tambahan state supaya flow-nya sama dengan Mobile
+  const [showVerify, setShowVerify] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [expiredAt, setExpiredAt] = useState("");
+  const [purpose, setPurpose] = useState("");
 
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`;
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
@@ -68,8 +75,9 @@ function RegisterDesktop() {
   const handleRegister = async () => {
     setErrMsg("");
 
+    // ✅ sama seperti Mobile: cek semua field
     if (!email || !username || !password) {
-      setErrMsg("Username, email, dan password wajib diisi.");
+      setErrMsg("Please fill all fields.");
       return;
     }
 
@@ -87,43 +95,38 @@ function RegisterDesktop() {
         }),
       });
 
-      // baca response sebagai text dulu biar kalau error bukan JSON, nggak meledak
-      const raw = await res.text();
-      let data = null;
-      try {
-        data = raw ? JSON.parse(raw) : null;
-      } catch (e) {
-        console.error("REGISTER RAW RESPONSE (bukan JSON):", raw);
-        setErrMsg("Server mengembalikan response tidak valid.");
-        return;
-      }
+      const data = await res.json(); // ✅ sama seperti Mobile
 
       if (!res.ok) {
-        setErrMsg(data?.error || "Registrasi gagal.");
-        return;
+        throw new Error(data.error || "Registration failed");
       }
 
-      // simpan email utk halaman VerifyOtp (desktop & mobile bisa pakai)
-      try {
-        sessionStorage.setItem("registerEmail", email);
-      } catch {}
-
-      // redirect ke halaman OTP dengan mode REGISTER
-      navigate("/auth/verify-otp", {
-        state: {
-          email,
-          type: "register",
-          expires_at: data?.expires_at,
-        },
-      });
+      // ✅ samakan dengan Mobile: pakai response backend untuk OTP
+      setPurpose(data.purpose);
+      setRegisteredEmail(email);
+      setExpiredAt(data.expires_at);
+      setShowVerify(true); // ganti halaman ke VerifyOtp (desktop)
     } catch (err) {
       console.error("REGISTER ERROR:", err);
-      setErrMsg(err?.message || "Terjadi kesalahan. Coba lagi.");
+      setErrMsg(err.message || "Something went wrong.");
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ sama seperti Mobile: kalau sudah register sukses, langsung tampilkan VerifyOtp
+  if (showVerify) {
+    return (
+      <VerifyOtp
+        email={registeredEmail}
+        expiredAt={expiredAt}
+        purpose={purpose}
+        from="verification"
+      />
+    );
+  }
+
+  // ⬇️ UI DESKTOP TETAP SAMA, tidak diubah
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black text-white">
       {/* BACKGROUND */}
@@ -171,7 +174,7 @@ function RegisterDesktop() {
       {/* CONTENT */}
       <div className="relative z-20 flex h-full w-full">
         {/* LEFT */}
-        <div className="flex h-full grow flex-col pt-[50px] pl:[52px] pl-[52px]">
+        <div className="flex h-full grow flex-col pt-[50px] pl-[52px]">
           <div
             className="inline-flex items-baseline gap-1 leading-none"
             style={{ fontFamily: "'Genos', sans-serif", fontWeight: 700 }}
@@ -232,7 +235,7 @@ function RegisterDesktop() {
               >
                 Let’s Register
               </h1>
-              <p className="text-[18px] leading-snug mb:[32px] mb-[40px]">
+              <p className="text-[18px] leading-snug mb-[40px]">
                 Join Gradia and take control of your goals, time, and mindset —
                 all in one app.
               </p>

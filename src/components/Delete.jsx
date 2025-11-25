@@ -95,7 +95,7 @@ export default function DeletePopup({
             {/* Cancel */}
             <button
               onClick={handleCancel}
-              className="bg-[#6B7280]/20 text-white text-[16px] px-[12px] py-[8px] rounded-[8px] transition-colors hover:bg-[#6B7280]/30"
+              className="bg-[#6B7280]/20 text-white text-[16px] px-[12px] py-[8px] rounded-[8px] transition-colors hover:bg-[#6B7280]/30 cursor-pointer"
             >
               Cancel
             </button>
@@ -103,7 +103,7 @@ export default function DeletePopup({
             {/* Delete */}
             <button
               onClick={handleDelete}
-              className="flex items-center bg-[#EF4444]/20 text-[#F87171] text-[16px] px-[12px] py-[8px] rounded-[8px] transition-colors hover:bg-[#EF4444]/30"
+              className="flex items-center bg-[#EF4444]/20 text-[#F87171] text-[16px] px-[12px] py-[8px] rounded-[8px] transition-colors hover:bg-[#EF4444]/30 cursor-pointer"
             >
               <span className="mr-[8px]">Delete</span>
               <i className="ri-delete-bin-5-line text-[18px]" />
