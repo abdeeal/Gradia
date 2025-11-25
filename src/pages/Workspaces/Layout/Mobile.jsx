@@ -134,6 +134,7 @@ const Mobile = () => {
 
   const enterWorkspace = (idWorkspace) => {
     sessionStorage.setItem("id_workspace", idWorkspace);
+    console.log(idWorkspace);
     navigate("/dashboard");
   };
 
