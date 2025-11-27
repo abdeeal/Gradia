@@ -1,5 +1,5 @@
 // src/pages/Presence/index.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Sidebar from "../../components/Sidebar.jsx";
 import PresenceCard from "./components/PresenceCard.jsx";
 import PresenceTable from "./components/PresenceTable.jsx";
@@ -13,371 +13,353 @@ import {
   peekRoom,
   setRoom,
 } from "@/utils/coursesRoomCache";
-
-// 🔥 pakai helper yang sama seperti DueToday / Tasks / Courses
 import { getWorkspaceId } from "../../components/GetWorkspace.js";
 
-// 🔁 workspace diambil dari local/session via helper
+/* ---------- Workspace ---------- */
 const WORKSPACE_ID = getWorkspaceId();
 const idWorkspace = WORKSPACE_ID;
 
-/* ===== Helpers tanggal/status ===== */
+/* ---------- Helpers tanggal/waktu ---------- */
 const pad2 = (n) => String(n).padStart(2, "0");
-const toDDMMYYYY = (d) =>
+
+const fmtDate = (d) =>
   `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
-const toHHMMSS = (d) =>
+
+const fmtTime = (d) =>
   `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 
-function timeRangeStrFromApi(row) {
-  const s = row.course_start ? new Date(row.course_start) : null;
-  const e = row.course_end ? new Date(row.course_end) : null;
-  if (!s || !e || isNaN(s) || isNaN(e)) return "";
-  const sh = pad2(s.getHours()),
-    sm = pad2(s.getMinutes());
-  const eh = pad2(e.getHours()),
-    em = pad2(e.getMinutes());
-  return `${sh}:${sm} - ${eh}:${em}`;
-}
-function windowTodayFromRange(rangeStr) {
-  if (!rangeStr) return null;
-  const [s, e] = rangeStr.split("-").map((x) => x?.trim());
+/* ---------- Range helper ---------- */
+function getRange(str) {
+  if (!str) return null;
+  const [s, e] = str.split("-").map((x) => x?.trim());
   if (!s || !e) return null;
+
   const [sh, sm] = s.split(":").map((x) => parseInt(x, 10));
   const [eh, em] = e.split(":").map((x) => parseInt(x, 10));
+
   const now = new Date();
+
   const start = new Date(now);
   start.setHours(sh || 0, sm || 0, 0, 0);
+
   const end = new Date(now);
   end.setHours(eh || 0, em || 0, 0, 0);
+
   return { start, end };
 }
-function statusFromNow(rangeStr) {
-  const w = windowTodayFromRange(rangeStr);
-  if (!w) return "Upcoming"; // tidak ada Not Started; treat as Upcoming
+
+/* ---------- Status ---------- */
+function getStatus(str) {
+  const r = getRange(str);
+  if (!r) return "Upcoming";
+
   const now = new Date();
-  if (now < w.start) return "Upcoming";
-  if (now <= w.end) return "On Going";
+  if (now < r.start) return "Upcoming";
+  if (now <= r.end) return "On Going";
   return "Overdue";
 }
-async function safeJson(res) {
-  const ct = res.headers.get("content-type") || "";
-  if (!ct.includes("application/json")) {
-    const text = await res.text();
-    throw new Error(
-      `Expected JSON, got ${res.status} ${res.statusText}. First bytes: ${text.slice(
-        0,
-        200
-      )}`
-    );
+
+/* ---------- JSON Helper ---------- */
+async function json(res) {
+  const type = res.headers.get("content-type") || "";
+  if (!type.includes("application/json")) {
+    const txt = await res.text();
+    throw new Error(`Expected JSON, got TEXT: ${txt.slice(0, 200)}`);
   }
   return res.json();
 }
 
-/* Normalisasi status lama → baru */
+/* ---------- Status normalizer ---------- */
 const normStatus = (s) => {
   const v = String(s || "").trim().toLowerCase();
   return v === "presence" ? "present" : v;
 };
 
-/* Helper: cek apakah ID numeric (supaya aman untuk bigint) */
-const isNumericId = (val) => /^\d+$/.test(String(val).trim());
+const isNumId = (v) => /^\d+$/.test(String(v).trim());
 
-/* Buat shape record untuk tabel */
-function mapServerRow(row) {
+/* ---------- No-op helper (untuk onAppendLog) ---------- */
+const noop = () => null;
+
+/* ---------- Map row dari DB ---------- */
+function mapRow(row) {
   const dt = row.presences_at ? new Date(row.presences_at) : null;
   return {
     id: row.id_presence,
     id_presence: row.id_presence,
     courseId: row.id_course,
     courseTitle: row.course_name || "-",
-    room: row.course_room || "-", // simpan room tapi tidak ditampilkan di tabel
-    datetime: dt ? `${toDDMMYYYY(dt)} ${toHHMMSS(dt)}` : "",
+    room: row.course_room || "-",
+    datetime: dt ? `${fmtDate(dt)} ${fmtTime(dt)}` : "",
     status: row.status || "",
     note: row.note || "",
     _raw: row,
   };
 }
 
-/* ===== Helpers waktu untuk course (HH:mm / HH.mm accepted) ===== */
-const toHHMM = (v) => {
+/* ---------- Format jam ---------- */
+const fmtHM = (v) => {
   if (!v) return "";
-  const s = String(v).trim();
-  if (!s) return "";
-  const t = s.replace(".", ":"); // support "07.30"
+  const t = String(v).trim().replace(".", ":");
   const [h, m] = t.split(":").map((x) => parseInt(x, 10));
+
   if (!Number.isFinite(h)) return "";
+
   const hh = pad2(Math.max(0, Math.min(23, h)));
   const mm = pad2(Number.isFinite(m) ? Math.max(0, Math.min(59, m)) : 0);
   return `${hh}:${mm}`;
 };
 
-/* ===== Ambil daftar course today dari tabel courses ===== */
-async function fetchCoursesToday() {
+/* ---------- Immutable helpers ---------- */
+function setRow(list, rec) {
+  if (!rec) return list;
+  const id = rec.id_presence || rec.id;
+  const idx = list.findIndex((x) => (x.id_presence || x.id) === id);
+  if (idx === -1) return [...list, rec];
+
+  const next = list.slice();
+  next[idx] = { ...next[idx], ...rec };
+  return next;
+}
+
+function swapId(list, tempId, realId) {
+  const idx = list.findIndex((x) => (x.id || x.id_presence) === tempId);
+  if (idx === -1) return list;
+
+  const next = list.slice();
+  next[idx] = { ...next[idx], id: realId, id_presence: realId };
+  return next;
+}
+
+/* ---------- Fetch courses today ---------- */
+async function fetchToday() {
   try {
     const r = await fetch(`/api/courses?q=today&idWorkspace=${idWorkspace}`);
-    const data = await safeJson(r);
+    const data = await json(r);
+
     const arr = Array.isArray(data)
       ? data
       : Array.isArray(data?.data)
       ? data.data
       : [];
 
-    // Map ke shape yang dipakai PresenceCard + kebutuhan logic lama
     const mapped = arr.map((c) => {
       const id =
         c.id_courses ??
         c.id_course ??
         c.course_id ??
         c.id ??
-        c.courseId; // ✅ perbaikan: cover id_courses
+        c.courseId;
 
       const title = c.name ?? c.title ?? c.course_name ?? "-";
       const room = c.room ?? c.course_room ?? "";
-      const start = toHHMM(c.start ?? c.course_start ?? c.time?.split("-")?.[0]);
-      const end = toHHMM(c.end ?? c.course_end ?? c.time?.split("-")?.[1]);
 
-      // time untuk UI: "HH:MM & HH:MM"
-      const timeAmpersand =
-        start && end ? `${start} & ${end}` : start || end || "";
+      const start = fmtHM(c.start ?? c.course_start ?? c.time?.split("-")?.[0]);
+      const end = fmtHM(c.end ?? c.course_end ?? c.time?.split("-")?.[1]);
 
-      // rangeDash hanya dipakai untuk perhitungan status
-      const rangeDash =
-        start && end ? `${start} - ${end}` : start || end || "";
+      const amp = start && end ? `${start} & ${end}` : start || end || "";
+      const dash = start && end ? `${start} - ${end}` : start || end || "";
 
       return {
         id,
         title,
         room,
-        // Kirim juga start/end agar PresenceCard bisa baca langsung
         start,
         end,
-        // time untuk ditampilkan (punya "&")
-        time: timeAmpersand,
-        // status dihitung dengan logic lama
-        status: statusFromNow(rangeDash),
+        time: amp,
+        status: getStatus(dash),
       };
     });
 
-    // Panaskan cache room; lengkapin room bila kosong
     prewarmRooms(mapped.map((c) => ({ id: c.id, room: c.room })));
-    const completed = await Promise.all(
+
+    const done = await Promise.all(
       mapped.map(async (c) => {
         let room = c.room;
         if (!room) {
-          room = await getRoom(c.id).catch(() => "");
+          try {
+            room = await getRoom(c.id);
+          } catch (e) {
+            console.error(e);
+            room = "";
+          }
         }
         setRoom(c.id, room || "");
         return { ...c, room: room || "-" };
       })
     );
 
-    return completed;
+    return done;
   } catch (e) {
-    console.error("fetchCoursesToday error:", e);
+    console.error("fetchToday error:", e);
     return [];
   }
 }
 
+/* ===========================================================
+   COMPONENT UTAMA
+   =========================================================== */
 function Presence() {
-  const [records, setRecords] = useState([]); // semua record presensi (multi hari)
-  const [courses, setCourses] = useState([]); // daftar course (unik) → SEKARANG dari tabel courses
+  const [rows, setRows] = useState([]);
+  const [coursesToday, setCoursesToday] = useState([]);
   const [initialLoading, setInitialLoading] = useState(false);
 
-  // ➜ totals GLOBAL dari DATABASE (tanpa filter tanggal)
-  const [totalsGlobal, setTotalsGlobal] = useState({ presence: 0, absent: 0 });
-  const [loadingTotals, setLoadingTotals] = useState(false);
+  const [totals, setTotals] = useState({ presence: 0, absent: 0 });
 
-  // 🎯 Selalu sinkronkan total present/absent dengan records di client
+  /* ---------- Hitung totals ---------- */
   useEffect(() => {
-    let presence = 0;
-    let absent = 0;
-
-    for (const r of records) {
+    let p = 0;
+    let a = 0;
+    for (const r of rows) {
       const s = normStatus(r.status);
-      if (s === "present") presence += 1;
-      else if (s === "absent") absent += 1;
+      if (s === "present") p++;
+      else if (s === "absent") a++;
     }
-
-    setTotalsGlobal({ presence, absent });
-  }, [records]);
+    setTotals({ presence: p, absent: a });
+  }, [rows]);
 
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
   if (isMobile || isTablet) return <Mobile />;
 
-  /* ====== Fetch helper: total GLOBAL dari server ====== */
-  const fetchTotalsGlobalFromServer = async () => {
-    setLoadingTotals(true);
-
-    // 1) Coba endpoint stats ringkas (sekarang ikut workspace)
+  /* ---------- Fetch totals ---------- */
+  const fetchTotals = useCallback(async () => {
     const tryStats = async () => {
       try {
         const r = await fetch(
           `/api/presences/stats?idWorkspace=${idWorkspace}`
         );
         if (r.ok) {
-          const data = await safeJson(r);
+          const data = await json(r);
           if (typeof data === "object") {
-            const presence =
-              Number(data.totalPresence ?? data.presence ?? data.present ?? 0);
-            const absent =
-              Number(data.totalAbsent ?? data.absent ?? data.absence ?? 0);
-            return { presence, absent, ok: true };
+            const presence = Number(
+              data.totalPresence ??
+                data.presence ??
+                data.present ??
+                0
+            );
+            const absent = Number(
+              data.totalAbsent ??
+                data.absent ??
+                data.absence ??
+                0
+            );
+            return { ok: true, presence, absent };
           }
         }
-      } catch {}
+      } catch (e) {
+        console.error(e);
+      }
       return { ok: false };
     };
 
-    // 2) Fallback: ambil seluruh presences, hitung di client
     const tryList = async () => {
-      const candidates = [
+      const urls = [
         `/api/presences?limit=100000&idWorkspace=${idWorkspace}`,
         `/api/presences?idWorkspace=${idWorkspace}`,
       ];
-      for (const url of candidates) {
+
+      for (const u of urls) {
         try {
-          const r = await fetch(url);
+          const r = await fetch(u);
           if (r.ok) {
-            const arr = await safeJson(r);
+            const arr = await json(r);
             if (Array.isArray(arr)) {
-              let presence = 0;
-              let absent = 0;
+              let p = 0;
+              let a = 0;
               for (const it of arr) {
-                const s = normStatus(it?.status);
-                if (s === "present") presence += 1;
-                else if (s === "absent") absent += 1;
+                const s = normStatus(it.status);
+                if (s === "present") p++;
+                else if (s === "absent") a++;
               }
-              return { presence, absent, ok: true };
+              return { ok: true, presence: p, absent: a };
             }
           }
-        } catch {}
+        } catch (e) {
+          console.error(e);
+        }
       }
       return { ok: false };
     };
 
-    let result = await tryStats();
-    if (!result.ok) result = await tryList();
+    let x = await tryStats();
+    if (!x.ok) x = await tryList();
 
-    if (result.ok) {
-      setTotalsGlobal({ presence: result.presence, absent: result.absent });
-    } else {
-      // fallback ke hitungan lokal state
-      let presence = 0;
-      let absent = 0;
-      for (const r of records) {
-        const s = normStatus(r.status);
-        if (s === "present") presence += 1;
-        else if (s === "absent") absent += 1;
-      }
-      setTotalsGlobal({ presence, absent });
+    if (x.ok) {
+      setTotals({ presence: x.presence, absent: x.absent });
     }
+  }, [rows]);
 
-    setLoadingTotals(false);
-  };
-
-  /* ===== Fetch pertama kali (data presences & courses today) ===== */
-  const fetchInitial = async () => {
+  /* ---------- Initial fetch ---------- */
+  const fetchInitial = useCallback(async () => {
     setInitialLoading(true);
     try {
-      // ambil presences dan courses today secara paralel
-      const [presR, todayCourses] = await Promise.all([
+      const [presR, today] = await Promise.all([
         fetch(`/api/presences?idWorkspace=${idWorkspace}`),
-        fetchCoursesToday(),
+        fetchToday(),
       ]);
 
-      // ===== presences
-      const presRaw = await safeJson(presR);
-      const mappedRecords = (Array.isArray(presRaw) ? presRaw : []).map(
-        mapServerRow
-      );
+      const presRaw = await json(presR);
+      const mapped = (Array.isArray(presRaw) ? presRaw : []).map(mapRow);
 
-      // rekonsiliasi record → isi room dari courses kalau kosong
-      const reconciledRecords = mappedRecords.map((r) => {
+      const merged = mapped.map((r) => {
         if (r.room && r.room !== "-") return r;
-        const c = todayCourses.find((x) => x.id === r.courseId);
+        const c = today.find((x) => x.id === r.courseId);
         return { ...r, room: c?.room || r.room || "-" };
       });
 
-      setRecords(reconciledRecords);
-      setCourses(todayCourses);
+      setRows(merged);
+      setCoursesToday(today);
     } catch (e) {
       console.error(e);
-      setRecords([]);
-      setCourses([]);
+      setRows([]);
+      setCoursesToday([]);
     } finally {
       setInitialLoading(false);
-      fetchTotalsGlobalFromServer();
+      fetchTotals();
     }
-  };
+  }, [fetchTotals]);
 
   useEffect(() => {
     fetchInitial();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchInitial]);
 
-  /* ===== Update status kartu & refresh totals berkala ===== */
+  /* ---------- Update status tiap 30 detik ---------- */
   useEffect(() => {
     const t = setInterval(() => {
-      setCourses((prev) =>
+      setCoursesToday((prev) =>
         prev.map((c) => {
-          // hitung status pakai logic lama (range "HH:MM - HH:MM") tetapi TIDAK mengubah properti time yang ber-ampersand
-          const dashRange =
-            c.start && c.end
-              ? `${c.start} - ${c.end}`
-              : c.start || c.end || "";
-          return { ...c, status: statusFromNow(dashRange) };
+          const dash =
+            c.start && c.end ? `${c.start} - ${c.end}` : c.start || c.end || "";
+          return { ...c, status: getStatus(dash) };
         })
       );
-      // refresh total GLOBAL dari DB supaya angka selalu up-to-date
-      fetchTotalsGlobalFromServer();
-    }, 30_000);
+      fetchTotals();
+    }, 30000);
+
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchTotals]);
 
-  /* ===== Utils Optimistic ===== */
-  function upsertRecord(list, rec) {
-    if (!rec) return list; // ✅ guard kalau rec undefined
-    const id = rec.id_presence || rec.id;
-    const idx = list.findIndex((x) => (x.id_presence || x.id) === id);
-    if (idx === -1) return [...list, rec];
-    const next = list.slice();
-    next[idx] = { ...next[idx], ...rec };
-    return next;
-  }
-
-  function replaceTempId(list, tempId, realId) {
-    const idx = list.findIndex((x) => (x.id || x.id_presence) === tempId);
-    if (idx === -1) return list;
-    const next = list.slice();
-    next[idx] = { ...next[idx], id: realId, id_presence: realId };
-    return next;
-  }
-
-  /* ===== Handlers (Optimistic) ===== */
-
-  // AddPresence → Optimistic create
-  const onSubmitAdd = async ({ courseId, status, note /* room (ignored) */ }) => {
+  /* ---------- Add Presence ---------- */
+  const handleAdd = async ({ courseId, status, note }) => {
     const now = new Date();
-    const tempId = `temp-${now.getTime()}-${Math.random()
-      .toString(36)
-      .slice(2, 7)}`;
-    const courseMeta = courses.find((c) => c.id === courseId);
-    const resolvedRoom = courseMeta?.room ?? peekRoom(courseId) ?? "-"; // dari course/cache
+    const tempId =
+      "temp-" + now.getTime() + "-" + Math.random().toString(36).slice(2, 7);
+
+    const meta = coursesToday.find((c) => c.id === courseId);
 
     const optimistic = {
       id: tempId,
       id_presence: tempId,
       courseId,
-      courseTitle: courseMeta?.title || "-",
-      room: resolvedRoom, // simpan, tapi tabel tidak menampilkan kolom room
-      datetime: `${toDDMMYYYY(now)} ${toHHMMSS(now)}`,
-      status, // "Present" | "Absent"
+      courseTitle: meta?.title || "-",
+      room: meta?.room || peekRoom(courseId) || "-",
+      datetime: `${fmtDate(now)} ${fmtTime(now)}`,
+      status,
       note: note || "",
       _raw: null,
     };
-    setRecords((prev) => upsertRecord(prev, optimistic));
+
+    setRows((prev) => setRow(prev, optimistic));
 
     try {
       const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`, {
@@ -385,195 +367,84 @@ function Presence() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id_course: courseId,
-          status, // kirim apa adanya: "Present" atau "Absent"
+          status,
           note,
-          // 🔗 kirim workspace yang aktif, bukan 1 fix
           id_workspace: idWorkspace,
         }),
       });
 
       if (res.ok) {
-        try {
-          const body = await safeJson(res);
-          const realId = body?.id_presence || body?.id || null;
-          if (realId) {
-            setRecords((prev) => replaceTempId(prev, tempId, realId));
-          }
-          fetchTotalsGlobalFromServer();
-        } catch {}
+        const body = await json(res);
+        const realId = body?.id_presence || body?.id;
+        if (realId) {
+          setRows((prev) => swapId(prev, tempId, realId));
+        }
+        fetchTotals();
       } else {
-        const t = await res.text();
-        console.error("POST failed:", res.status, t);
-        setRecords((prev) =>
-          prev.filter((x) => (x.id || x.id_presence) !== tempId)
-        );
+        setRows((prev) => prev.filter((r) => r.id !== tempId));
       }
     } catch (e) {
-      console.error("POST error:", e);
-      setRecords((prev) =>
-        prev.filter((x) => (x.id || x.id_presence) !== tempId)
-      );
+      console.error(e);
+      setRows((prev) => prev.filter((r) => r.id !== tempId));
     }
   };
 
-  // 🔧 EditPresence → SELALU update row yang sama (PUT), BUKAN bikin id baru
-  const onSaveEdit = async (updated) => {
-    const keyRaw = updated.id_presence ?? updated.id;
-    const keyStr = String(keyRaw).trim();
+  /* ---------- Edit Presence ---------- */
+  const handleEdit = async (u) => {
+    const rawId = u.id_presence ?? u.id;
+    const idStr = String(rawId).trim();
 
-    // 🚧 JANGAN kirim ID temp/auto ke backend (bigint)
-    if (!isNumericId(keyStr)) {
-      console.warn("Skip PUT: id_presence bukan numeric (masih temp/auto)", keyStr);
-      return false;
-    }
+    if (!isNumId(idStr)) return false;
 
-    const prevSnap = records.find(
-      (x) => String(x.id_presence || x.id).trim() === keyStr
+    const prevSnap = rows.find(
+      (r) => String(r.id_presence || r.id) === idStr
     );
+    if (!prevSnap) return false;
 
-    if (!prevSnap) return false; // kalau nggak ketemu, gagal
+    const resolvedRoom =
+      (u.room && u.room.trim() !== "" ? u.room : null) ??
+      peekRoom(u.courseId) ??
+      prevSnap.room ??
+      "-";
 
-    const finalRoom =
-      (updated.room != null && String(updated.room).trim() !== ""
-        ? updated.room
-        : null) ?? peekRoom(updated.courseId) ?? prevSnap?.room ?? "-";
-
-    const nextLocal = {
+    const updated = {
       ...prevSnap,
-      status: updated.status, // "Present" | "Absent"
-      note: updated.note ?? prevSnap?.note ?? "",
-      room: finalRoom, // room tetap hanya info
+      status: u.status,
+      note: u.note ?? prevSnap.note ?? "",
+      room: resolvedRoom,
     };
 
-    // Optimistic update di UI
-    setRecords((prev) => upsertRecord(prev, nextLocal));
+    setRows((prev) => setRow(prev, updated));
 
     try {
-      // ✅ SELALU pakai PUT → update id_presence yang sama di DB
       const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id_presence: keyStr, // sudah dipastikan numeric → aman untuk bigint
-          id_course: updated.courseId,
-          status: updated.status,
-          note: updated.note,
-          // kalau backend butuh workspace di body, bisa dibuka:
-          // id_workspace: idWorkspace,
+          id_presence: idStr,
+          id_course: u.courseId,
+          status: u.status,
+          note: u.note,
         }),
       });
 
       if (!res.ok) {
-        const t = await res.text();
-        console.error("PUT failed:", res.status, t);
-        // rollback ke data lama kalau gagal
-        setRecords((prev) => upsertRecord(prev, prevSnap));
+        setRows((prev) => setRow(prev, prevSnap));
         return false;
       }
 
-      fetchTotalsGlobalFromServer();
+      fetchTotals();
       return true;
     } catch (e) {
-      console.error("onSaveEdit error:", e);
-      // rollback juga kalau error network
-      setRecords((prev) => upsertRecord(prev, prevSnap));
+      console.error(e);
+      setRows((prev) => setRow(prev, prevSnap));
       return false;
     }
   };
 
-  // Auto-Absent (optimistic)
-  useEffect(() => {
-    const checkAutoAbsent = async () => {
-      const now = new Date();
-      for (const c of courses) {
-        if (!c.id) continue; // ✅ jangan proses course tanpa id
-
-        const win = windowTodayFromRange(
-          c.start && c.end ? `${c.start} - ${c.end}` : c.start || c.end || ""
-        );
-        if (!win) continue;
-        if (now <= win.end) continue;
-
-        const already = records.some((r) => {
-          if (r.courseId !== c.id) return false;
-          if (!r.datetime) return false;
-          const [d] = r.datetime.split(" ");
-          const [dd, mm, yyyy] = d.split("/").map((x) => parseInt(x, 10));
-          const dt = new Date(yyyy, (mm || 1) - 1, dd || 1);
-          return (
-            dt.getFullYear() === now.getFullYear() &&
-            dt.getMonth() === now.getMonth() &&
-            dt.getDate() === now.getDate()
-          );
-        });
-
-        if (!already) {
-          const tempId = `auto-${now.getTime()}-${c.id}`;
-          const optimistic = {
-            id: tempId,
-            id_presence: tempId,
-            courseId: c.id,
-            courseTitle: c.title || "-",
-            room: c.room || peekRoom(c.id) || "-",
-            datetime: `${toDDMMYYYY(now)} ${toHHMMSS(now)}`,
-            status: "Absent",
-            note: "Auto-Absent (lewat end-time)",
-            _raw: null,
-          };
-          setRecords((prev) => upsertRecord(prev, optimistic));
-
-          try {
-            const res = await fetch(
-              `/api/presences?idWorkspace=${idWorkspace}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  id_course: c.id,
-                  status: "Absent",
-                  note: "Auto-Absent (lewat end-time)",
-                  // 🔗 lagi-lagi pakai workspace aktif
-                  id_workspace: idWorkspace,
-                }),
-              }
-            );
-            if (res.ok) {
-              try {
-                const body = await safeJson(res);
-                const realId = body?.id_presence || body?.id || null;
-                if (realId) {
-                  setRecords((prev) => replaceTempId(prev, tempId, realId));
-                }
-                fetchTotalsGlobalFromServer();
-              } catch {}
-            } else {
-              const t = await res.text();
-              console.error("Auto-Absent POST failed:", res.status, t);
-              setRecords((prev) =>
-                prev.filter((x) => (x.id || x.id_presence) !== tempId)
-              );
-            }
-          } catch (e) {
-            console.error("Auto-Absent POST error:", e);
-            setRecords((prev) =>
-              prev.filter((x) => (x.id || x.id_presence) !== tempId)
-            );
-          }
-        }
-      }
-    };
-
-    checkAutoAbsent();
-    const t = setInterval(checkAutoAbsent, 60_000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courses, records]);
-
-  /* ===== UI ===== */
+  /* ---------- UI State ---------- */
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const onOpenAddFromCard = (course) => setSelectedCourse(course);
-  const onRowClick = (row) => setEditingRecord(row);
+  const [editingRow, setEditingRow] = useState(null);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -582,7 +453,7 @@ function Presence() {
       <main className="flex-1 font-[Inter]">
         <div className="w-full pt-6">
           <header className="mb-6">
-            <h1 className=" font-semibold text-foreground font-[Montserrat]  text-[20px]">
+            <h1 className=" font-semibold text-foreground font-[Montserrat] text-[20px]">
               Presence
             </h1>
             <p className="text-foreground-secondary mt-1 font-[Montserrat] text-[16px]">
@@ -591,51 +462,48 @@ function Presence() {
             </p>
           </header>
 
-          {/* Cards */}
           <section className="mb-6">
             <PresenceCard
-              courses={courses}
-              rows={records}
-              onOpenAddPresence={onOpenAddFromCard}
-              totalsTodayOverride={totalsGlobal}
+              courses={coursesToday}
+              rows={rows}
+              onOpenAddPresence={setSelectedCourse}
+              totalsTodayOverride={totals}
             />
           </section>
 
-          {/* Table */}
           <section>
             <PresenceTable
-              rows={records}
-              isLoading={initialLoading} // ⬅️ hanya loading saat fetch data awal
-              onRowClick={onRowClick}
+              rows={rows}
+              isLoading={initialLoading}
+              onRowClick={setEditingRow}
             />
           </section>
         </div>
       </main>
 
-      {/* Add & Edit */}
       {selectedCourse && (
         <AddPresence
           course={selectedCourse}
           onClose={() => setSelectedCourse(null)}
           onLiveUpdate={({ courseId, statusSelection, note }) =>
-            setCourses((prev) =>
+            setCoursesToday((prev) =>
               prev.map((c) =>
                 c.id === courseId ? { ...c, statusSelection, note } : c
               )
             )
           }
-          onSubmit={onSubmitAdd}
-          onAppendLog={() => {}}
+          onSubmit={handleAdd}
+          onAppendLog={noop}
           contentPaddingLeft={272}
         />
       )}
 
-      {editingRecord && (
+      {editingRow && (
         <EditPresence
-          record={editingRecord}
-          onClose={() => setEditingRecord(null)}
-          onSave={onSaveEdit}
-          onAppendLog={() => {}}
+          record={editingRow}
+          onClose={() => setEditingRow(null)}
+          onSave={handleEdit}
+          onAppendLog={noop}
           contentPaddingLeft={272}
         />
       )}

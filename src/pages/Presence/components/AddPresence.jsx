@@ -1,40 +1,69 @@
 // src/pages/Presence/components/AddPresence.jsx
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-// ⬇️ ganti SweetAlert2 dengan useAlert seperti di AddTask
+import PropTypes from "prop-types";
 import { useAlert } from "@/hooks/useAlert";
 import { getRoom, peekRoom, setRoom as cacheSetRoom } from "@/utils/coursesRoomCache";
 
-// (HAPUS: showCustomAlert & import Swal)
+/* ---------- Helpers ---------- */
 
 // Parse "HH:MM - HH:MM" jadi window hari ini
 const windowTodayFromRange = (rangeStr) => {
   if (!rangeStr) return null;
+
   const [s, e] = rangeStr.split("-").map((x) => x?.trim());
   if (!s || !e) return null;
+
   const [sh, sm] = s.split(":").map((x) => parseInt(x, 10));
   const [eh, em] = e.split(":").map((x) => parseInt(x, 10));
+
   const now = new Date();
+
   const start = new Date(now);
   start.setHours(sh || 0, sm || 0, 0, 0);
+
   const end = new Date(now);
   end.setHours(eh || 0, em || 0, 0, 0);
+
   return { start, end };
 };
 
 const timeState = (timeRange) => {
-  const w = windowTodayFromRange(timeRange);
-  if (!w) return "unknown";
+  const windowToday = windowTodayFromRange(timeRange);
+  if (!windowToday) return "unknown";
+
   const now = new Date();
-  if (now < w.start) return "upcoming";
-  if (now <= w.end) return "ongoing";
+
+  if (now < windowToday.start) return "upcoming";
+  if (now <= windowToday.end) return "ongoing";
   return "overdue";
 };
 
-const normStatus = (s) => {
-  const v = String(s || "").trim().toLowerCase();
+const normStatus = (value) => {
+  const v = String(value || "").trim().toLowerCase();
   return v === "presence" ? "present" : v;
 };
+
+const buildLogItem = ({ course, courseRoom, finalStatus, note }) => {
+  const now = new Date();
+
+  return {
+    id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    loggedAt: now.toISOString(),
+    loggedAtReadable: `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`,
+    courseId: course?.id,
+    courseTitle: course?.title,
+    room: courseRoom,
+    status: finalStatus,
+    note,
+    timeRange: course?.time,
+  };
+};
+
+/* ---------- Component ---------- */
 
 const AddPresence = ({
   course,
@@ -44,46 +73,51 @@ const AddPresence = ({
   onAppendLog,
   contentPaddingLeft = 272,
 }) => {
-  const { showAlert } = useAlert(); // ⬅️ pakai useAlert seperti AddTask
+  const { showAlert } = useAlert();
 
   const [status, setStatus] = useState(course?.statusSelection || "");
   const [note, setNote] = useState(course?.note || "");
 
-  // ===== Room handling — cache + background fetch
-  const idForCourse = course?.id ?? null;
+  const courseId = course?.id ?? null;
+
   const [courseRoom, setCourseRoom] = useState(
-    () => course?.room ?? (idForCourse ? peekRoom(idForCourse) : "") ?? ""
+    () => course?.room ?? (courseId ? peekRoom(courseId) : "") ?? ""
   );
-  const [loadingCourse, setLoadingCourse] = useState(!courseRoom && !!idForCourse);
+  const [loadingCourse, setLoadingCourse] = useState(!courseRoom && !!courseId);
 
+  // baca supaya tidak dianggap unused (tidak mengubah logic)
+  void loadingCourse;
+
+  /* ---------- Sinkronisasi state saat course berubah ---------- */
   useEffect(() => {
-    setStatus(course?.statusSelection || "");
-    setNote(course?.note || "");
+    if (!course) return;
 
-    // refresh room state from incoming course / cache
-    const fresh = course?.room ?? (idForCourse ? peekRoom(idForCourse) : "") ?? "";
-    setCourseRoom(fresh);
-    setLoadingCourse(!fresh && !!idForCourse);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [course?.id]);
+    setStatus(course.statusSelection || "");
+    setNote(course.note || "");
 
-  // Revalidate room silently
+    const freshRoom = course.room ?? (courseId ? peekRoom(courseId) : "") ?? "";
+    setCourseRoom(freshRoom);
+    setLoadingCourse(!freshRoom && !!courseId);
+  }, [course, courseId]);
+
+  /* ---------- Revalidate room ---------- */
   useEffect(() => {
-    if (idForCourse == null) {
+    if (courseId == null) {
       setCourseRoom("");
       setLoadingCourse(false);
       return;
     }
+
     let ignore = false;
     const ac = new AbortController();
 
-    const cached = peekRoom(idForCourse);
+    const cached = peekRoom(courseId);
     if (cached != null) {
       setCourseRoom(cached);
       setLoadingCourse(false);
     }
 
-    getRoom(idForCourse, { signal: ac.signal })
+    getRoom(courseId, { signal: ac.signal })
       .then((room) => {
         if (!ignore) setCourseRoom(room || "");
       })
@@ -96,20 +130,23 @@ const AddPresence = ({
       ignore = true;
       ac.abort();
     };
-  }, [idForCourse]);
+  }, [courseId]);
 
+  /* ---------- Live update ke parent ---------- */
   useEffect(() => {
-    if (!course) return;
-    onLiveUpdate?.({
+    if (!course || !onLiveUpdate) return;
+
+    onLiveUpdate({
       courseId: course.id,
       statusSelection: status,
       note,
     });
-  }, [status, note]);
+  }, [course, status, note, onLiveUpdate]);
 
+  /* ---------- Submit ---------- */
   const submit = () => {
-    // ⬇️ validasi ala AddTask: gunakan showAlert (destructive)
     const normalized = normStatus(status);
+
     if (normalized !== "present" && normalized !== "absent") {
       showAlert({
         icon: "ri-error-warning-fill",
@@ -122,7 +159,6 @@ const AddPresence = ({
       return;
     }
 
-    // Save resolved room into cache
     if (course?.id != null) {
       cacheSetRoom(course.id, courseRoom);
     }
@@ -133,31 +169,23 @@ const AddPresence = ({
       courseId: course?.id,
       status: finalStatus,
       note,
-      room: courseRoom, // disimpan untuk rekonsiliasi di parent/table
+      room: courseRoom,
     };
 
     try {
       onSubmit?.(payload);
 
       if (typeof onAppendLog === "function") {
-        const now = new Date();
-        onAppendLog({
-          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          loggedAt: now.toISOString(),
-          loggedAtReadable: `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}`,
-          courseId: course?.id,
-          courseTitle: course?.title,
-          room: courseRoom,
-          status: finalStatus,
-          note,
-          timeRange: course?.time,
-        });
+        onAppendLog(
+          buildLogItem({
+            course,
+            courseRoom,
+            finalStatus,
+            note,
+          })
+        );
       }
 
-      // ⬇️ success ala AddTask
       showAlert({
         icon: "ri-checkbox-circle-fill",
         title: "Success",
@@ -168,8 +196,7 @@ const AddPresence = ({
       });
 
       onClose?.();
-    } catch (e) {
-      // (opsional) fallback error ala AddTask
+    } catch {
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Error",
@@ -181,15 +208,18 @@ const AddPresence = ({
     }
   };
 
-  const isPresence = normStatus(status) === "present";
-  const isAbsent = normStatus(status) === "absent";
+  if (!course) return null;
 
-  // ======== Waktu & Status visual (hanya "On Going" & "Upcoming") ========
+  const normalizedStatus = normStatus(status);
+  const isPresence = normalizedStatus === "present";
+  const isAbsent = normalizedStatus === "absent";
+
   const tstate = timeState(course?.time);
   const isOngoing = tstate === "ongoing";
   const isUpcoming = tstate === "upcoming";
 
   const labelText = isOngoing ? "On Going" : isUpcoming ? "Upcoming" : "";
+
   const labelClass = isOngoing
     ? "bg-[#EAB308]/20 text-[#FDE047]"
     : isUpcoming
@@ -197,14 +227,12 @@ const AddPresence = ({
     : "hidden";
 
   const circleClass = isOngoing
-    ? "bg-[#FDE047]" // kuning
+    ? "bg-[#FDE047]"
     : isUpcoming
-    ? "bg-zinc-400" // abu (eks “Not Started”)
+    ? "bg-zinc-400"
     : tstate === "overdue"
     ? "bg-red-500"
     : "bg-gray-500";
-
-  if (!course) return null;
 
   return createPortal(
     <>
@@ -223,7 +251,7 @@ const AddPresence = ({
             role="dialog"
             aria-modal="true"
             className="pointer-events-auto w-[520px] h-[430px] rounded-2xl bg-[#15171A] border border-[#2c2c2c] shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             {/* Header */}
             <div className="mx-auto mt-[12px] w-[498px] h-10 flex items-center justify-between px-3">
@@ -247,13 +275,15 @@ const AddPresence = ({
                 <span className="tabular-nums">{course?.time || "—"}</span>
 
                 {labelText && (
-                  <span className={`inline-flex items-center justify-center h-[26px] px-3 rounded-sm text-xs font-medium ml-3 ${labelClass}`}>
+                  <span
+                    className={`inline-flex items-center justify-center h-[26px] px-3 rounded-sm text-xs font-medium ml-3 ${labelClass}`}
+                  >
                     {labelText}
                   </span>
                 )}
               </div>
 
-              {/* nama course + ROOM (ditampilkan) */}
+              {/* nama course + ROOM */}
               <div className="mt-3">
                 <h3 className="text-foreground font-medium leading-snug truncate">
                   {course?.title || "—"}
@@ -281,7 +311,11 @@ const AddPresence = ({
                   {isPresence && (
                     <i className="ri-check-line text-sm" style={{ color: "#00A13E" }} />
                   )}
-                  <span className={`${isPresence ? "text-[#4ADE80]" : "text-zinc-300"} leading-none`}>
+                  <span
+                    className={`${
+                      isPresence ? "text-[#4ADE80]" : "text-zinc-300"
+                    } leading-none`}
+                  >
                     Present
                   </span>
                 </button>
@@ -302,14 +336,20 @@ const AddPresence = ({
                   {isAbsent && (
                     <i className="ri-check-line text-sm" style={{ color: "#830404" }} />
                   )}
-                  <span className={`${isAbsent ? "text-[#D45F5F]" : "text-zinc-300"} leading-none`}>
+                  <span
+                    className={`${
+                      isAbsent ? "text-[#D45F5F]" : "text-zinc-300"
+                    } leading-none`}
+                  >
                     Absent
                   </span>
                 </button>
               </div>
 
               {/* notes */}
-              <label className="mt-5 text-sm text-zinc-400 font-inter">Add Notes</label>
+              <label className="mt-5 text-sm text-zinc-400 font-inter">
+                Add Notes
+              </label>
               <textarea
                 rows={2}
                 value={note}
@@ -336,6 +376,24 @@ const AddPresence = ({
     </>,
     document.body
   );
+};
+
+/* ---------- PropTypes ---------- */
+
+AddPresence.propTypes = {
+  course: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    title: PropTypes.string,
+    time: PropTypes.string,
+    room: PropTypes.string,
+    statusSelection: PropTypes.string,
+    note: PropTypes.string,
+  }),
+  onClose: PropTypes.func,
+  onSubmit: PropTypes.func,
+  onLiveUpdate: PropTypes.func,
+  onAppendLog: PropTypes.func,
+  contentPaddingLeft: PropTypes.number,
 };
 
 export default AddPresence;
