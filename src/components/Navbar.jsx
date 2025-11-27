@@ -99,7 +99,7 @@ export const Navbar = () => {
   };
 
   return (
-    <nav className="sticky top-0 bg-black py-[22px] z-[90] xl:hidden">
+    <nav className="sticky top-0 bg-black py-[22px] pl-6 z-[90] xl:hidden">
       {(isTablet || isMobile) && (
         <div className="flex justify-between items-center relative  w-full">
           {/* drawer */}

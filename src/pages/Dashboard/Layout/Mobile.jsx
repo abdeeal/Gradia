@@ -17,6 +17,8 @@ const Mobile = () => {
     dueToday: [],
   });
 
+const user = JSON.parse(localStorage.getItem("user"));
+
   const idWorkspace = sessionStorage.getItem("id_workspace");
 
   // Fetch Courses
@@ -176,7 +178,7 @@ const Mobile = () => {
       {/* Header */}
       <div className="flex flex-col gap-2 mt-2">
         <p className="font-montserrat text-[20px] font-semibold">
-          Welcome in, Abdee Alamsyah
+          Welcome in, <span className="capitalize">{user.username}</span>
         </p>
         <span className="text-foreground-secondary">
           Track your learning progress, courses and tasks for today
@@ -281,10 +283,8 @@ const Mobile = () => {
                 />
               ))
             ) : (
-              <div className="w-full h-full flex justify-center items-center">
-                <p className="text-foreground-secondary text-center">
-                  No courses today.
-                </p>
+              <div className="flex justify-center items-center h-[100px] bg-background-secondary rounded-[12px]">
+                <p className="text-foreground-secondary">No courses today.</p>
               </div>
             )}
           </div>
