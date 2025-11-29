@@ -1,9 +1,9 @@
 // src/pages/Dashboard/index.jsx
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useMediaQuery } from "react-responsive";
-import Mobile from "./Layout/Mobile";
 
 import Sidebar from "@/components/Sidebar";
+import Mobile from "./Layout/Mobile";
 import DueToday from "../Dashboard/components/duetoday";
 import CoursesToday from "../Dashboard/components/coursetoday";
 import Weather from "../Dashboard/components/weather";
@@ -12,123 +12,102 @@ import TaskProgress from "../Dashboard/components/taskprogress";
 import TaskSummary from "../Dashboard/components/progresstask";
 
 export default function Dashboard() {
-  // Breakpoints
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
 
-  if (isMobile || isTablet) {
-    return <Mobile />;
-  }
+  if (isMobile || isTablet) return <Mobile />;
 
   const now = useMemo(() => new Date(), []);
   const isNight = now.getHours() >= 18 || now.getHours() < 6;
 
-  // state user
-  const [username, setUsername] = useState("User"); // default
-  const [id_user, setIdUser] = useState(null);
+  // User state
+  const [username, setUsername] = useState("User");
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 🔹 Ambil username & id_user langsung dari localStorage (tanpa fetch API)
+  // Ref untuk kolom kiri
+  const leftRef = useRef(null);
+
+  // Load username
   useEffect(() => {
     try {
-      const storedId = localStorage.getItem("id_user");
       const storedUsername = localStorage.getItem("username");
-      const storedUserRaw = localStorage.getItem("user");
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-      if (storedId) {
-        const numericId = Number(storedId);
-        if (!Number.isNaN(numericId)) {
-          setIdUser(numericId);
-        }
+      let finalName = storedUsername || storedUser.username || storedUser.name;
+
+      if (!finalName && storedUser.email) {
+        finalName = storedUser.email.split("@")[0];
       }
 
-      let finalUsername = storedUsername || null;
-
-      // kalau key "username" kosong, coba ambil dari objek "user" atau dari email
-      if (!finalUsername && storedUserRaw) {
-        try {
-          const u = JSON.parse(storedUserRaw) || {};
-
-          // beberapa kemungkinan nama field
-          finalUsername =
-            u.username ||
-            u.UserName ||
-            u.name ||
-            u.fullname ||
-            null;
-
-          // fallback terakhir: ambil dari email sebelum "@"
-          if (!finalUsername && u.email) {
-            const beforeAt = String(u.email).split("@")[0];
-            if (beforeAt) {
-              finalUsername = beforeAt;
-            }
-          }
-        } catch (e) {
-          console.error("Failed to parse localStorage user:", e);
-        }
+      if (finalName) {
+        setUsername(finalName);
+        localStorage.setItem("username", finalName);
       }
-
-      if (finalUsername) {
-        setUsername(finalUsername);
-        // simpan lagi supaya kedepannya cukup baca "username"
-        localStorage.setItem("username", finalUsername);
-      }
-
-      setIsLoaded(true);
     } catch (e) {
-      console.error("Error loading user from localStorage:", e);
-      setIsLoaded(true);
+      console.error(e);
     }
+
+    setIsLoaded(true);
   }, []);
 
   return (
     <div className="flex min-h-screen bg-black text-white">
-      {/* Sidebar */}
       <Sidebar />
 
-      {/* Main Content */}
       <main className="flex-1 pt-5 pb-6 overflow-y-auto">
-        {/* Header */}
-        <header className="mb-4 px-0 pr-6">
-          <h1 className="text-2xl font-bold">
-            Welcome in,{" "} 
-            <span className="text-foreground-300">
-  {isLoaded ? `${username}!` : "..."}
-</span>
+        <div className="px-0 pr-6 max-w-full mx-auto">
 
-          </h1>
-          <p className="text-gray-400">
-            Track your learning progress, courses and tasks for today
-          </p>
-        </header>
+          <header className="mb-4">
+            <h1 className="text-2xl font-bold">
+              Welcome in,{" "}
+              <span className="text-foreground-300">
+                {isLoaded ? `${username}!` : "..."}
+              </span>
+            </h1>
+            <p className="text-gray-400">Track your learning progress, courses and tasks for today</p>
+          </header>
 
-        {/* Content grid: Left (main) + Right (task widgets) */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_308px] lg:gap-[8px] px-0 pr-6">
-          {/* LEFT COLUMN */}
-          <div className="flex flex-col gap-[22px]">
-            {/* Row 1: Due Today + Courses Today */}
-            <div className="flex flex-col lg:flex-row gap-[10px]">
-              <div className="w-full lg:w-[259px]">
-                <DueToday />
+          {/* ==== WRAPPER RELATIVE ==== */}
+          <div className="relative w-full">
+
+            {/* GRID → KIRI (FLEXIBLE) + SLOT KANAN */}
+            <div className="grid grid-cols-[minmax(0,1.6fr)_308px] gap-4 items-start">
+
+              {/* KIRI */}
+              <div ref={leftRef} className="min-w-0 flex flex-col gap-[22px]">
+
+                <div className="flex flex-col lg:flex-row gap-[10px]">
+                  <div className="w-full lg:w-[259px]">
+                    <DueToday />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CoursesToday variant={isNight ? "night" : "auto"} />
+                  </div>
+                </div>
+
+                <Weather />
+                <TaskSummary />
               </div>
-              <div className="flex-1">
-                <CoursesToday variant={isNight ? "night" : "auto"} />
+
+              {/* SLOT KANAN (kosong hanya untuk grid structure) */}
+              <div className="invisible"></div>
+
+            </div>
+
+            {/* ==== KANAN ABSOLUTE, JARAK 16px DARI KIRI ==== */}
+            <div
+              className="absolute top-0"
+              style={{
+                left: "calc((100% - 308px) - 16px)"
+              }}
+            >
+              <div className="w-[308px] flex flex-col gap-[10px]">
+                <TaskProgress />
+                <TotalTask />
               </div>
             </div>
 
-            {/* Row 2: Weather */}
-            <Weather />
-
-            {/* Row 3: Task Summary */}
-            <TaskSummary />
           </div>
-
-          {/* RIGHT COLUMN */}
-          <aside className="flex flex-col gap-[10px] lg:w-[308px] mr-[10px]">
-            <TaskProgress />
-            <TotalTask />
-          </aside>
         </div>
       </main>
     </div>

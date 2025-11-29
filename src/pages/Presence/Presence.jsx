@@ -59,14 +59,34 @@ function getStatus(str) {
   return "Overdue";
 }
 
-/* ---------- JSON Helper ---------- */
+/* ---------- JSON Helper (aman, tidak lempar error) ---------- */
 async function json(res) {
+  if (!res) return null;
+
   const type = res.headers.get("content-type") || "";
-  if (!type.includes("application/json")) {
-    const txt = await res.text();
-    throw new Error(`Expected JSON, got TEXT: ${txt.slice(0, 200)}`);
+
+  // Kalau benar-benar JSON (boleh ada charset)
+  if (type.includes("application/json")) {
+    try {
+      return await res.json();
+    } catch (e) {
+      console.error("Gagal parse JSON:", e);
+      return null;
+    }
   }
-  return res.json();
+
+  // Kalau bukan JSON (misroute ke index.html, error page, dll)
+  const txt = await res.text();
+
+  // Pakai debug supaya tidak terlalu mengganggu
+  console.debug("Expected JSON, got non-JSON response:", {
+    status: res.status,
+    contentType: type,
+    preview: txt.slice(0, 200),
+  });
+
+  // Biarkan caller handle `null`
+  return null;
 }
 
 /* ---------- Status normalizer ---------- */
@@ -153,7 +173,9 @@ async function fetchToday() {
       const title = c.name ?? c.title ?? c.course_name ?? "-";
       const room = c.room ?? c.course_room ?? "";
 
-      const start = fmtHM(c.start ?? c.course_start ?? c.time?.split("-")?.[0]);
+      const start = fmtHM(
+        c.start ?? c.course_start ?? c.time?.split("-")?.[0]
+      );
       const end = fmtHM(c.end ?? c.course_end ?? c.time?.split("-")?.[1]);
 
       const amp = start && end ? `${start} & ${end}` : start || end || "";
@@ -205,7 +227,7 @@ function Presence() {
 
   const [totals, setTotals] = useState({ presence: 0, absent: 0 });
 
-  /* ---------- Hitung totals ---------- */
+  /* ---------- Hitung totals dari rows ---------- */
   useEffect(() => {
     let p = 0;
     let a = 0;
@@ -221,7 +243,7 @@ function Presence() {
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
   if (isMobile || isTablet) return <Mobile />;
 
-  /* ---------- Fetch totals ---------- */
+  /* ---------- Fetch totals dari API ---------- */
   const fetchTotals = useCallback(async () => {
     const tryStats = async () => {
       try {
@@ -230,7 +252,7 @@ function Presence() {
         );
         if (r.ok) {
           const data = await json(r);
-          if (typeof data === "object") {
+          if (data && typeof data === "object") {
             const presence = Number(
               data.totalPresence ??
                 data.presence ??
@@ -287,7 +309,7 @@ function Presence() {
     if (x.ok) {
       setTotals({ presence: x.presence, absent: x.absent });
     }
-  }, [rows]);
+  }, []);
 
   /* ---------- Initial fetch ---------- */
   const fetchInitial = useCallback(async () => {
@@ -453,12 +475,11 @@ function Presence() {
       <main className="flex-1 font-[Inter]">
         <div className="w-full pt-6">
           <header className="mb-6">
-            <h1 className=" font-semibold text-foreground font-[Montserrat] text-[20px]">
+            <h1 className="font-semibold text-foreground font-[Montserrat] text-[20px]">
               Presence
             </h1>
             <p className="text-foreground-secondary mt-1 font-[Montserrat] text-[16px]">
-              Monitor and manage attendance records with access to presence
-              logs.
+              Monitor and manage attendance records with access to presence logs.
             </p>
           </header>
 

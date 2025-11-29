@@ -1,8 +1,10 @@
+// src/pages/Dashboard/components/weather.jsx
 import React, { useEffect, useState } from "react";
+import PropTypes from "prop-types";
 
 const MIN_SKELETON_MS = 6000; // minimal waktu skeleton
 
-export default function WeatherCard({ dateText, now }) {
+function WeatherCard({ dateText, now }) {
   const [city, setCity] = useState("Loading...");
   const [loading, setLoading] = useState(true);
 
@@ -13,9 +15,7 @@ export default function WeatherCard({ dateText, now }) {
   useEffect(() => {
     const updateTime = () => {
       const current = new Date();
-
-      // kalau prop now dikirim, pakai itu, kalau tidak pakai current
-      const base = now ? new Date(now) : current;
+      const base = now ? new Date(now) : current; // kalau prop now dikirim, pakai itu
 
       const formattedTime = base
         .toLocaleTimeString("en-US", {
@@ -26,7 +26,7 @@ export default function WeatherCard({ dateText, now }) {
         .replace(":", " : ");
 
       const formattedDate =
-        dateText ?? 
+        dateText ??
         base.toLocaleDateString("en-US", {
           weekday: "long",
           day: "numeric",
@@ -42,17 +42,15 @@ export default function WeatherCard({ dateText, now }) {
     return () => clearInterval(id);
   }, [dateText, now]);
 
-  // untuk tema siang/malam
+  // ================== TEMA SIANG / MALAM ==================
   const refDate = now ? new Date(now) : new Date();
   const hour = refDate.getHours();
   const isNight = hour >= 18 || hour < 6;
 
-  // Gradient latar
   const containerGradient = isNight
     ? "bg-gradient-to-bl from-[#000000] to-[#272727]"
     : "bg-gradient-to-bl from-[#164A7B] to-[#539DB8]";
 
-  // Warna dekorasi
   const circleAColor = isNight ? "bg-[#656565]/[0.22]" : "bg-[#50D0F4]/[0.22]";
   const circleBColor = isNight ? "bg-[#656565]/[0.13]" : "bg-[#50D0F4]/[0.13]";
   const circleCColor = isNight ? "bg-[#656565]/[0.39]" : "bg-[#50D0F4]/[0.39]";
@@ -75,6 +73,7 @@ export default function WeatherCard({ dateText, now }) {
     const finishLoading = () => {
       const elapsed = Date.now() - startTime;
       const done = () => safeSetLoading(false);
+
       if (elapsed < MIN_SKELETON_MS) {
         setTimeout(done, MIN_SKELETON_MS - elapsed);
       } else {
@@ -234,21 +233,32 @@ export default function WeatherCard({ dateText, now }) {
       </div>
 
       {/* Jam besar */}
-<div
-  className="absolute flex items-center tabular-nums"
-  style={{
-    left: 235.5,
-    top: 61,
-    width: 774 - 240.5 - 405.5,
-    height: 161 - 61 - 61,
-    fontFamily: "Montserrat, ui-sans-serif",   // ← DITAMBAHKAN
-    fontSize: 30,
-    fontWeight: 600,
-    lineHeight: 1,
-  }}
->
-  {timeHM}
-</div>
+      <div
+        className="absolute flex items-center tabular-nums"
+        style={{
+          left: 235.5,
+          top: 61,
+          width: 774 - 240.5 - 405.5,
+          height: 161 - 61 - 61,
+          fontFamily: "Montserrat, ui-sans-serif",
+          fontSize: 30,
+          fontWeight: 600,
+          lineHeight: 1,
+        }}
+      >
+        {timeHM}
+      </div>
     </div>
   );
 }
+
+WeatherCard.propTypes = {
+  dateText: PropTypes.string,
+  now: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.number,
+    PropTypes.instanceOf(Date),
+  ]),
+};
+
+export default WeatherCard;

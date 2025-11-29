@@ -92,6 +92,7 @@ const HideScroll = () => (
       animation: gradia-shimmer-move 1.2s infinite;
       background-size: 200% 100%;
       pointer-events: none;
+      z-index: 1; /* ⭐ penting supaya di atas dummy */
     }
 
     @keyframes gradia-shimmer-move {
@@ -147,7 +148,7 @@ const PresenceCard = ({
   rows = [],
   onOpenAddPresence,
   totalsTodayOverride = null,
-  isLoading: loadingProp = null,
+  isLoading: isLoadingProp = null,
 }) => {
   const ws = getWorkspaceId();
   const apiUrl = useMemo(() => buildUrl(ws), [ws]);
@@ -196,7 +197,7 @@ const PresenceCard = ({
   const raw = useProp ? coursesProp : cs;
 
   const courses = useMemo(() => raw.map(splitTime), [raw]);
-  const isLoading = typeof loadingProp === "boolean" ? loadingProp : load;
+  const isLoading = isLoadingProp ?? load;
 
   const { totalP, totalA } = useMemo(() => {
     if (totalsTodayOverride) {
@@ -249,15 +250,16 @@ const PresenceCard = ({
                 {Array.from({ length: SKEL_COUNT }).map((_, idx) => (
                   <div
                     key={idx}
-                    className="relative rounded-xl px-3.5 py-3 overflow-hidden flex flex-col shadow"
+                    className="rounded-xl px-3.5 py-3 overflow-hidden flex flex-col shadow"
                     style={{
                       width: `${CARD_W}px`,
                       height: `${CARD_H}px`,
                       background: "#242424",
                       flexShrink: 0,
+                      position: "relative", // ⭐ parent utk shimmer
                     }}
                   >
-                    <div className="gradia-shimmer" />
+                    {/* Konten dummy (buat layout), disembunyikan */}
                     <div className="opacity-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
@@ -281,6 +283,9 @@ const PresenceCard = ({
                         <i className="ri-logout-circle-r-line ml-1" />
                       </button>
                     </div>
+
+                    {/* Shimmer overlay (di paling akhir, nutup dummy) */}
+                    <div className="gradia-shimmer" />
                   </div>
                 ))}
               </div>

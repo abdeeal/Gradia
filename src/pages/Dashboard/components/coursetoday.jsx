@@ -1,20 +1,30 @@
 import React, { useEffect, useMemo, useState } from "react";
+import PropTypes from "prop-types";
 import "remixicon/fonts/remixicon.css";
 import { getWorkspaceId } from "../../../components/GetWorkspace";
+
+/* ========================= Helpers: Time & Text ========================= */
+
 /** Parse "HH:mm"/"HH.mm" ke Date hari ini */
 function parseHM(hm) {
   if (!hm) return null;
+
   const cleaned = String(hm).replace(":", ".");
   const [h, m] = cleaned.split(".").map((x) => parseInt(x, 10));
+
   const d = new Date();
   d.setSeconds(0, 0);
+
   const mm = Number.isFinite(m) ? m : 0;
   const hh = Number.isFinite(h) ? h : 0;
+
   d.setMinutes(mm);
   d.setHours(hh);
+
   return d;
 }
 
+/** Hitung status berdasarkan waktu: On Going / Upcoming / Done */
 function computeStatus(now, start, end) {
   if (start && end && now >= start && now < end) return "On Going";
   if (start && now < start) return "Upcoming";
@@ -24,38 +34,45 @@ function computeStatus(now, start, end) {
 /** Normalisasi ke format tampilan "HH:MM" (tahan "HH:mm", "HH.mm", "HH:mm:ss") */
 function toHM(value) {
   if (!value) return "";
+
   if (typeof value === "string") {
     const s = value.trim();
     const m = s.match(/^(\d{1,2})[:.](\d{2})(?::\d{2})?$/);
+
     if (m) {
       const hh = String(parseInt(m[1], 10)).padStart(2, "0");
       const mm = String(parseInt(m[2], 10)).padStart(2, "0");
       return `${hh}:${mm}`;
     }
-    const dt = new Date(s);
-    if (!isNaN(dt)) {
-      const hh = String(dt.getHours()).padStart(2, "0");
-      const mm = String(dt.getMinutes()).padStart(2, "0");
+
+    const dtFromStr = new Date(s);
+    if (!Number.isNaN(dtFromStr)) {
+      const hh = String(dtFromStr.getHours()).padStart(2, "0");
+      const mm = String(dtFromStr.getMinutes()).padStart(2, "0");
       return `${hh}:${mm}`;
     }
   }
+
   const dt = new Date(value);
-  if (!isNaN(dt)) {
+  if (!Number.isNaN(dt)) {
     const hh = String(dt.getHours()).padStart(2, "0");
     const mm = String(dt.getMinutes()).padStart(2, "0");
     return `${hh}:${mm}`;
   }
+
   return "";
 }
 
 /** Ambil hanya baris pertama dari lecturer. */
 function firstLineOnlyLecturer(value) {
   if (!value) return "";
+
   const normalized = String(value).replace(/<br\s*\/?>/gi, "\n");
   const lines = normalized
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean);
+
   return lines[0] || "";
 }
 
@@ -64,20 +81,228 @@ function ellipsizeAtWord(text, maxChars = 42) {
   const s = String(text).trim();
   if (!s) return "";
   if (s.length <= maxChars) return s;
+
   const cut = s.lastIndexOf(" ", maxChars);
   if (cut > 0) return s.slice(0, cut).trimEnd() + " …";
   return s.slice(0, maxChars).trimEnd() + " …";
 }
 
-const MIN_SKELETON_MS = 200; // ✅ minimal skeleton muncul 600ms
+/* ========================= Constants & Styles ========================= */
+
+const MIN_SKELETON_MS = 200;
+const SKELETON_COUNT = 4;
+
+const LIST_CONTAINER_STYLE = {
+  gap: 8,
+  alignItems: "flex-start",
+  flex: 1,
+};
+
+const COURSE_CARD_STYLE = {
+  minWidth: 245,
+  width: 245,
+  height: 162,
+  background: "#242424",
+  fontFamily: "Inter, ui-sans-serif, system-ui",
+  flexShrink: 0,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "flex-start",
+};
+
+const SHIMMER_STYLES = `
+  #id_course .hide-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
+  #id_course .hide-scrollbar::-webkit-scrollbar { width:0; height:0; display:none; }
+
+  .gradia-shimmer {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(
+      90deg,
+      rgba(15, 15, 15, 0) 0%,
+      rgba(63, 63, 70, 0.9) 50%,
+      rgba(15, 15, 15, 0) 100%
+    );
+    transform: translateX(-100%);
+    animation: gradia-shimmer-move 1.2s infinite;
+    background-size: 200% 100%;
+    pointer-events: none;
+  }
+
+  @keyframes gradia-shimmer-move {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+`;
+
+/* ========================= Small Presentational Components ========================= */
+
+function SkeletonCard() {
+  return (
+    <article
+      className="relative snap-start rounded-2xl px-4 py-3 shadow overflow-hidden"
+      style={COURSE_CARD_STYLE}
+    >
+      <div className="gradia-shimmer" />
+
+      {/* Konten dummy (disembunyikan supaya shimmer-nya aja yang kelihatan) */}
+      <div className="opacity-0">
+        <p
+          className="text-gray-300 flex items-center gap-2"
+          style={{ fontSize: 14, lineHeight: 1.25 }}
+        >
+          <i
+            className="ri-time-line text-[#643EB2]"
+            style={{ fontSize: 16, marginLeft: -3 }}
+          />
+          00:00 - 00:00
+        </p>
+
+        <h3
+          className="text-white font-semibold leading-snug"
+          style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
+        >
+          Dummy Title
+        </h3>
+
+        <p
+          className="text-gray-300"
+          style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
+        >
+          ROOM
+        </p>
+
+        <p
+          className="text-gray-300"
+          style={{
+            fontSize: 16,
+            marginTop: 6,
+            lineHeight: 1.2,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: "100%",
+          }}
+        >
+          LECTURER
+        </p>
+
+        <div className="mt-1 pt-1 border-t border-white/30">
+          <span
+            className="inline-block rounded"
+            style={{
+              marginTop: 6,
+              fontSize: 16,
+              height: 26,
+              padding: "0 16px",
+              borderRadius: 4,
+            }}
+          >
+            STATUS
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CourseCard({ course, statusStyle }) {
+  return (
+    <article
+      className="snap-start rounded-2xl px-4 py-3 shadow"
+      style={COURSE_CARD_STYLE}
+    >
+      <p
+        className="text-gray-300 flex items-center gap-2"
+        style={{ fontSize: 14, lineHeight: 1.25 }}
+      >
+        <i
+          className="ri-time-line text-[#643EB2]"
+          style={{ fontSize: 16, marginLeft: -3 }}
+        />
+        {course.start} - {course.end}
+      </p>
+
+      <h3
+        className="text-white font-semibold leading-snug"
+        style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
+      >
+        {course.title}
+      </h3>
+
+      {course.room && (
+        <p
+          className="text-gray-300"
+          style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
+        >
+          {course.room}
+        </p>
+      )}
+
+      {course.lecturer && (
+        <p
+          className="text-gray-300"
+          style={{
+            fontSize: 16,
+            marginTop: 6,
+            lineHeight: 1.2,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: "100%",
+          }}
+          title={course.lecturerFull}
+        >
+          {course.lecturer}
+        </p>
+      )}
+
+      <div className="mt-1 pt-1 border-t border-white/30">
+        <span
+          className="inline-block rounded"
+          style={{
+            ...statusStyle(course._status),
+            marginTop: 6,
+            fontSize: 16,
+            height: 26,
+            padding: "0 16px",
+            borderRadius: 4,
+          }}
+        >
+          {course._status}
+        </span>
+      </div>
+    </article>
+  );
+}
+
+/* PropTypes untuk CourseCard (biar eslint/prop-types nggak marah) */
+CourseCard.propTypes = {
+  course: PropTypes.shape({
+    start: PropTypes.string,
+    end: PropTypes.string,
+    title: PropTypes.string,
+    room: PropTypes.string,
+    lecturer: PropTypes.string,
+    lecturerFull: PropTypes.string,
+    _status: PropTypes.string,
+  }).isRequired,
+  statusStyle: PropTypes.func.isRequired,
+};
+
+/* ========================= Main Component ========================= */
 
 export default function CoursesToday({ apiBase = "/api/courses" }) {
   const [now, setNow] = useState(new Date());
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);   // ✅ mulai true
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ✅ PAKAI FUNGSI getWorkspaceId YANG SUDAH DIBUAT
+  // Pakai helper getWorkspaceId yang sudah ada
   const workspace = useMemo(() => getWorkspaceId(), []);
 
   // refresh waktu tiap 60 detik
@@ -89,31 +314,44 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
   // build endpoint: tambahkan q=today & idWorkspace
   const endpoint = useMemo(() => {
     const origin =
-      typeof window !== "undefined" ? window.location.origin : "http://localhost";
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "http://localhost";
+
     const url = new URL(apiBase, origin);
     const sp = new URLSearchParams(url.search);
+
     if (!sp.get("q")) sp.set("q", "today");
     if (!sp.get("idWorkspace")) sp.set("idWorkspace", String(workspace));
+
     url.search = sp.toString();
-    return typeof window !== "undefined" ? url.toString() : `${url.pathname}${url.search}`;
+
+    return typeof window !== "undefined"
+      ? url.toString()
+      : `${url.pathname}${url.search}`;
   }, [apiBase, workspace]);
 
   // ambil data dari API
   useEffect(() => {
     let active = true;
+
     async function fetchCourses() {
       setLoading(true);
       setError(null);
-      const startTime = Date.now(); // ✅ buat ukur durasi
+
+      const startTime = Date.now();
+
       try {
         const res = await fetch(endpoint, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
         const json = await res.json();
         const arr = Array.isArray(json) ? json : json.data || [];
 
         const normalized = arr.map((c) => {
           const firstLineLecturer = firstLineOnlyLecturer(c.lecturer || "");
           const lecturerOneLine = ellipsizeAtWord(firstLineLecturer, 44);
+
           return {
             start: toHM(c.start ?? ""),
             end: toHM(c.end ?? ""),
@@ -133,9 +371,11 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
       } finally {
         const endTime = Date.now();
         const elapsed = endTime - startTime;
+
         const finish = () => {
           if (active) setLoading(false);
         };
+
         if (elapsed < MIN_SKELETON_MS) {
           setTimeout(finish, MIN_SKELETON_MS - elapsed);
         } else {
@@ -143,30 +383,48 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
         }
       }
     }
+
     fetchCourses();
+
     return () => {
       active = false;
     };
   }, [endpoint]);
 
   // status (On Going / Upcoming / Done)
-  const withComputed = useMemo(() => {
-    return items.map((c) => {
-      const start = parseHM(c.start);
-      const end = parseHM(c.end);
-      return { ...c, _status: computeStatus(now, start, end) };
-    });
-  }, [items, now]);
+  const withComputed = useMemo(
+    () =>
+      items.map((c) => {
+        const start = parseHM(c.start);
+        const end = parseHM(c.end);
+        return { ...c, _status: computeStatus(now, start, end) };
+      }),
+    [items, now]
+  );
 
   const statusStyle = (s) => {
-    if (s === "On Going")
-      return { backgroundColor: "#eab30840", color: "#fde047", fontWeight: 600 };
-    if (s === "Upcoming")
-      return { backgroundColor: "#6b728033", color: "#d4d4d8", fontWeight: 600 };
-    return { backgroundColor: "#22C55E33", color: "#4ADE80", fontWeight: 600 };
-  };
+    if (s === "On Going") {
+      return {
+        backgroundColor: "#eab30840",
+        color: "#fde047",
+        fontWeight: 600,
+      };
+    }
 
-  const SKELETON_COUNT = 4;
+    if (s === "Upcoming") {
+      return {
+        backgroundColor: "#6b728033",
+        color: "#d4d4d8",
+        fontWeight: 600,
+      };
+    }
+
+    return {
+      backgroundColor: "#22C55E33",
+      color: "#4ADE80",
+      fontWeight: 600,
+    };
+  };
 
   return (
     <div
@@ -182,40 +440,17 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
         flexDirection: "column",
       }}
     >
-      <style>{`
-        #id_course .hide-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
-        #id_course .hide-scrollbar::-webkit-scrollbar { width:0; height:0; display:none; }
-
-        .gradia-shimmer {
-          position: absolute;
-          inset: 0;
-          background-image: linear-gradient(
-            90deg,
-            rgba(15, 15, 15, 0) 0%,
-            rgba(63, 63, 70, 0.9) 50%,
-            rgba(15, 15, 15, 0) 100%
-          );
-          transform: translateX(-100%);
-          animation: gradia-shimmer-move 1.2s infinite;
-          background-size: 200% 100%;
-          pointer-events: none;
-        }
-
-        @keyframes gradia-shimmer-move {
-          0% {
-            transform: translateX(-100%);
-          }
-          100% {
-            transform: translateX(100%);
-          }
-        }
-      `}</style>
+      <style>{SHIMMER_STYLES}</style>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-[18px]">
         <h2
           className="text-white"
-          style={{ fontFamily: "Montserrat, sans-serif", fontSize: 20, fontWeight: 600 }}
+          style={{
+            fontFamily: "Montserrat, sans-serif",
+            fontSize: 20,
+            fontWeight: 600,
+          }}
         >
           Courses Today
         </h2>
@@ -246,96 +481,32 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
         // SKELETON
         <div
           className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar"
-          style={{ gap: 8, alignItems: "flex-start", flex: 1 }}
+          style={LIST_CONTAINER_STYLE}
         >
           {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
-            <article
-              key={idx}
-              className="relative snap-start rounded-2xl px-4 py-3 shadow overflow-hidden"
-              style={{
-                minWidth: 245,
-                width: 245,
-                height: 162,
-                background: "#242424",
-                fontFamily: "Inter, ui-sans-serif, system-ui",
-                flexShrink: 0,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "flex-start",
-              }}
-            >
-              <div className="gradia-shimmer" />
-
-              <div className="opacity-0">
-                <p
-                  className="text-gray-300 flex items-center gap-2"
-                  style={{ fontSize: 14, lineHeight: 1.25 }}
-                >
-                  <i
-                    className="ri-time-line text-[#643EB2]"
-                    style={{ fontSize: 16, marginLeft: -3 }}
-                  />
-                  00:00 - 00:00
-                </p>
-
-                <h3
-                  className="text-white font-semibold leading-snug"
-                  style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
-                >
-                  Dummy Title
-                </h3>
-
-                <p
-                  className="text-gray-300"
-                  style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
-                >
-                  ROOM
-                </p>
-
-                <p
-                  className="text-gray-300"
-                  style={{
-                    fontSize: 16,
-                    marginTop: 6,
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: "100%",
-                  }}
-                >
-                  LECTURER
-                </p>
-
-                <div className="mt-1 pt-1 border-t border-white/30">
-                  <span
-                    className="inline-block rounded"
-                    style={{
-                      marginTop: 6,
-                      fontSize: 16,
-                      height: 26,
-                      padding: "0 16px",
-                      borderRadius: 4,
-                    }}
-                  >
-                    STATUS
-                  </span>
-                </div>
-              </div>
-            </article>
+            <SkeletonCard key={idx} />
           ))}
         </div>
       ) : error ? (
         <div
           className="flex items-center justify-center flex-1"
-          style={{ fontFamily: "Inter, sans-serif", color: "#ef4444", fontSize: 14 }}
+          style={{
+            fontFamily: "Inter, sans-serif",
+            color: "#ef4444",
+            fontSize: 14,
+          }}
         >
           Failed to load: {error}
         </div>
       ) : withComputed.length === 0 ? (
         <div
           className="flex items-center justify-center flex-1"
-          style={{ display: "flex", justifyContent: "center", alignItems: "center", flex: 1 }}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            flex: 1,
+          }}
         >
           <div
             className="rounded-2xl shadow"
@@ -358,88 +529,18 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
       ) : (
         <div
           className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar"
-          style={{ gap: 8, alignItems: "flex-start", flex: 1 }}
+          style={LIST_CONTAINER_STYLE}
         >
           {withComputed.map((c, idx) => (
-            <article
-              key={idx}
-              className="snap-start rounded-2xl px-4 py-3 shadow"
-              style={{
-                minWidth: 245,
-                width: 245,
-                height: 162,
-                background: "#242424",
-                fontFamily: "Inter, ui-sans-serif, system-ui",
-                flexShrink: 0,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "flex-start",
-              }}
-            >
-              <p
-                className="text-gray-300 flex items-center gap-2"
-                style={{ fontSize: 14, lineHeight: 1.25 }}
-              >
-                <i
-                  className="ri-time-line text-[#643EB2]"
-                  style={{ fontSize: 16, marginLeft: -3 }}
-                />
-                {c.start} - {c.end}
-              </p>
-
-              <h3
-                className="text-white font-semibold leading-snug"
-                style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
-              >
-                {c.title}
-              </h3>
-
-              {c.room && (
-                <p
-                  className="text-gray-300"
-                  style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
-                >
-                  {c.room}
-                </p>
-              )}
-
-              {c.lecturer && (
-                <p
-                  className="text-gray-300"
-                  style={{
-                    fontSize: 16,
-                    marginTop: 6,
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: "100%",
-                  }}
-                  title={c.lecturerFull}
-                >
-                  {c.lecturer}
-                </p>
-              )}
-
-              <div className="mt-1 pt-1 border-t border-white/30">
-                <span
-                  className="inline-block rounded"
-                  style={{
-                    ...statusStyle(c._status),
-                    marginTop: 6,
-                    fontSize: 16,
-                    height: 26,
-                    padding: "0 16px",
-                    borderRadius: 4,
-                  }}
-                >
-                  {c._status}
-                </span>
-              </div>
-            </article>
+            <CourseCard key={idx} course={c} statusStyle={statusStyle} />
           ))}
         </div>
       )}
     </div>
   );
 }
+
+
+CoursesToday.propTypes = {
+  apiBase: PropTypes.string,
+};

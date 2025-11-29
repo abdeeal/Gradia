@@ -1,8 +1,113 @@
+// src/pages/Dashboard/components/taskprogress.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import PropTypes from "prop-types";
 import { PieChart, Pie, Cell } from "recharts";
 
-const MIN_SKELETON_MS = 200; // skeleton minimal 6 detik
+const MIN_SKELETON_MS = 200; // skeleton minimal 200ms
 
+/* ===========================
+ *        HELPERS
+ * ===========================
+ */
+const getSessionWorkspace = () => {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      const v = Number(window.sessionStorage.getItem("id_workspace"));
+      return Number.isFinite(v) && v > 0 ? v : 1;
+    }
+  } catch {
+    // sengaja diabaikan, fallback ke 1
+  }
+  return 1;
+};
+
+const keyfy = (v) => {
+  if (v === null || v === undefined) return "";
+  const s = typeof v === "number" ? String(v) : String(v);
+  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "");
+};
+
+const extractStatus = (t) => {
+  if (!t) return "";
+  if (t.status && typeof t.status === "object" && "name" in t.status) {
+    return t.status.name;
+  }
+  if (t.status !== undefined) return t.status;
+  if (t.statusId !== undefined) return t.statusId;
+  if (t.state && typeof t.state === "object" && "name" in t.state) {
+    return t.state.name;
+  }
+  if (t.state !== undefined) return t.state;
+  if (t.status_name !== undefined) return t.status_name;
+  return "";
+};
+
+const extractId = (t) =>
+  t?.id?.task ?? t?.id_task ?? t?.task_id ?? t?.id ?? null;
+
+const NOT_STARTED_KEYS = new Set(
+  [
+    "not started",
+    "not_started",
+    "not-started",
+    "todo",
+    "to do",
+    "pending",
+    "backlog",
+    "new",
+    "open",
+    "ready",
+    "queued",
+    "created",
+    "belummulai",
+    0,
+    "0",
+  ].map(keyfy)
+);
+
+const INPROGRESS_KEYS = new Set(
+  [
+    "in progress",
+    "in_progress",
+    "in-progress",
+    "on progress",
+    "ongoing",
+    "processing",
+    "doing",
+    "wip",
+    "progress",
+    "started",
+    "active",
+    "sedangdikerjakan",
+    1,
+    "1",
+  ].map(keyfy)
+);
+
+const COMPLETED_KEYS = new Set(
+  ["completed", "complete", "done", "finished", "closed", "resolved", "selesai", 2, "2"].map(
+    keyfy
+  )
+);
+
+const OVERDUE_KEYS = new Set(
+  [
+    "overdue",
+    "late",
+    "terlambat",
+    "jatuh tempo",
+    "lewat jatuh tempo",
+    "jatuhtempo",
+    "lewatjatuhtempo",
+    3,
+    "3",
+  ].map(keyfy)
+);
+
+/* ===========================
+ *      MAIN COMPONENT
+ * ===========================
+ */
 export default function TaskProgress({
   completed = 0,
   inProgress = 0,
@@ -21,113 +126,15 @@ export default function TaskProgress({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  const sessionIdWorkspace = React.useMemo(() => {
-    try {
-      if (typeof window !== "undefined" && window.sessionStorage) {
-        const v = Number(window.sessionStorage.getItem("id_workspace"));
-        return Number.isFinite(v) && v > 0 ? v : 1;
-      }
-    } catch {}
-    return 1;
-  }, []);
-
-  const keyfy = (v) => {
-    if (v === null || v === undefined) return "";
-    const s = typeof v === "number" ? String(v) : String(v);
-    return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "");
-  };
-
-  const extractStatus = (t) => {
-    if (!t) return "";
-    if (t.status && typeof t.status === "object" && "name" in t.status) return t.status.name;
-    if (t.status !== undefined) return t.status;
-    if (t.statusId !== undefined) return t.statusId;
-    if (t.state && typeof t.state === "object" && "name" in t.state) return t.state.name;
-    if (t.state !== undefined) return t.state;
-    if (t.status_name !== undefined) return t.status_name;
-    return "";
-  };
-
-  const extractId = (t) =>
-    t?.id?.task ?? t?.id_task ?? t?.task_id ?? t?.id ?? null;
-
-  const NOT_STARTED_KEYS = useMemo(
-    () =>
-      new Set(
-        [
-          "not started",
-          "not_started",
-          "not-started",
-          "todo",
-          "to do",
-          "pending",
-          "backlog",
-          "new",
-          "open",
-          "ready",
-          "queued",
-          "created",
-          "belummulai",
-          0,
-          "0",
-        ].map(keyfy)
-      ),
-    []
-  );
-  const INPROGRESS_KEYS = useMemo(
-    () =>
-      new Set(
-        [
-          "in progress",
-          "in_progress",
-          "in-progress",
-          "on progress",
-          "ongoing",
-          "processing",
-          "doing",
-          "wip",
-          "progress",
-          "started",
-          "active",
-          "sedangdikerjakan",
-          1,
-          "1",
-        ].map(keyfy)
-      ),
-    []
-  );
-  const COMPLETED_KEYS = useMemo(
-    () =>
-      new Set(
-        ["completed", "complete", "done", "finished", "closed", "resolved", "selesai", 2, "2"].map(
-          keyfy
-        )
-      ),
-    []
-  );
-  const OVERDUE_KEYS = useMemo(
-    () =>
-      new Set(
-        [
-          "overdue",
-          "late",
-          "terlambat",
-          "jatuh tempo",
-          "lewat jatuh tempo",
-          "jatuhtempo",
-          "lewatjatuhtempo",
-          3,
-          "3",
-        ].map(keyfy)
-      ),
-    []
-  );
+  const sessionIdWorkspace = useMemo(() => getSessionWorkspace(), []);
 
   const mergedQuery = useMemo(() => {
     const hasQP =
       !!(queryParams && Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace"));
+
     const effective = hasQP ? undefined : idWorkspace ?? sessionIdWorkspace;
     const base = effective != null ? { idWorkspace: effective } : {};
+
     return { ...base, ...(queryParams || {}) };
   }, [queryParams, idWorkspace, sessionIdWorkspace]);
 
@@ -169,8 +176,9 @@ export default function TaskProgress({
         const arr = Array.isArray(data) ? data : data?.data || [];
         setRemoteTasks(arr);
       } catch (e) {
-        if (e.name !== "AbortError")
+        if (e.name !== "AbortError") {
           setErr(e?.message || "Gagal memuat tasks");
+        }
       } finally {
         const endTime = Date.now();
         const elapsed = endTime - startTime;
@@ -190,9 +198,9 @@ export default function TaskProgress({
 
   const sourceTasks = useMemo(() => {
     if (useCountsDirect) return [];
-    const base =
-      Array.isArray(tasks) && tasks.length > 0 ? tasks : remoteTasks || [];
+    const base = Array.isArray(tasks) && tasks.length > 0 ? tasks : remoteTasks || [];
     if (!taskIds || taskIds.length === 0) return base;
+
     const allow = new Set(taskIds.map((x) => String(x)));
     return base.filter((t) => {
       const id = extractId(t);
@@ -204,10 +212,12 @@ export default function TaskProgress({
     if (useCountsDirect) {
       return { pending, inProgress, completed };
     }
-    let pend = 0,
-      prog = 0,
-      comp = 0;
+
+    let pend = 0;
+    let prog = 0;
+    let comp = 0;
     const seen = new Set();
+
     for (const t of sourceTasks) {
       const id = extractId(t);
       if (id != null) {
@@ -215,6 +225,7 @@ export default function TaskProgress({
         if (seen.has(sid)) continue;
         seen.add(sid);
       }
+
       const k = keyfy(extractStatus(t));
       if (COMPLETED_KEYS.has(k)) comp++;
       else if (INPROGRESS_KEYS.has(k)) prog++;
@@ -222,6 +233,7 @@ export default function TaskProgress({
       else if (NOT_STARTED_KEYS.has(k)) pend++;
       else pend++;
     }
+
     return { pending: pend, inProgress: prog, completed: comp };
   }, [sourceTasks, useCountsDirect, pending, inProgress, completed]);
 
@@ -238,16 +250,14 @@ export default function TaskProgress({
     [chartCompleted, chartInProgress, chartPending]
   );
 
-  const total = Math.max(
-    1,
-    chartCompleted + chartInProgress + chartPending
-  );
+  const total = Math.max(1, chartCompleted + chartInProgress + chartPending);
   const pct = Math.round((chartCompleted / total) * 100);
   const pctClamped = Math.max(0, Math.min(100, pct));
 
-  // ===========================
-  //        LOADING FIXED
-  // ===========================
+  /* ===========================
+   *         LOADING UI
+   * ===========================
+   */
   if (loading) {
     return (
       <>
@@ -291,6 +301,10 @@ export default function TaskProgress({
     );
   }
 
+  /* ===========================
+   *         ERROR UI
+   * ===========================
+   */
   if (err) {
     return (
       <div
@@ -298,8 +312,7 @@ export default function TaskProgress({
         style={{
           width: 308,
           height: 347,
-          backgroundImage:
-            "linear-gradient(to right, #000000, #211832)",
+          backgroundImage: "linear-gradient(to right, #000000, #211832)",
         }}
       >
         <div className="h-[200px] flex items-center justify-center text-red-400">
@@ -309,17 +322,17 @@ export default function TaskProgress({
     );
   }
 
-  // ===========================
-  //         UI NORMAL
-  // ===========================
+  /* ===========================
+   *        NORMAL UI
+   * ===========================
+   */
   return (
     <div
       className="relative rounded-2xl p-4 text-white"
       style={{
         width: 308,
         height: 347,
-        backgroundImage:
-          "linear-gradient(to right, #000000, #211832)",
+        backgroundImage: "linear-gradient(to right, #000000, #211832)",
       }}
     >
       <div
@@ -344,18 +357,19 @@ export default function TaskProgress({
             transform: "translateY(20px)",
           }}
         >
-          <PieChart width={250} height={240}>
+          <PieChart width={250} height={140}>
             <Pie
               data={data}
               dataKey="value"
-              startAngle={190}
-              endAngle={-10}
+              // ✅ setengah lingkaran rapi di atas
+              startAngle={180}
+              endAngle={0}
               innerRadius={65}
               outerRadius={110}
               cx="50%"
-              cy="50%"
-              paddingAngle={-25}
-              cornerRadius={500}
+              cy="100%"
+              paddingAngle={0}
+              cornerRadius={20}
               stroke="none"
             >
               {data.map((d) => (
@@ -370,8 +384,7 @@ export default function TaskProgress({
             position: "absolute",
             top: "50%",
             left: "50%",
-            transform:
-              "translate(-50%, -50%) translateY(50px)",
+            transform: "translate(-50%, -50%) translateY(50px)",
             zIndex: 99,
             textAlign: "center",
           }}
@@ -419,19 +432,10 @@ export default function TaskProgress({
         </div>
       </div>
 
-      <div
-        className="absolute left-4 right-4 text-sm"
-        style={{ bottom: 20 }}
-      >
-        <div
-          className="flex items-center justify-between"
-          style={{ marginTop: 24 }}
-        >
+      <div className="absolute left-4 right-4 text-sm" style={{ bottom: 20 }}>
+        <div className="flex items-center justify-between" style={{ marginTop: 24 }}>
           {data.map((d) => (
-            <div
-              key={`legend-${d.name}`}
-              className="flex items-center gap-2"
-            >
+            <div key={`legend-${d.name}`} className="flex items-center gap-2">
               <span
                 className="inline-block w-3.5 h-3.5 rounded-full"
                 style={{ background: d.color }}
@@ -449,3 +453,22 @@ export default function TaskProgress({
     </div>
   );
 }
+
+/* ===========================
+ *        PROP TYPES
+ * ===========================
+ */
+TaskProgress.propTypes = {
+  completed: PropTypes.number,
+  inProgress: PropTypes.number,
+  pending: PropTypes.number,
+  title: PropTypes.string,
+  tasks: PropTypes.arrayOf(PropTypes.object),
+  apiUrl: PropTypes.string,
+  queryParams: PropTypes.object,
+  taskIds: PropTypes.arrayOf(
+    PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+  ),
+  useCountsDirect: PropTypes.bool,
+  idWorkspace: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+};

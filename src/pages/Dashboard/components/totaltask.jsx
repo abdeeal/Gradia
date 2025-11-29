@@ -1,8 +1,17 @@
+// src/pages/Dashboard/components/totaltask.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import PropTypes from "prop-types";
 import { useNavigate } from "react-router-dom";
 
-/* ==== Konstanta Skeleton ==== */
-const MIN_SKELETON_MS = 200; // skeleton minimal 6 detik
+/* ==== Konstanta ==== */
+const MIN_SKELETON_MS = 200; // skeleton minimal 200ms
+
+const CARD_CLASS = "relative rounded-2xl text-white shadow border border-white/5";
+const CARD_STYLE = {
+  height: 254,
+  padding: 20,
+  backgroundImage: "linear-gradient(to bottom right, #34146C, #28073B)",
+};
 
 /* ==== Helper Functions ==== */
 function isSameDay(a, b) {
@@ -18,8 +27,8 @@ function isSameDay(a, b) {
 
 export default function TotalTask({
   apiUrl = "/api/tasks",
-  idWorkspace = null,   // opsional override
-  queryParams = null,   // opsional
+  idWorkspace = null, // opsional override
+  queryParams = null, // opsional
 }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,13 +36,15 @@ export default function TotalTask({
   const navigate = useNavigate();
 
   // ==== idWorkspace dari sessionStorage (SSR/CSR-safe) ====
-  const sessionIdWorkspace = React.useMemo(() => {
+  const sessionIdWorkspace = useMemo(() => {
     try {
       if (typeof window !== "undefined" && window.sessionStorage) {
         const v = Number(window.sessionStorage.getItem("id_workspace"));
         return Number.isFinite(v) && v > 0 ? v : 1;
       }
-    } catch {}
+    } catch {
+      // abaikan error, fallback ke 1
+    }
     return 1;
   }, []);
 
@@ -43,7 +54,7 @@ export default function TotalTask({
       queryParams &&
       Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace")
     );
-    const effective = hasQP ? undefined : (idWorkspace ?? sessionIdWorkspace);
+    const effective = hasQP ? undefined : idWorkspace ?? sessionIdWorkspace;
     const base = effective != null ? { idWorkspace: effective } : {};
     return { ...base, ...(queryParams || {}) };
   }, [queryParams, idWorkspace, sessionIdWorkspace]);
@@ -56,13 +67,16 @@ export default function TotalTask({
     return (
       "?" +
       entries
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .map(
+          ([k, v]) =>
+            `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+        )
         .join("&")
     );
   }, [mergedQuery]);
 
   const fetchTasks = async (signal) => {
-    setLoading(true); // tampilkan loader segera
+    setLoading(true);
     setErrMsg("");
     const startTime = Date.now();
 
@@ -71,13 +85,16 @@ export default function TotalTask({
         signal,
         headers: { Accept: "application/json" },
       });
+
       if (!res.ok) throw new Error(`Gagal memuat tasks (${res.status})`);
+
       const data = await res.json();
       const list = Array.isArray(data)
         ? data
         : Array.isArray(data?.data)
         ? data.data
         : [];
+
       setTasks(list);
     } catch (e) {
       if (e.name !== "AbortError") {
@@ -112,7 +129,7 @@ export default function TotalTask({
     return { total: all.length, todayAdded: addedToday };
   }, [tasks]);
 
-  /* ================= LOADING: KOTAK KOSONG + SHIMMER ================= */
+  /* ================= LOADING ================= */
   if (loading) {
     return (
       <>
@@ -130,9 +147,8 @@ export default function TotalTask({
             animation: gradia-shimmer-move 1.2s infinite;
             background-size: 200% 100%;
             pointer-events: none;
-            border-radius: 16px; /* rounded-2xl */
+            border-radius: 16px;
           }
-
           @keyframes gradia-shimmer-move {
             0% { transform: translateX(-100%); }
             100% { transform: translateX(100%); }
@@ -140,18 +156,12 @@ export default function TotalTask({
         `}</style>
 
         <div
-          className="relative rounded-2xl text-white shadow border border-white/5"
+          className={CARD_CLASS}
           role="status"
           aria-live="polite"
           aria-label="Loading total tasks..."
-          style={{
-            height: 254,
-            padding: 20,
-            backgroundImage: "linear-gradient(to bottom right, #34146C, #28073B)",
-            overflow: "hidden",
-          }}
+          style={{ ...CARD_STYLE, overflow: "hidden" }}
         >
-          {/* Full shimmer, isi kosong */}
           <div className="gradia-shimmer" />
         </div>
       </>
@@ -161,14 +171,7 @@ export default function TotalTask({
   /* ================= ERROR STATE ================= */
   if (errMsg) {
     return (
-      <div
-        className="relative rounded-2xl text-white shadow border border-white/5"
-        style={{
-          height: 254,
-          padding: 20,
-          backgroundImage: "linear-gradient(to bottom right, #34146C, #28073B)",
-        }}
-      >
+      <div className={CARD_CLASS} style={CARD_STYLE}>
         {/* Header */}
         <div className="flex items-center justify-between">
           <h3
@@ -185,12 +188,18 @@ export default function TotalTask({
             onClick={() => navigate("/tasks")}
             aria-label="Go to Tasks page"
             className="flex items-center justify-center rounded-full transition hover:brightness-90"
-            style={{ width: 32, height: 32, background: "#FAFAFA" }}
+            style={{ width: 32, height: 32, background: "#FAFAFA", cursor: "pointer" }}
           >
             <svg
-              xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-              viewBox="0 0 24 24" fill="none" stroke="#000000"
-              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#000000"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
               <path d="M7 17L17 7M7 7h10v10" />
             </svg>
@@ -215,14 +224,7 @@ export default function TotalTask({
 
   /* ================= NORMAL STATE ================= */
   return (
-    <div
-      className="relative rounded-2xl text-white shadow border border-white/5"
-      style={{
-        height: 254,
-        padding: 20,
-        backgroundImage: "linear-gradient(to bottom right, #34146C, #28073B)",
-      }}
-    >
+    <div className={CARD_CLASS} style={CARD_STYLE}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3
@@ -235,21 +237,26 @@ export default function TotalTask({
           Total Tasks
         </h3>
 
-        {/* Tombol navigasi ke /tasks */}
-      <button
-  onClick={() => navigate("/tasks")}
-  aria-label="Go to Tasks page"
-  className="flex items-center justify-center rounded-full transition hover:brightness-90"
-  style={{ width: 32, height: 32, background: "#FAFAFA", cursor: "pointer" }}
->
-  <svg
-    xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-    viewBox="0 0 24 24" fill="none" stroke="#000000"
-    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-  >
-    <path d="M7 17L17 7M7 7h10v10" />
-  </svg>
-</button>
+        <button
+          onClick={() => navigate("/tasks")}
+          aria-label="Go to Tasks page"
+          className="flex items-center justify-center rounded-full transition hover:brightness-90"
+          style={{ width: 32, height: 32, background: "#FAFAFA", cursor: "pointer" }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#000000"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M7 17L17 7M7 7h10v10" />
+          </svg>
+        </button>
       </div>
 
       {/* Angka total */}
@@ -280,3 +287,9 @@ export default function TotalTask({
     </div>
   );
 }
+
+TotalTask.propTypes = {
+  apiUrl: PropTypes.string,
+  idWorkspace: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  queryParams: PropTypes.object,
+};

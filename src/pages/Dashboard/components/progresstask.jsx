@@ -1,150 +1,190 @@
+// src/pages/Dashboard/components/progresstask.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import PropTypes from "prop-types";
 
-const MIN_SKELETON_MS = 200; // skeleton minimal 6 detik
+const MIN_SKELETON_MS = 200; // skeleton minimal 200ms
+
+/* ===== Helpers umum ===== */
+const getSessionWorkspace = () => {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      const v = Number(window.sessionStorage.getItem("id_workspace"));
+      return Number.isFinite(v) && v > 0 ? v : 1;
+    }
+  } catch (err) {
+    // sengaja diabaikan, fallback ke 1
+    void err; // gunakan err supaya eslint no-unused-vars tidak protes
+  }
+  return 1;
+};
+
+const keyfy = (v) => {
+  if (v === null || v === undefined) return "";
+  const s = typeof v === "number" ? String(v) : String(v);
+  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "");
+};
+
+const extractStatus = (t) => {
+  if (!t) return "";
+
+  if (t.status && typeof t.status === "object" && "name" in t.status) {
+    return t.status.name;
+  }
+  if (t.status !== undefined) return t.status;
+  if (t.statusId !== undefined) return t.statusId;
+
+  if (t.state && typeof t.state === "object" && "name" in t.state) {
+    return t.state.name;
+  }
+  if (t.state !== undefined) return t.state;
+
+  if (t.status_name !== undefined) return t.status_name;
+
+  return "";
+};
+
+const extractId = (t) => t?.id?.task ?? t?.id_task ?? t?.task_id ?? t?.id ?? null;
+
+/* ===== Data status dasar ===== */
+const NOT_STARTED_BASE = [
+  "not started",
+  "not_started",
+  "not-started",
+  "todo",
+  "to do",
+  "pending",
+  "backlog",
+  "new",
+  "open",
+  "ready",
+  "queued",
+  "created",
+  "belummulai",
+  0,
+  "0",
+];
+
+const INPROGRESS_BASE = [
+  "in progress",
+  "in_progress",
+  "in-progress",
+  "on progress",
+  "ongoing",
+  "processing",
+  "doing",
+  "wip",
+  "progress",
+  "started",
+  "active",
+  "sedangdikerjakan",
+  1,
+  "1",
+];
+
+const COMPLETED_BASE = [
+  "completed",
+  "complete",
+  "done",
+  "finished",
+  "closed",
+  "resolved",
+  "selesai",
+  2,
+  "2",
+];
+
+const OVERDUE_BASE = [
+  "overdue",
+  "late",
+  "terlambat",
+  "jatuh tempo",
+  "lewat jatuh tempo",
+  3,
+  "3",
+];
 
 export default function TaskSummary({
   tasks = [],
   taskIds = null,
   apiUrl = "/api/tasks",
   queryParams = null,
-  idWorkspace = null, // opsional override
+  idWorkspace = null,
 }) {
   const [remoteTasks, setRemoteTasks] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
+  const [error, setError] = useState("");
 
-  // ==== Ambil idWorkspace dari sessionStorage (SSR/CSR-safe) ====
-  const sessionIdWorkspace = React.useMemo(() => {
-    try {
-      if (typeof window !== "undefined" && window.sessionStorage) {
-        const v = Number(window.sessionStorage.getItem("id_workspace"));
-        return Number.isFinite(v) && v > 0 ? v : 1;
-      }
-    } catch {}
-    return 1;
-  }, []);
+  /* ===== idWorkspace dari sessionStorage (SSR-safe) ===== */
+  const sessionIdWorkspace = useMemo(() => getSessionWorkspace(), []);
 
-  // ==== Helper normalisasi ====
-  const keyfy = (v) => {
-    if (v === null || v === undefined) return "";
-    const s = typeof v === "number" ? String(v) : String(v);
-    return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "");
-  };
-
-  const extractStatus = (t) => {
-    if (!t) return "";
-    if (t.status && typeof t.status === "object" && "name" in t.status) return t.status.name;
-    if (t.status !== undefined) return t.status;
-    if (t.statusId !== undefined) return t.statusId;
-    if (t.state && typeof t.state === "object" && "name" in t.state) return t.state.name;
-    if (t.state !== undefined) return t.state;
-    if (t.status_name !== undefined) return t.status_name;
-    return "";
-  };
-
-  const extractId = (t) => t?.id?.task ?? t?.id_task ?? t?.task_id ?? t?.id ?? null;
-
-  // ==== Kumpulan kunci status ====
+  /* ===== Kumpulan kunci status (dinormalisasi) ===== */
   const NOT_STARTED_KEYS = useMemo(
-    () =>
-      new Set(
-        [
-          "not started",
-          "not_started",
-          "not-started",
-          "todo",
-          "to do",
-          "pending",
-          "backlog",
-          "new",
-          "open",
-          "ready",
-          "queued",
-          "created",
-          "belummulai",
-          0,
-          "0",
-        ].map(keyfy)
-      ),
+    () => new Set(NOT_STARTED_BASE.map(keyfy)),
     []
   );
 
   const INPROGRESS_KEYS = useMemo(
-    () =>
-      new Set(
-        [
-          "in progress",
-          "in_progress",
-          "in-progress",
-          "on progress",
-          "ongoing",
-          "processing",
-          "doing",
-          "wip",
-          "progress",
-          "started",
-          "active",
-          "sedangdikerjakan",
-          1,
-          "1",
-        ].map(keyfy)
-      ),
+    () => new Set(INPROGRESS_BASE.map(keyfy)),
     []
   );
 
   const COMPLETED_KEYS = useMemo(
-    () =>
-      new Set(
-        ["completed", "complete", "done", "finished", "closed", "resolved", "selesai", 2, "2"].map(
-          keyfy
-        )
-      ),
+    () => new Set(COMPLETED_BASE.map(keyfy)),
     []
   );
 
   const OVERDUE_KEYS = useMemo(
-    () =>
-      new Set(
-        ["overdue", "late", "terlambat", "jatuh tempo", "lewat jatuh tempo", 3, "3"].map(keyfy)
-      ),
+    () => new Set(OVERDUE_BASE.map(keyfy)),
     []
   );
 
-  // ==== Gabung query params (priority: queryParams > prop idWorkspace > session) ====
+  /* ===== Gabung query params =====
+   * Prioritas:
+   * - queryParams.idWorkspace (jika ada)
+   * - prop idWorkspace
+   * - sessionIdWorkspace
+   */
   const mergedQuery = useMemo(() => {
-    const hasQP =
-      !!(queryParams && Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace"));
-    const effective = hasQP ? undefined : idWorkspace ?? sessionIdWorkspace;
-    const base = effective != null ? { idWorkspace: effective } : {};
-    return { ...base, ...(queryParams || {}) };
+    const hasIdWorkspaceInQP =
+      queryParams && Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace");
+
+    const effectiveWorkspace = hasIdWorkspaceInQP ? undefined : idWorkspace ?? sessionIdWorkspace;
+    const base = effectiveWorkspace != null ? { idWorkspace: effectiveWorkspace } : {};
+
+    return {
+      ...base,
+      ...(queryParams || {}),
+    };
   }, [queryParams, idWorkspace, sessionIdWorkspace]);
 
   const queryString = useMemo(() => {
     const entries = Object.entries(mergedQuery).filter(
       ([, v]) => v !== undefined && v !== null && v !== ""
     );
+
     if (entries.length === 0) return "";
-    return (
-      "?" +
-      entries
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-        .join("&")
-    );
+
+    const qs = entries
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+      .join("&");
+
+    return `?${qs}`;
   }, [mergedQuery]);
 
-  // ==== Fetch jika props.tasks kosong ====
+  /* ===== Fetch tasks dari API kalau props.tasks kosong ===== */
   useEffect(() => {
     if (tasks && tasks.length > 0) {
       setRemoteTasks(null);
       setLoading(false);
-      setErr("");
+      setError("");
       return;
     }
 
     const ctrl = new AbortController();
-    setLoading(true);
-    setErr("");
     const startTime = Date.now();
+
+    setLoading(true);
+    setError("");
 
     (async () => {
       try {
@@ -152,17 +192,27 @@ export default function TaskSummary({
           headers: { Accept: "application/json" },
           signal: ctrl.signal,
         });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+
         const data = await resp.json();
-        setRemoteTasks(Array.isArray(data) ? data : data?.data || []);
+        const list = Array.isArray(data) ? data : data?.data || [];
+        setRemoteTasks(list);
       } catch (e) {
-        if (e.name !== "AbortError") setErr(e?.message || "Gagal memuat tasks");
+        if (e?.name !== "AbortError") {
+          setError(e?.message || "Gagal memuat tasks");
+        }
       } finally {
-        const endTime = Date.now();
-        const elapsed = endTime - startTime;
+        const elapsed = Date.now() - startTime;
+
         const finish = () => {
-          if (!ctrl.signal.aborted) setLoading(false);
+          if (!ctrl.signal.aborted) {
+            setLoading(false);
+          }
         };
+
         if (elapsed < MIN_SKELETON_MS) {
           setTimeout(finish, MIN_SKELETON_MS - elapsed);
         } else {
@@ -174,28 +224,32 @@ export default function TaskSummary({
     return () => ctrl.abort();
   }, [apiUrl, queryString, tasks?.length]);
 
-  // ==== Sumber data final ====
+  /* ===== Sumber data final (props.tasks > remoteTasks) ===== */
   const sourceTasks = useMemo(() => {
     const base = tasks && tasks.length > 0 ? tasks : remoteTasks || [];
+
     if (!taskIds || taskIds.length === 0) return base;
+
     const allow = new Set(taskIds.map((x) => String(x)));
+
     return base.filter((t) => {
       const id = extractId(t);
       return id != null && allow.has(String(id));
     });
   }, [tasks, remoteTasks, taskIds]);
 
-  // ==== Ringkasan ====
+  /* ===== Hitung ringkasan status ===== */
   const summary = useMemo(() => {
-    let pending = 0,
-      inProgress = 0,
-      completed = 0;
+    let pending = 0;
+    let inProgress = 0;
+    let completed = 0;
+
     const seen = new Set();
 
     for (const t of sourceTasks) {
       const id = extractId(t);
-      const raw = extractStatus(t);
-      const k = keyfy(raw);
+      const rawStatus = extractStatus(t);
+      const k = keyfy(rawStatus);
 
       if (id != null) {
         const sid = String(id);
@@ -203,25 +257,31 @@ export default function TaskSummary({
         seen.add(sid);
       }
 
-      if (COMPLETED_KEYS.has(k)) completed++;
-      else if (INPROGRESS_KEYS.has(k)) inProgress++;
-      else if (OVERDUE_KEYS.has(k)) pending++;
-      else if (NOT_STARTED_KEYS.has(k)) pending++;
-      else pending++;
+      if (COMPLETED_KEYS.has(k)) {
+        completed += 1;
+      } else if (INPROGRESS_KEYS.has(k)) {
+        inProgress += 1;
+      } else if (OVERDUE_KEYS.has(k)) {
+        pending += 1;
+      } else if (NOT_STARTED_KEYS.has(k)) {
+        pending += 1;
+      } else {
+        pending += 1;
+      }
     }
 
     return { pending, inProgress, completed };
   }, [sourceTasks, COMPLETED_KEYS, INPROGRESS_KEYS, OVERDUE_KEYS, NOT_STARTED_KEYS]);
 
-  // ==== UI (dipertahankan) ====
+  /* ===== Data card UI ===== */
   const cards = [
     { label: "Tasks Pending", value: summary.pending, width: 231, high: 177 },
     { label: "Tasks On Progress", value: summary.inProgress, width: 251, high: 177 },
     { label: "Tasks Completed", value: summary.completed, width: 231, high: 177 },
   ];
 
+  /* ===== Loading state: shimmer ===== */
   if (loading) {
-    // 🔹 Loading: kotak kosong + shimmer, ukuran sama persis dengan card normal
     return (
       <>
         <style>{`
@@ -262,7 +322,7 @@ export default function TaskSummary({
               key={idx}
               style={{
                 width: `${card.width}px`,
-                height: "161px", // sama persis dengan kartu normal
+                height: "161px",
                 fontFamily: "Montserrat, sans-serif",
                 borderColor: "rgba(70,70,70,0.5)",
                 backgroundImage: "linear-gradient(to bottom, #070707, #141414)",
@@ -271,10 +331,7 @@ export default function TaskSummary({
               }}
               className="rounded-2xl border bg-clip-padding"
             >
-              {/* shimmer overlay */}
               <div className="gradia-shimmer" />
-
-              {/* isi kosong, nggak ada text / angka */}
             </div>
           ))}
         </div>
@@ -282,14 +339,16 @@ export default function TaskSummary({
     );
   }
 
-  if (err) {
+  /* ===== Error state ===== */
+  if (error) {
     return (
       <div className="rounded-2xl border border-[#46464680] bg-gradient-to-b from-[#070707] to-[#141414] p-4 text-red-400">
-        Gagal memuat tasks: {err}
+        Gagal memuat tasks: {error}
       </div>
     );
   }
 
+  /* ===== Normal state ===== */
   return (
     <div className="flex justify-start gap-4 flex-wrap">
       {cards.map((card, idx) => (
@@ -305,7 +364,9 @@ export default function TaskSummary({
           className="rounded-2xl border bg-clip-padding"
         >
           <div className="h-full p-5 flex flex-col items-start text-left">
-            <p className="text-white text-[20px] leading-none font-semibold">{card.label}</p>
+            <p className="text-white text-[20px] leading-none font-semibold">
+              {card.label}
+            </p>
             <span className="mt-4 text-[#FFEB3B] text-[64px] leading-none font-bold">
               {card.value}
             </span>
@@ -315,3 +376,12 @@ export default function TaskSummary({
     </div>
   );
 }
+
+/* ===== PropTypes (supaya eslint react/prop-types nggak marah) ===== */
+TaskSummary.propTypes = {
+  tasks: PropTypes.array,
+  taskIds: PropTypes.array,
+  apiUrl: PropTypes.string,
+  queryParams: PropTypes.object,
+  idWorkspace: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+};
