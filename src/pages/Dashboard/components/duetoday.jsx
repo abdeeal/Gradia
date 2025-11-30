@@ -1,9 +1,37 @@
 import React from "react";
+import PropTypes from "prop-types";
 import { getWorkspaceId } from "../../../components/GetWorkspace";
 
-const MIN_SKELETON_MS = 200; // ✅ sama dengan CoursesToday
+const MIN_SKELETON_MS = 200;
 
-// ✅ tambahin helper ini, sama kayak yg kamu pakai buat dropdown
+// ==== LAYOUT CONST ====
+const FRAME_W = 259;
+const FRAME_H = 246;
+const PAD_X = 16;
+const PAD_TOP = 16;
+const PAD_BOTTOM = 16;
+const HEADER_GAP = 18;
+const HEADER_HEIGHT = 32;
+const LIST_MAX_H =
+  FRAME_H - PAD_TOP - PAD_BOTTOM - HEADER_GAP - HEADER_HEIGHT;
+const SKELETON_COUNT = 3;
+
+// ==== DATE HELPERS ====
+const jakartaFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jakarta",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const toYmdJakarta = (d) => {
+  if (!d) return null;
+  const date = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(date.getTime())) return null;
+  return jakartaFormatter.format(date);
+};
+
+// normalisasi courses: samakan bentuk id & name
 const normalizeCourses = (list = []) =>
   list
     .map((c) => ({
@@ -23,13 +51,16 @@ export default function DueToday(props) {
   const {
     defaultOpen = true,
     taskUrl = "/tasks",
-    fetchTasks,       // async () => Task[]
-    fetchCourses,     // async () => Course[]
-    tasksEndpoint,    // mis. "/api/tasks"
-    coursesEndpoint,  // mis. "/api/courses"
+    fetchTasks, // async () => Task[]
+    fetchCourses, // async () => Course[]
+    tasksEndpoint, // mis. "/api/tasks"
+    coursesEndpoint, // mis. "/api/courses"
   } = props;
 
   const [open] = React.useState(defaultOpen);
+  const [todayItems, setTodayItems] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
 
   // malam: 18:01–05:59 (auto-update tiap menit)
   const checkIsNight = () => {
@@ -38,7 +69,9 @@ export default function DueToday(props) {
     const m = now.getMinutes();
     return h > 18 || (h === 18 && m >= 1) || h < 6;
   };
+
   const [isNight, setIsNight] = React.useState(checkIsNight());
+
   React.useEffect(() => {
     const id = setInterval(() => setIsNight(checkIsNight()), 60_000);
     return () => clearInterval(id);
@@ -62,42 +95,38 @@ export default function DueToday(props) {
       Low: "text-[#D4D4D8]",
     };
     const textNight = "text-black";
-    const bg = isNight ? bgMapNight[p] : bgMapDay[p];
+
+    const bg = (isNight ? bgMapNight : bgMapDay)[p];
     const text = isNight ? textNight : textDayMap[p];
+
     return `${bg} ${text} font-semibold`;
   };
 
-  // ====== DATA FETCHING ======
-  const [todayItems, setTodayItems] = React.useState([]);
-  const [loading, setLoading] = React.useState(true); // ✅ mulai true, sama CoursesToday
-  const [error, setError] = React.useState("");
-
-  // ✅ SAMAKAN CARA AMBIL WORKSPACE DENGAN CoursesToday
   const workspace = React.useMemo(() => getWorkspaceId(), []);
 
-  // format hari ini Asia/Jakarta (YYYY-MM-DD)
-  const todayJakarta = React.useMemo(() => {
-    const fmt = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Jakarta",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    return fmt.format(new Date());
-  }, []);
+  const todayJakarta = React.useMemo(
+    () => toYmdJakarta(new Date()),
+    []
+  );
 
   const withWorkspace = React.useCallback(
     (baseUrl) => {
       if (!baseUrl) return undefined;
+
       const origin =
         typeof window !== "undefined"
           ? window.location.origin
           : "http://localhost";
+
       const url = new URL(baseUrl, origin);
       const sp = new URLSearchParams(url.search);
-      if (!sp.get("idWorkspace"))
+
+      if (!sp.get("idWorkspace")) {
         sp.set("idWorkspace", String(workspace));
+      }
+
       url.search = sp.toString();
+
       return typeof window !== "undefined"
         ? url.toString()
         : `${url.pathname}${url.search}`;
@@ -109,6 +138,7 @@ export default function DueToday(props) {
     () => withWorkspace(tasksEndpoint || "/api/tasks"),
     [tasksEndpoint, withWorkspace]
   );
+
   const coursesUrl = React.useMemo(
     () => withWorkspace(coursesEndpoint || "/api/courses"),
     [coursesEndpoint, withWorkspace]
@@ -120,7 +150,8 @@ export default function DueToday(props) {
     const load = async () => {
       setLoading(true);
       setError("");
-      const startTime = Date.now(); // ✅ ukur durasi kaya CoursesToday
+      const startTime = Date.now();
+
       try {
         let tasks;
         let courses;
@@ -141,36 +172,21 @@ export default function DueToday(props) {
           courses = await r.json();
         }
 
-        // 🔹 bedanya cuma di sini: normalize + map pakai id_courses
         const rawCourses = Array.isArray(courses)
           ? courses
           : courses?.data || [];
 
         const normalizedCourses = normalizeCourses(rawCourses);
-
         const courseNameById = new Map(
           normalizedCourses.map((c) => [String(c.id_courses), c.name])
         );
 
-        const toYmdJakarta = (d) => {
-          if (!d) return null;
-          const date = new Date(d);
-          if (isNaN(date.getTime())) return null;
-          const fmt = new Intl.DateTimeFormat("en-CA", {
-            timeZone: "Asia/Jakarta",
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          });
-          return fmt.format(date);
-        };
-
         const tasksArr = Array.isArray(tasks) ? tasks : tasks?.data || [];
+
         const normalized = tasksArr
           .filter((t) => toYmdJakarta(t.deadline) === todayJakarta)
           .map((t) => ({
             title: t.title,
-            // 🔹 id_course dari tasks dipakai untuk lookup ke map
             subject: courseNameById.get(String(t.id_course)) || "—",
             priority: t.priority || "Low",
           }));
@@ -182,11 +198,11 @@ export default function DueToday(props) {
           setError(e?.message || "Failed to load");
         }
       } finally {
-        const endTime = Date.now();
-        const elapsed = endTime - startTime;
+        const elapsed = Date.now() - startTime;
         const finish = () => {
           if (active) setLoading(false);
         };
+
         if (elapsed < MIN_SKELETON_MS) {
           setTimeout(finish, MIN_SKELETON_MS - elapsed);
         } else {
@@ -201,19 +217,7 @@ export default function DueToday(props) {
     };
   }, [fetchTasks, fetchCourses, tasksUrl, coursesUrl, todayJakarta]);
 
-  // FRAME layout sama seperti sebelumnya
-  const FRAME_W = 259;
-  const FRAME_H = 246;
-  const PAD_X = 16;
-  const PAD_TOP = 16;
-  const PAD_BOTTOM = 16;
-  const HEADER_GAP = 18;
-  const headerHeight = 32;
-  const listMaxH =
-    FRAME_H - PAD_TOP - PAD_BOTTOM - HEADER_GAP - headerHeight;
-
   const noDueToday = !loading && todayItems.length === 0;
-  const SKELETON_COUNT = 3;
 
   return (
     <div
@@ -222,8 +226,7 @@ export default function DueToday(props) {
       style={{
         width: FRAME_W,
         height: FRAME_H,
-        backgroundImage:
-          "linear-gradient(180deg, #070707 0%, #141414 100%)",
+        backgroundImage: "linear-gradient(180deg, #070707 0%, #141414 100%)",
         paddingLeft: PAD_X,
         paddingRight: PAD_X,
         paddingTop: PAD_TOP,
@@ -253,12 +256,8 @@ export default function DueToday(props) {
         }
 
         @keyframes gradia-shimmer-move {
-          0% {
-            transform: translateX(-100%);
-          }
-          100% {
-            transform: translateX(100%);
-          }
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
         }
       `}</style>
 
@@ -306,11 +305,11 @@ export default function DueToday(props) {
       {/* Body */}
       <div
         className="overflow-hidden transition-all duration-300 ease-out"
-        style={{ maxHeight: open ? listMaxH : 0 }}
+        style={{ maxHeight: open ? LIST_MAX_H : 0 }}
       >
         <div
           className="scrollbar-hide pr-2"
-          style={{ maxHeight: listMaxH, overflowY: "auto" }}
+          style={{ maxHeight: LIST_MAX_H, overflowY: "auto" }}
         >
           {loading ? (
             <div className="flex flex-col" style={{ gap: 10 }}>
@@ -330,6 +329,7 @@ export default function DueToday(props) {
                 >
                   <div className="gradia-shimmer" />
 
+                  {/* isi dummy (disembunyikan) */}
                   <div
                     className="flex"
                     style={{ opacity: 0, width: "100%", height: "100%" }}
@@ -529,3 +529,12 @@ export default function DueToday(props) {
     </div>
   );
 }
+
+DueToday.propTypes = {
+  defaultOpen: PropTypes.bool,
+  taskUrl: PropTypes.string,
+  fetchTasks: PropTypes.func,
+  fetchCourses: PropTypes.func,
+  tasksEndpoint: PropTypes.string,
+  coursesEndpoint: PropTypes.string,
+};

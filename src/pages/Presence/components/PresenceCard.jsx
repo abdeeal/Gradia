@@ -1,13 +1,148 @@
 // src/pages/Presence/components/PresenceCard.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import PropTypes from "prop-types";
 import { getWorkspaceId } from "../../../components/GetWorkspace";
 
+/* ===== Const ===== */
 const CARD_W = 269;
 const CARD_H = 191;
 const GAP = 10;
-const MAX_W = 864;
-const MIN_SKELETON_MS = 200; // ✅ minimal skeleton muncul
+const SKEL_MIN = 200;
+const SKEL_COUNT = 4;
 
+/* ===== Helpers ===== */
+const buildUrl = (ws) => {
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "http://localhost";
+
+  const url = new URL("/api/courses", origin);
+  const sp = new URLSearchParams(url.search);
+
+  if (!sp.get("q")) sp.set("q", "today");
+  if (!sp.get("idWorkspace")) sp.set("idWorkspace", String(ws));
+
+  url.search = sp.toString();
+
+  return typeof window !== "undefined"
+    ? url.toString()
+    : `${url.pathname}${url.search}`;
+};
+
+const splitTime = (c) => {
+  if (typeof c?.start === "string" && c.start.includes("-") && !c.end) {
+    const [s, e] = c.start.split("-").map((x) => x.trim());
+    return { ...c, start: s, end: e || null };
+  }
+  return c;
+};
+
+const normStatus = (s) => String(s || "").trim().toLowerCase();
+
+const parseHM = (v) => {
+  if (!v) return null;
+  const [h, m] = String(v).split(":").map((x) => parseInt(x, 10));
+  const d = new Date();
+  d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
+  return d;
+};
+
+const toHM = (v) => {
+  const d = parseHM(v);
+  if (!d) return "";
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+};
+
+const getTimeState = (s, e) => {
+  const now = new Date();
+  const ds = parseHM(s);
+  const de = parseHM(e);
+
+  if (!ds && !de) return "unknown";
+  if (ds && now < ds) return "upcoming";
+  if (ds && de && now >= ds && now < de) return "ongoing";
+  if (de && now >= de) return "done";
+  return "unknown";
+};
+
+const getTimeLabel = (s, e) => {
+  const S = toHM(s);
+  const E = toHM(e);
+  return S && E ? `${S} - ${E}` : S || E || "—";
+};
+
+/* ===== Small UI helpers ===== */
+const HideScroll = () => (
+  <style>{`
+    .hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none;}
+    .hide-scrollbar::-webkit-scrollbar{display:none;}
+    .presence-grid{grid-auto-columns:${CARD_W}px;}
+
+    .gradia-shimmer {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(
+        90deg,
+        rgba(15, 15, 15, 0) 0%,
+        rgba(63, 63, 70, 0.9) 50%,
+        rgba(15, 15, 15, 0) 100%
+      );
+      transform: translateX(-100%);
+      animation: gradia-shimmer-move 1.2s infinite;
+      background-size: 200% 100%;
+      pointer-events: none;
+      z-index: 1; /* ⭐ penting supaya di atas dummy */
+    }
+
+    @keyframes gradia-shimmer-move {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+  `}</style>
+);
+
+const Box = ({ kids, frame = false }) => {
+  const style = frame
+    ? {
+        height: `${CARD_H}px`,
+        background: "linear-gradient(180deg, #070707 0%, #141414 100%)",
+        border: "1px solid rgba(70,70,70,0.5)",
+      }
+    : {
+        height: `${CARD_H}px`,
+        background: "transparent",
+        border: "none",
+      };
+
+  return (
+    <div
+      className="rounded-lg max-w-[864px] w-full transition-all duration-300"
+      style={style}
+    >
+      {kids}
+    </div>
+  );
+};
+
+Box.propTypes = {
+  kids: PropTypes.node,
+  frame: PropTypes.bool,
+};
+
+const BoxFull = ({ text }) => (
+  <Box frame>
+    <div className="h-full w-full flex items-center justify-center">
+      <p className="text-white font-semibold">{text}</p>
+    </div>
+  </Box>
+);
+
+BoxFull.propTypes = {
+  text: PropTypes.string.isRequired,
+};
+
+/* ===== Main ===== */
 const PresenceCard = ({
   courses: coursesProp = [],
   rows = [],
@@ -15,246 +150,117 @@ const PresenceCard = ({
   totalsTodayOverride = null,
   isLoading: isLoadingProp = null,
 }) => {
-  /* ===== Ambil id_workspace pakai helper (sama seperti CoursesToday) ===== */
-  const workspace = useMemo(() => getWorkspaceId(), []);
+  const ws = getWorkspaceId();
+  const apiUrl = useMemo(() => buildUrl(ws), [ws]);
 
-  /* ===== Build endpoint /api/courses?q=today&idWorkspace=... (mirip CoursesToday) ===== */
-  const endpoint = useMemo(() => {
-    const origin =
-      typeof window !== "undefined" ? window.location.origin : "http://localhost";
-    const url = new URL("/api/courses", origin);
-    const sp = new URLSearchParams(url.search);
-
-    if (!sp.get("q")) sp.set("q", "today");
-    if (!sp.get("idWorkspace")) sp.set("idWorkspace", String(workspace));
-
-    url.search = sp.toString();
-
-    // kalau di server, ambil hanya path + query
-    return typeof window !== "undefined"
-      ? url.toString()
-      : `${url.pathname}${url.search}`;
-  }, [workspace]);
-
-  /* ===== State courses hari ini (ambil dari /api/courses) ===== */
-  const [coursesState, setCoursesState] = useState([]);
-  const [loadingState, setLoadingState] = useState(true); // ✅ mulai true
+  const [cs, setCs] = useState([]);
+  const [load, setLoad] = useState(true);
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
-      setLoadingState(true);
-      const startTime = Date.now(); // ✅ ukur durasi untuk skeleton
+      setLoad(true);
+      const start = Date.now();
+
       try {
-        const res = await fetch(endpoint, { cache: "no-store" });
+        const res = await fetch(apiUrl, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const arr = Array.isArray(data)
+        const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.data)
           ? data.data
           : [];
-        if (alive) setCoursesState(arr);
+        if (alive) setCs(list);
       } catch {
-        if (alive) setCoursesState([]);
+        if (alive) setCs([]);
       } finally {
-        const endTime = Date.now();
-        const elapsed = endTime - startTime;
-        const finish = () => {
-          if (alive) setLoadingState(false);
-        };
-        // ✅ pastikan skeleton minimal tampil MIN_SKELETON_MS
-        if (elapsed < MIN_SKELETON_MS) {
-          setTimeout(finish, MIN_SKELETON_MS - elapsed);
+        const end = Date.now();
+        const diff = end - start;
+        const finish = () => alive && setLoad(false);
+
+        if (diff < SKEL_MIN) {
+          setTimeout(finish, SKEL_MIN - diff);
         } else {
           finish();
         }
       }
     })();
+
     return () => {
       alive = false;
     };
-  }, [endpoint]);
+  }, [apiUrl]);
 
-  const usingParentCourses = coursesProp && coursesProp.length > 0;
-  const rawCourses = usingParentCourses ? coursesProp : coursesState;
+  const useProp = coursesProp && coursesProp.length > 0;
+  const raw = useProp ? coursesProp : cs;
 
-  /* ===== Split "09:00 - 10:00" -> start/end ===== */
-  const normalizeSE = (c) => {
-    if (typeof c?.start === "string" && c.start.includes("-") && !c.end) {
-      const [s, e] = c.start.split("-").map((x) => x.trim());
-      return { ...c, start: s, end: e || null };
-    }
-    return c;
-  };
-  const courses = useMemo(() => rawCourses.map(normalizeSE), [rawCourses]);
+  const courses = useMemo(() => raw.map(splitTime), [raw]);
+  const isLoading = isLoadingProp ?? load;
 
-  /* ===== Loading flag ===== */
-  const isLoading =
-    typeof isLoadingProp === "boolean" ? isLoadingProp : loadingState;
-
-  /* ===== Totals ===== */
-  const normStatus = (s) => String(s || "").trim().toLowerCase();
-  const { derivedPresenceCount, derivedAbsentCount } = useMemo(() => {
+  const { totalP, totalA } = useMemo(() => {
     if (totalsTodayOverride) {
       return {
-        derivedPresenceCount: Number(totalsTodayOverride.presence || 0),
-        derivedAbsentCount: Number(totalsTodayOverride.absent || 0),
+        totalP: Number(totalsTodayOverride.presence || 0),
+        totalA: Number(totalsTodayOverride.absent || 0),
       };
     }
-    let p = 0,
-      a = 0;
+
+    let p = 0;
+    let a = 0;
+
     rows.forEach((r) => {
       const s = normStatus(r.status);
       if (s === "presence" || s === "present") p += 1;
       else if (s === "absent") a += 1;
     });
-    return { derivedPresenceCount: p, derivedAbsentCount: a };
+
+    return { totalP: p, totalA: a };
   }, [rows, totalsTodayOverride]);
 
-  /* ===== Time utils (HH:mm) ===== */
-  const parseHM = (v) => {
-    if (!v) return null;
-    const [h, m] = String(v).split(":").map((x) => parseInt(x, 10));
-    const d = new Date();
-    d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
-    return d;
-  };
-  const toHM = (v) => {
-    const d = parseHM(v);
-    if (!d) return "";
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mm = String(d.getMinutes()).padStart(2, "0");
-    return `${hh}:${mm}`;
-  };
-  const timeState = (s, e) => {
-    const now = new Date();
-    const ds = parseHM(s),
-      de = parseHM(e);
-    if (!ds && !de) return "unknown";
-    if (ds && now < ds) return "upcoming";
-    if (ds && de && now >= ds && now < de) return "ongoing";
-    if (de && now >= de) return "done";
-    return "unknown";
-  };
-  const timeLabel = (s, e) => {
-    const S = toHM(s),
-      E = toHM(e);
-    return S && E ? `${S} - ${E}` : S || E || "—";
-  };
-
-  /* ===== Join presence info by course ===== */
-  const coursesWithPresence = useMemo(() => {
+  const list = useMemo(() => {
     const byCourse = new Map();
+
     rows.forEach((r) => {
-      const k = String(r.courseId ?? r.id_course ?? r.course_id ?? "");
-      if (k && !byCourse.has(k)) byCourse.set(k, r);
+      const key = String(r.courseId ?? r.id_course ?? r.course_id ?? "");
+      if (key && !byCourse.has(key)) byCourse.set(key, r);
     });
+
     return courses.map((c) => {
       const id = String(c.id ?? c.course_id ?? "");
       return { ...c, presence: id ? byCourse.get(id) || null : null };
     });
   }, [courses, rows]);
 
-  /* ===== CSS: sembunyikan scrollbar + shimmer + auto-cols 269 ===== */
-  const HideScrollbar = () => (
-    <style>{`
-      .hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none;}
-      .hide-scrollbar::-webkit-scrollbar{display:none;}
-      .presence-grid{grid-auto-columns:${CARD_W}px;}
-
-      .gradia-shimmer {
-        position: absolute;
-        inset: 0;
-        background-image: linear-gradient(
-          90deg,
-          rgba(15, 15, 15, 0) 0%,
-          rgba(63, 63, 70, 0.9) 50%,
-          rgba(15, 15, 15, 0) 100%
-        );
-        transform: translateX(-100%);
-        animation: gradia-shimmer-move 1.2s infinite;
-        background-size: 200% 100%;
-        pointer-events: none;
-      }
-
-      @keyframes gradia-shimmer-move {
-        0% {
-          transform: translateX(-100%);
-        }
-        100% {
-          transform: translateX(100%);
-        }
-      }
-    `}</style>
-  );
-
-  // ✅ bg + border sekarang TIDAK tergantung isLoading lagi
-  const Box = ({ children, withFrame = false }) => {
-    const boxStyle = withFrame
-      ? {
-          height: `${CARD_H}px`,
-          background: "linear-gradient(180deg, #070707 0%, #141414 100%)",
-          border: "1px solid rgba(70,70,70,0.5)",
-        }
-      : {
-          height: `${CARD_H}px`,
-          background: "transparent",
-          border: "none",
-        };
-
-    return (
-      <div
-        className="rounded-lg max-w-[864px] w-full transition-all duration-300"
-        style={boxStyle}
-      >
-        {children}
-      </div>
-    );
-  };
-
-  // ✅ No Schedule Today saja yang pakai frame
-  const BoxFull = ({ text }) => (
-    <Box withFrame>
-      <div className="h-full w-full flex items-center justify-center">
-        <p className="text-white font-semibold">{text}</p>
-      </div>
-    </Box>
-  );
-
-  const noScheduleToday = !isLoading && coursesWithPresence.length === 0;
-
-  const SKELETON_COUNT = 4;
+  const noToday = !isLoading && list.length === 0;
 
   return (
     <div className="font-[Montserrat]">
-      <HideScrollbar />
+      <HideScroll />
       <div className="flex gap-4">
-        {/* LEFT: container fix 864×191 */}
+        {/* LEFT */}
         <div className="flex-1 max-w-[864px]">
           {isLoading ? (
-            // ✅ Shimmer skeleton, ukuran kartu ikut CARD_W/CARD_H
             <Box>
               <div
                 className="h-full w-full hide-scrollbar overflow-x-auto overflow-y-hidden flex items-stretch"
                 style={{ gap: `${GAP}px` }}
               >
-                {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
+                {Array.from({ length: SKEL_COUNT }).map((_, idx) => (
                   <div
                     key={idx}
-                    className="relative rounded-xl px-3.5 py-3 overflow-hidden flex flex-col shadow"
+                    className="rounded-xl px-3.5 py-3 overflow-hidden flex flex-col shadow"
                     style={{
                       width: `${CARD_W}px`,
                       height: `${CARD_H}px`,
                       background: "#242424",
                       flexShrink: 0,
+                      position: "relative", // ⭐ parent utk shimmer
                     }}
                   >
-                    <div className="gradia-shimmer" />
-
-                    {/* konten dummy disembunyikan, hanya untuk bentuk layout */}
+                    {/* Konten dummy (buat layout), disembunyikan */}
                     <div className="opacity-0">
-                      {/* TOP: time + badge */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <div className="w-2 h-2 rounded-full bg-gray-500" />
@@ -265,7 +271,6 @@ const PresenceCard = ({
                         </span>
                       </div>
 
-                      {/* MIDDLE: title + room */}
                       <div className="flex-1 flex flex-col justify-center">
                         <h3 className="text-[16px] font-semibold leading-snug line-clamp-2 break-words">
                           Dummy Course Title
@@ -273,32 +278,30 @@ const PresenceCard = ({
                         <p className="text-[16px] mt-1">ROOM</p>
                       </div>
 
-                      {/* BOTTOM: button */}
                       <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer">
                         Log Presence{" "}
                         <i className="ri-logout-circle-r-line ml-1" />
                       </button>
                     </div>
+
+                    {/* Shimmer overlay (di paling akhir, nutup dummy) */}
+                    <div className="gradia-shimmer" />
                   </div>
                 ))}
               </div>
             </Box>
-          ) : noScheduleToday ? (
+          ) : noToday ? (
             <BoxFull text="No Schedule Today" />
           ) : (
             <Box>
               <div className="h-full w-full hide-scrollbar overflow-x-auto overflow-y-hidden">
                 <div
                   className="grid grid-flow-col presence-grid h-full"
-                  style={{
-                    gap: `${GAP}px`,
-                    minWidth: "100%",
-                  }}
+                  style={{ gap: `${GAP}px`, minWidth: "100%" }}
                 >
-                  {coursesWithPresence.map((c, i) => {
-                    const t = timeState(c?.start, c?.end);
+                  {list.map((c, i) => {
+                    const t = getTimeState(c?.start, c?.end);
 
-                    // === Badge mapping ===
                     const label =
                       t === "ongoing"
                         ? "On Going"
@@ -307,6 +310,7 @@ const PresenceCard = ({
                         : t === "done"
                         ? "Done"
                         : "";
+
                     const labelCls =
                       t === "ongoing"
                         ? "bg-[#EAB308]/20 text-[#FDE047]"
@@ -316,7 +320,6 @@ const PresenceCard = ({
                         ? "bg-[#22C55E]/20 text-[#4ADE80]"
                         : "hidden";
 
-                    // === Dot color (revisi solid) ===
                     const dotCls =
                       t === "ongoing"
                         ? "bg-[#FDE047]"
@@ -326,8 +329,7 @@ const PresenceCard = ({
                         ? "bg-[#22C55E]"
                         : "bg-gray-500";
 
-                    // === Sudah presenced ===
-                    const alreadyPresenced = ["present", "presence"].includes(
+                    const done = ["present", "presence"].includes(
                       normStatus(c?.presence?.status)
                     );
 
@@ -335,17 +337,14 @@ const PresenceCard = ({
                       <div
                         key={c.id ?? i}
                         className="presence-card bg-[#1c1c1c] border border-[#2c2c2c] rounded-xl px-3.5 py-3 flex flex-col"
-                        style={{
-                          width: `${CARD_W}px`,
-                          height: `${CARD_H}px`,
-                        }}
+                        style={{ width: `${CARD_W}px`, height: `${CARD_H}px` }}
                       >
                         {/* TOP */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
                             <div className={`w-2 h-2 rounded-full ${dotCls}`} />
                             <p className="text-[16px] text-foreground-secondary">
-                              {timeLabel(c?.start, c?.end)}
+                              {getTimeLabel(c?.start, c?.end)}
                             </p>
                           </div>
                           {label && (
@@ -357,7 +356,7 @@ const PresenceCard = ({
                           )}
                         </div>
 
-                        {/* MIDDLE */}
+                        {/* MID */}
                         <div className="flex-1 flex flex-col justify-center">
                           <h3 className="text-[16px] font-semibold leading-snug text-foreground line-clamp-2 break-words">
                             {c?.title ?? c?.name ?? "—"}
@@ -369,20 +368,16 @@ const PresenceCard = ({
 
                         {/* BOTTOM */}
                         <button
-                          onClick={
-                            alreadyPresenced
-                              ? undefined
-                              : () => onOpenAddPresence?.(c)
-                          }
+                          onClick={done ? undefined : () => onOpenAddPresence?.(c)}
                           className={[
                             "bg-gradient-to-l from-[#28073B] to-[#34146C] transition-all px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer",
-                            alreadyPresenced
+                            done
                               ? "opacity-50 cursor-not-allowed pointer-events-none"
                               : "hover:opacity-90",
                           ].join(" ")}
-                          aria-disabled={alreadyPresenced ? "true" : "false"}
+                          aria-disabled={done ? "true" : "false"}
                         >
-                          {alreadyPresenced ? (
+                          {done ? (
                             <>Presenced</>
                           ) : (
                             <>
@@ -400,7 +395,7 @@ const PresenceCard = ({
           )}
         </div>
 
-        {/* RIGHT: panel totals (tinggi tetap 191) */}
+        {/* RIGHT */}
         <div className="ml-4 flex items-start gap-4">
           <div
             className="w-px bg-[#2c2c2c]"
@@ -416,7 +411,7 @@ const PresenceCard = ({
 
             <div className="flex flex-col items-center mb-5">
               <div className="bg-[#22C55E]/20 text-[#4ADE80] text-[13px] font-semibold px-3 py-1 rounded-md mb-1">
-                {derivedPresenceCount}
+                {totalP}
               </div>
               <span className="text-[16px] text-foreground-secondary">
                 Present
@@ -425,7 +420,7 @@ const PresenceCard = ({
 
             <div className="flex flex-col items-center mt-auto">
               <div className="bg-[#EF4444]/20 text-[#F87171] text-[13px] font-semibold px-3 py-1 rounded-md mb-1">
-                {derivedAbsentCount}
+                {totalA}
               </div>
               <span className="text-[16px] text-foreground-secondary">
                 Absent
@@ -436,6 +431,17 @@ const PresenceCard = ({
       </div>
     </div>
   );
+};
+
+PresenceCard.propTypes = {
+  courses: PropTypes.array,
+  rows: PropTypes.array,
+  onOpenAddPresence: PropTypes.func,
+  totalsTodayOverride: PropTypes.shape({
+    presence: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    absent: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  }),
+  isLoading: PropTypes.bool,
 };
 
 export default PresenceCard;

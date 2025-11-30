@@ -1,6 +1,8 @@
+// src/pages/Courses/components/AddCourse.jsx
+import React, { useState } from "react";
+import PropTypes from "prop-types";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
-import React, { useState } from "react";
 import { useAlert } from "@/hooks/useAlert";
 
 /**
@@ -12,7 +14,7 @@ const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const AddCourse = ({ onClose, onAdd }) => {
   const { showAlert } = useAlert();
 
-  const [formData, setFormData] = useState({
+  const [data, setData] = useState({
     title: "",
     alias: "",
     lecturer: "",
@@ -25,12 +27,16 @@ const AddCourse = ({ onClose, onAdd }) => {
     link: "",
   });
 
-  const [submitting, setSubmitting] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const setVal = (k, v) => setFormData((p) => ({ ...p, [k]: v }));
+  const setField = (key, val) =>
+    setData((prev) => ({
+      ...prev,
+      [key]: val,
+    }));
 
-  const handleAdd = async () => {
-    if (!formData.title?.trim() || !formData.alias?.trim()) {
+  const save = async () => {
+    if (!data.title?.trim() || !data.alias?.trim()) {
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Incomplete Data",
@@ -43,28 +49,26 @@ const AddCourse = ({ onClose, onAdd }) => {
     }
 
     // Susun payload untuk API (id_workspace ditambah di toApiCourse / Courses.jsx)
-    const newCourse = {
-      ...formData,
-      sks: formData.sks ? Number(formData.sks) : 0,
-      time: `${formData.startTime || ""} - ${
-        formData.endTime || ""
-      }`.trim(),
+    const course = {
+      ...data,
+      sks: data.sks ? Number(data.sks) : 0,
+      time: `${data.startTime || ""} - ${data.endTime || ""}`.trim(),
       // id_courses auto di DB, id_workspace akan ditambahkan di toApiCourse (Courses.jsx)
     };
 
-    if (submitting) return;
-    setSubmitting(true);
+    if (busy) return;
+    setBusy(true);
 
     try {
       if (typeof onAdd === "function") {
-        await onAdd(newCourse);
+        await onAdd(course);
       }
 
       // Sukses → alert + tutup drawer
       showAlert({
         icon: "ri-checkbox-circle-fill",
         title: "Success",
-        desc: `${newCourse.title || newCourse.alias} has been created.`,
+        desc: `${course.title || course.alias} has been created.`,
         variant: "success",
         width: 676,
         height: 380,
@@ -85,7 +89,7 @@ const AddCourse = ({ onClose, onAdd }) => {
         height: 380,
       });
     } finally {
-      setSubmitting(false);
+      setBusy(false);
     }
   };
 
@@ -94,15 +98,15 @@ const AddCourse = ({ onClose, onAdd }) => {
       <button
         onClick={onClose}
         className="absolute left-3 top-4 text-gray-400 cursor-pointer"
-        disabled={submitting}
+        disabled={busy}
       >
         <i className="ri-arrow-right-double-line text-2xl" />
       </button>
 
       <div className="ml-12 mr-12">
         <Title
-          value={formData.title}
-          onChange={(v) => setVal("title", v)}
+          value={data.title}
+          onChange={(v) => setField("title", v)}
           className="max-w-[473px] mb-12"
         />
       </div>
@@ -112,71 +116,76 @@ const AddCourse = ({ onClose, onAdd }) => {
           <InlineField
             label="Alias"
             icon="ri-hashtag"
-            value={formData.alias}
-            onChange={(v) => setVal("alias", v)}
+            value={data.alias}
+            onChange={(v) => setField("alias", v)}
           />
           <InlineField
             label="Lecturer"
             icon="ri-graduation-cap-line"
-            value={formData.lecturer}
-            onChange={(v) => setVal("lecturer", v)}
+            value={data.lecturer}
+            onChange={(v) => setField("lecturer", v)}
           />
           <InlineField
             label="Phone"
             icon="ri-phone-line"
-            value={formData.phone}
-            onChange={(v) => setVal("phone", v)}
+            value={data.phone}
+            onChange={(v) => setField("phone", v)}
           />
           <DayField
             label="Day"
             icon="ri-calendar-event-line"
-            value={formData.day}
-            onChange={(v) => setVal("day", v)}
+            value={data.day}
+            onChange={(v) => setField("day", v)}
           />
           <TimeInline
             label="Start / end"
-            start={formData.startTime}
-            end={formData.endTime}
-            onChangeStart={(v) => setVal("startTime", v)}
-            onChangeEnd={(v) => setVal("endTime", v)}
+            start={data.startTime}
+            end={data.endTime}
+            onStart={(v) => setField("startTime", v)}
+            onEnd={(v) => setField("endTime", v)}
           />
           <InlineField
             label="Room"
             icon="ri-door-closed-line"
-            value={formData.room}
-            onChange={(v) => setVal("room", v)}
+            value={data.room}
+            onChange={(v) => setField("room", v)}
           />
           <NumberInline
             label="SKS"
             icon="ri-shopping-bag-line"
-            value={formData.sks}
-            onChange={(v) => setVal("sks", v)}
+            value={data.sks}
+            onChange={(v) => setField("sks", v)}
           />
           <InlineField
             label="Link"
             icon="ri-share-box-line"
-            value={formData.link}
-            onChange={(v) => setVal("link", v)}
+            value={data.link}
+            onChange={(v) => setField("link", v)}
           />
         </div>
 
         <div className="mt-auto flex justify-end items-center gap-3 pt-8 font-inter fixed bottom-12 right-12">
           <button
-            onClick={handleAdd}
-            disabled={submitting}
+            onClick={save}
+            disabled={busy}
             className={`flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] cursor-pointer transition-all ${
-              submitting ? "opacity-60 pointer-events-none" : ""
+              busy ? "opacity-60 pointer-events-none" : ""
             }`}
           >
             <i className="ri-add-line text-foreground text-[18px]" />
             <span className="text-[15px] font-medium">
-              {submitting ? "Adding..." : "Add Course"}
+              {busy ? "Adding..." : "Add Course"}
             </span>
           </button>
         </div>
       </div>
     </div>
   );
+};
+
+AddCourse.propTypes = {
+  onClose: PropTypes.func,
+  onAdd: PropTypes.func,
 };
 
 /* ===== Title ===== */
@@ -191,6 +200,12 @@ const Title = ({ value, onChange, className = "" }) => (
     />
   </div>
 );
+
+Title.propTypes = {
+  value: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+  className: PropTypes.string,
+};
 
 const InlineField = ({ icon, label, value, onChange, rightAdornment }) => (
   <div className="flex items-center gap-3 group">
@@ -208,13 +223,21 @@ const InlineField = ({ icon, label, value, onChange, rightAdornment }) => (
   </div>
 );
 
+InlineField.propTypes = {
+  icon: PropTypes.string,
+  label: PropTypes.string.isRequired,
+  value: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+  rightAdornment: PropTypes.node,
+};
+
 const DayField = ({ icon, label, value, onChange }) => (
   <div className="flex items-center gap-3 group">
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400">{label}</span>
     <div className="flex-1 max-w-[360px] flex items-center">
       <SelectUi
-        placeholder={"Select a day"}
+        placeholder="Select a day"
         value={value || undefined}
         onValueChange={onChange}
       >
@@ -228,6 +251,13 @@ const DayField = ({ icon, label, value, onChange }) => (
     </div>
   </div>
 );
+
+DayField.propTypes = {
+  icon: PropTypes.string,
+  label: PropTypes.string.isRequired,
+  value: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+};
 
 const NumberInline = ({ icon, label, value, onChange }) => (
   <div className="flex items-center gap-3 group w-fit">
@@ -256,7 +286,14 @@ const NumberInline = ({ icon, label, value, onChange }) => (
   </div>
 );
 
-const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => (
+NumberInline.propTypes = {
+  icon: PropTypes.string,
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  onChange: PropTypes.func.isRequired,
+};
+
+const TimeInline = ({ label, start, end, onStart, onEnd }) => (
   <div className="flex items-center gap-3 group">
     <i className="ri-time-line text-gray-400 text-[16px]" />
     <span className="w-32 text-gray-400">{label}</span>
@@ -266,7 +303,7 @@ const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => (
         placeholder="HH:MM"
         className="bg-transparent outline-none font-medium w-[96px]"
         value={start || ""}
-        onChange={(e) => onChangeStart(e.target.value)}
+        onChange={(e) => onStart(e.target.value)}
       />
       <span className="text-gray-500">/</span>
       <input
@@ -274,10 +311,18 @@ const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => (
         placeholder="HH:MM"
         className="bg-transparent outline-none font-medium w-[96px]"
         value={end || ""}
-        onChange={(e) => onChangeEnd(e.target.value)}
+        onChange={(e) => onEnd(e.target.value)}
       />
     </div>
   </div>
 );
+
+TimeInline.propTypes = {
+  label: PropTypes.string.isRequired,
+  start: PropTypes.string,
+  end: PropTypes.string,
+  onStart: PropTypes.func.isRequired,
+  onEnd: PropTypes.func.isRequired,
+};
 
 export default AddCourse;

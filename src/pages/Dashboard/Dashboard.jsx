@@ -1,9 +1,9 @@
 // src/pages/Dashboard/index.jsx
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
-import Mobile from "./Layout/Mobile";
 
 import Sidebar from "@/components/Sidebar";
+import Mobile from "./Layout/Mobile";
 import DueToday from "../Dashboard/components/duetoday";
 import CoursesToday from "../Dashboard/components/coursetoday";
 import Weather from "../Dashboard/components/weather";
@@ -11,124 +11,126 @@ import TotalTask from "../Dashboard/components/totaltask";
 import TaskProgress from "../Dashboard/components/taskprogress";
 import TaskSummary from "../Dashboard/components/progresstask";
 
-export default function Dashboard() {
-  // Breakpoints
-  const isMobile = useMediaQuery({ maxWidth: 767 });
-  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
+// lebar minimum wrapper: weather (754) + gap 16 + panel kanan 308
+const MIN_WRAP_W = 754 + 16 + 308;
 
-  if (isMobile || isTablet) {
-    return <Mobile />;
-  }
+export default function Dashboard() {
+  const isMb = useMediaQuery({ maxWidth: 767 });
+  const isTab = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
+
+  if (isMb || isTab) return <Mobile />;
 
   const now = useMemo(() => new Date(), []);
   const isNight = now.getHours() >= 18 || now.getHours() < 6;
 
-  // state user
-  const [username, setUsername] = useState("User"); // default
-  const [id_user, setIdUser] = useState(null);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [name, setName] = useState("User");
+  const [ready, setReady] = useState(false);
 
-  // 🔹 Ambil username & id_user langsung dari localStorage (tanpa fetch API)
+  const leftRef = useRef(null);
+  const wrapRef = useRef(null);
+  const [rightLeft, setRightLeft] = useState(null);
+
+  // load username
   useEffect(() => {
     try {
-      const storedId = localStorage.getItem("id_user");
-      const storedUsername = localStorage.getItem("username");
-      const storedUserRaw = localStorage.getItem("user");
+      const savedName = localStorage.getItem("username");
+      const savedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-      if (storedId) {
-        const numericId = Number(storedId);
-        if (!Number.isNaN(numericId)) {
-          setIdUser(numericId);
-        }
+      let final = savedName || savedUser.username || savedUser.name;
+
+      if (!final && savedUser.email) {
+        final = savedUser.email.split("@")[0];
       }
 
-      let finalUsername = storedUsername || null;
-
-      // kalau key "username" kosong, coba ambil dari objek "user" atau dari email
-      if (!finalUsername && storedUserRaw) {
-        try {
-          const u = JSON.parse(storedUserRaw) || {};
-
-          // beberapa kemungkinan nama field
-          finalUsername =
-            u.username ||
-            u.UserName ||
-            u.name ||
-            u.fullname ||
-            null;
-
-          // fallback terakhir: ambil dari email sebelum "@"
-          if (!finalUsername && u.email) {
-            const beforeAt = String(u.email).split("@")[0];
-            if (beforeAt) {
-              finalUsername = beforeAt;
-            }
-          }
-        } catch (e) {
-          console.error("Failed to parse localStorage user:", e);
-        }
+      if (final) {
+        setName(final);
+        localStorage.setItem("username", final);
       }
-
-      if (finalUsername) {
-        setUsername(finalUsername);
-        // simpan lagi supaya kedepannya cukup baca "username"
-        localStorage.setItem("username", finalUsername);
-      }
-
-      setIsLoaded(true);
     } catch (e) {
-      console.error("Error loading user from localStorage:", e);
-      setIsLoaded(true);
+      console.error(e);
     }
+
+    setReady(true);
+  }, []);
+
+  // sync posisi panel kanan: 16px dari sisi kanan kolom kiri
+  useEffect(() => {
+    const sync = () => {
+      if (!wrapRef.current || !leftRef.current) return;
+
+      const wrapRect = wrapRef.current.getBoundingClientRect();
+      const leftRect = leftRef.current.getBoundingClientRect();
+
+      const colRight = leftRect.right - wrapRect.left;
+      const offset = colRight + 16; // jarak 16px
+
+      setRightLeft(offset);
+    };
+
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
   }, []);
 
   return (
     <div className="flex min-h-screen bg-black text-white">
-      {/* Sidebar */}
       <Sidebar />
 
-      {/* Main Content */}
       <main className="flex-1 pt-5 pb-6 overflow-y-auto">
-        {/* Header */}
-        <header className="mb-4 px-0 pr-6">
-          <h1 className="text-2xl font-bold">
-            Welcome in,{" "} 
-            <span className="text-foreground-300">
-  {isLoaded ? `${username}!` : "..."}
-</span>
+        {/* overflow-x-auto supaya kalau viewport < MIN_WRAP_W muncul scroll, bukan nabrak */}
+        <div className="px-0 pr-6 max-w-full mx-auto overflow-x-auto">
+          <header className="mb-4">
+            <h1 className="text-2xl font-bold">
+              Welcome in,{" "}
+              <span className="text-foreground-300">
+                {ready ? `${name}!` : "..."}
+              </span>
+            </h1>
+            <p className="text-gray-400">
+              Track your learning progress, courses and tasks for today
+            </p>
+          </header>
 
-          </h1>
-          <p className="text-gray-400">
-            Track your learning progress, courses and tasks for today
-          </p>
-        </header>
+          {/* WRAPPER RELATIVE dengan minWidth dikunci */}
+          <div
+            className="relative w-full"
+            ref={wrapRef}
+            style={{ minWidth: MIN_WRAP_W }}
+          >
+            {/* GRID → KIRI (FLEXIBLE) + SLOT KANAN DUMMY */}
+            <div className="grid grid-cols-[minmax(0,1.6fr)_308px] gap-4 items-start">
+              {/* KIRI */}
+              <div ref={leftRef} className="min-w-0 flex flex-col gap-[22px]">
+                <div className="flex flex-col lg:flex-row gap-[10px]">
+                  <div className="w-full lg:w-[259px]">
+                    <DueToday />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CoursesToday variant={isNight ? "night" : "auto"} />
+                  </div>
+                </div>
 
-        {/* Content grid: Left (main) + Right (task widgets) */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_308px] lg:gap-[8px] px-0 pr-6">
-          {/* LEFT COLUMN */}
-          <div className="flex flex-col gap-[22px]">
-            {/* Row 1: Due Today + Courses Today */}
-            <div className="flex flex-col lg:flex-row gap-[10px]">
-              <div className="w-full lg:w-[259px]">
-                <DueToday />
+                <Weather />
+                <TaskSummary />
               </div>
-              <div className="flex-1">
-                <CoursesToday variant={isNight ? "night" : "auto"} />
-              </div>
+
+              {/* SLOT KANAN DUMMY (buat tinggi grid) */}
+              <div className="invisible" />
             </div>
 
-            {/* Row 2: Weather */}
-            <Weather />
-
-            {/* Row 3: Task Summary */}
-            <TaskSummary />
+            {/* PANEL KANAN ABSOLUTE, POSISI DINAMIS 16px DARI KIRI */}
+            <div
+              className="absolute top-0"
+              style={{
+                left: rightLeft != null ? `${rightLeft}px` : undefined,
+              }}
+            >
+              <div className="w-[308px] flex flex-col gap-[10px]">
+                <TaskProgress />
+                <TotalTask />
+              </div>
+            </div>
           </div>
-
-          {/* RIGHT COLUMN */}
-          <aside className="flex flex-col gap-[10px] lg:w-[308px] mr-[10px]">
-            <TaskProgress />
-            <TotalTask />
-          </aside>
         </div>
       </main>
     </div>

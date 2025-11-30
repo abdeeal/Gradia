@@ -1,10 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import PropTypes from "prop-types";
 import { useNavigate } from "react-router-dom";
 
-/* ==== Konstanta Skeleton ==== */
-const MIN_SKELETON_MS = 200; // skeleton minimal 6 detik
+/* ==== Konstanta ==== */
+const MIN_SKEL_MS = 200;
 
-/* ==== Helper Functions ==== */
+const CARD_CLASS = "relative rounded-2xl text-white shadow border border-white/5";
+const CARD_STYLE = {
+  height: 254,
+  padding: 20,
+  backgroundImage: "linear-gradient(to bottom right, #34146C, #28073B)",
+};
+
+/* ==== Helper ==== */
 function isSameDay(a, b) {
   if (!a || !b) return false;
   const da = new Date(a);
@@ -18,101 +26,108 @@ function isSameDay(a, b) {
 
 export default function TotalTask({
   apiUrl = "/api/tasks",
-  idWorkspace = null,   // opsional override
-  queryParams = null,   // opsional
+  idWorkspace = null,
+  queryParams = null,
 }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState("");
-  const navigate = useNavigate();
+  const nav = useNavigate();
 
-  // ==== idWorkspace dari sessionStorage (SSR/CSR-safe) ====
-  const sessionIdWorkspace = React.useMemo(() => {
+  const wsId = useMemo(() => {
     try {
       if (typeof window !== "undefined" && window.sessionStorage) {
         const v = Number(window.sessionStorage.getItem("id_workspace"));
         return Number.isFinite(v) && v > 0 ? v : 1;
       }
-    } catch {}
+    } catch {
+      // fallback 1
+    }
     return 1;
   }, []);
 
-  // ==== Gabung query params (priority: queryParams > prop idWorkspace > session) ====
-  const mergedQuery = useMemo(() => {
-    const hasQP = !!(
-      queryParams &&
-      Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace")
-    );
-    const effective = hasQP ? undefined : (idWorkspace ?? sessionIdWorkspace);
-    const base = effective != null ? { idWorkspace: effective } : {};
+  const queryObj = useMemo(() => {
+    const hasQP =
+      !!(queryParams &&
+        Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace"));
+    const ws = hasQP ? undefined : idWorkspace ?? wsId;
+    const base = ws != null ? { idWorkspace: ws } : {};
     return { ...base, ...(queryParams || {}) };
-  }, [queryParams, idWorkspace, sessionIdWorkspace]);
+  }, [queryParams, idWorkspace, wsId]);
 
-  const queryString = useMemo(() => {
-    const entries = Object.entries(mergedQuery).filter(
+  const qs = useMemo(() => {
+    const entries = Object.entries(queryObj).filter(
       ([, v]) => v !== undefined && v !== null && v !== ""
     );
-    if (entries.length === 0) return "";
+    if (!entries.length) return "";
     return (
       "?" +
       entries
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .map(
+          ([k, v]) =>
+            `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+        )
         .join("&")
     );
-  }, [mergedQuery]);
+  }, [queryObj]);
 
-  const fetchTasks = async (signal) => {
-    setLoading(true); // tampilkan loader segera
-    setErrMsg("");
-    const startTime = Date.now();
+  const fetchData = useCallback(
+    async (signal) => {
+      setLoading(true);
+      setErrMsg("");
+      const start = Date.now();
 
-    try {
-      const res = await fetch(`${apiUrl}${queryString}`, {
-        signal,
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error(`Gagal memuat tasks (${res.status})`);
-      const data = await res.json();
-      const list = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data)
-        ? data.data
-        : [];
-      setTasks(list);
-    } catch (e) {
-      if (e.name !== "AbortError") {
-        setErrMsg(e.message || "Terjadi kesalahan saat memuat data.");
+      try {
+        const res = await fetch(`${apiUrl}${qs}`, {
+          signal,
+          headers: { Accept: "application/json" },
+        });
+
+        if (!res.ok) throw new Error(`Gagal memuat tasks (${res.status})`);
+
+        const data = await res.json();
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.data)
+          ? data.data
+          : [];
+
+        setTasks(list);
+      } catch (e) {
+        if (e.name !== "AbortError") {
+          setErrMsg(e.message || "Terjadi kesalahan saat memuat data.");
+        }
+      } finally {
+        const elapsed = Date.now() - start;
+        const finish = () => {
+          if (!signal.aborted) setLoading(false);
+        };
+        if (elapsed < MIN_SKEL_MS) {
+          setTimeout(finish, MIN_SKEL_MS - elapsed);
+        } else {
+          finish();
+        }
       }
-    } finally {
-      const endTime = Date.now();
-      const elapsed = endTime - startTime;
-      const finish = () => {
-        if (!signal.aborted) setLoading(false);
-      };
-      if (elapsed < MIN_SKELETON_MS) {
-        setTimeout(finish, MIN_SKELETON_MS - elapsed);
-      } else {
-        finish();
-      }
-    }
-  };
+    },
+    [apiUrl, qs]
+  );
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetchTasks(controller.signal);
-    return () => controller.abort();
-  }, [apiUrl, queryString]);
+    const ctrl = new AbortController();
+    fetchData(ctrl.signal);
+    return () => ctrl.abort();
+  }, [fetchData]);
 
   const { total, todayAdded } = useMemo(() => {
     const all = Array.isArray(tasks) ? tasks : [];
-    const today = new Date();
+    const now = new Date();
     const addedToday = all.filter(
-      (t) => t.created_at && isSameDay(t.created_at, today)
+      (t) => t.created_at && isSameDay(t.created_at, now)
     ).length;
     return { total: all.length, todayAdded: addedToday };
   }, [tasks]);
 
-  /* ================= LOADING: KOTAK KOSONG + SHIMMER ================= */
+  /* LOADING */
   if (loading) {
     return (
       <>
@@ -130,9 +145,8 @@ export default function TotalTask({
             animation: gradia-shimmer-move 1.2s infinite;
             background-size: 200% 100%;
             pointer-events: none;
-            border-radius: 16px; /* rounded-2xl */
+            border-radius: 16px;
           }
-
           @keyframes gradia-shimmer-move {
             0% { transform: translateX(-100%); }
             100% { transform: translateX(100%); }
@@ -140,36 +154,22 @@ export default function TotalTask({
         `}</style>
 
         <div
-          className="relative rounded-2xl text-white shadow border border-white/5"
+          className={CARD_CLASS}
           role="status"
           aria-live="polite"
           aria-label="Loading total tasks..."
-          style={{
-            height: 254,
-            padding: 20,
-            backgroundImage: "linear-gradient(to bottom right, #34146C, #28073B)",
-            overflow: "hidden",
-          }}
+          style={{ ...CARD_STYLE, overflow: "hidden" }}
         >
-          {/* Full shimmer, isi kosong */}
           <div className="gradia-shimmer" />
         </div>
       </>
     );
   }
 
-  /* ================= ERROR STATE ================= */
+  /* ERROR */
   if (errMsg) {
     return (
-      <div
-        className="relative rounded-2xl text-white shadow border border-white/5"
-        style={{
-          height: 254,
-          padding: 20,
-          backgroundImage: "linear-gradient(to bottom right, #34146C, #28073B)",
-        }}
-      >
-        {/* Header */}
+      <div className={CARD_CLASS} style={CARD_STYLE}>
         <div className="flex items-center justify-between">
           <h3
             style={{
@@ -182,15 +182,26 @@ export default function TotalTask({
           </h3>
 
           <button
-            onClick={() => navigate("/tasks")}
+            onClick={() => nav("/tasks")}
             aria-label="Go to Tasks page"
             className="flex items-center justify-center rounded-full transition hover:brightness-90"
-            style={{ width: 32, height: 32, background: "#FAFAFA" }}
+            style={{
+              width: 32,
+              height: 32,
+              background: "#FAFAFA",
+              cursor: "pointer",
+            }}
           >
             <svg
-              xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-              viewBox="0 0 24 24" fill="none" stroke="#000000"
-              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#000000"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
               <path d="M7 17L17 7M7 7h10v10" />
             </svg>
@@ -201,8 +212,8 @@ export default function TotalTask({
           <p className="text-red-200 text-sm">{errMsg}</p>
           <button
             onClick={() => {
-              const controller = new AbortController();
-              fetchTasks(controller.signal);
+              const ctrl = new AbortController();
+              fetchData(ctrl.signal);
             }}
             className="mt-3 px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-sm"
           >
@@ -213,17 +224,9 @@ export default function TotalTask({
     );
   }
 
-  /* ================= NORMAL STATE ================= */
+  /* NORMAL */
   return (
-    <div
-      className="relative rounded-2xl text-white shadow border border-white/5"
-      style={{
-        height: 254,
-        padding: 20,
-        backgroundImage: "linear-gradient(to bottom right, #34146C, #28073B)",
-      }}
-    >
-      {/* Header */}
+    <div className={CARD_CLASS} style={CARD_STYLE}>
       <div className="flex items-center justify-between">
         <h3
           style={{
@@ -235,24 +238,33 @@ export default function TotalTask({
           Total Tasks
         </h3>
 
-        {/* Tombol navigasi ke /tasks */}
-      <button
-  onClick={() => navigate("/tasks")}
-  aria-label="Go to Tasks page"
-  className="flex items-center justify-center rounded-full transition hover:brightness-90"
-  style={{ width: 32, height: 32, background: "#FAFAFA", cursor: "pointer" }}
->
-  <svg
-    xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-    viewBox="0 0 24 24" fill="none" stroke="#000000"
-    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-  >
-    <path d="M7 17L17 7M7 7h10v10" />
-  </svg>
-</button>
+        <button
+          onClick={() => nav("/tasks")}
+          aria-label="Go to Tasks page"
+          className="flex items-center justify-center rounded-full transition hover:brightness-90"
+          style={{
+            width: 32,
+            height: 32,
+            background: "#FAFAFA",
+            cursor: "pointer",
+          }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#000000"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M7 17L17 7M7 7h10v10" />
+          </svg>
+        </button>
       </div>
 
-      {/* Angka total */}
       <div style={{ marginTop: 32 }}>
         <span
           style={{
@@ -266,7 +278,6 @@ export default function TotalTask({
         </span>
       </div>
 
-      {/* Keterangan bawah */}
       <p
         style={{
           marginTop: 32,
@@ -280,3 +291,9 @@ export default function TotalTask({
     </div>
   );
 }
+
+TotalTask.propTypes = {
+  apiUrl: PropTypes.string,
+  idWorkspace: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  queryParams: PropTypes.object,
+};

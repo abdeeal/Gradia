@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
+import PropTypes from "prop-types";
 import getPages from "@/lib/getPages";
 
 /* ===== Kolom (tanpa Room) ===== */
@@ -16,6 +17,7 @@ const toObjRecord = (r, idx) => {
   const dt = r.datetime || "";
   const date = r.date || dt.split(" ")[0] || "";
   const time = (r.time || dt.split(" ")[1] || "").replaceAll(".", ":");
+
   return {
     id: r.id ?? `obj_${idx}`,
     id_presence: r.id_presence,
@@ -38,12 +40,44 @@ const buildPageSizeOptions = (min = 5, maxLen = 100) => {
   const upper = Math.max(min, Math.ceil(Math.max(15, maxLen) / 5) * 5);
   const opts = [];
   let v = Math.max(5, min);
+
   while (v <= upper) {
     opts.push(v);
     v += 5;
   }
+
   return opts;
 };
+
+/* ===== CSS shimmer (dipisah supaya gak recreate tiap render) ===== */
+const SHIMMER_CSS = `
+  .presence-shimmer-row {
+    position: relative;
+    overflow: hidden;
+  }
+  .presence-shimmer-row .gradia-shimmer {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(
+      90deg,
+      rgba(15, 15, 15, 0) 0%,
+      rgba(63, 63, 70, 0.9) 50%,
+      rgba(15, 15, 15, 0) 100%
+    );
+    transform: translateX(-100%);
+    animation: gradia-shimmer-move 1.2s infinite;
+    background-size: 200% 100%;
+    pointer-events: none;
+  }
+  @keyframes gradia-shimmer-move {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+`;
 
 /**
  * PresenceTable
@@ -60,11 +94,13 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
   const [openSizeMenu, setOpenSizeMenu] = useState(false);
   const sizeMenuRef = useRef(null);
 
+  // klik di luar menu ukuran halaman
   useEffect(() => {
     const onClickOutside = (e) => {
       if (!sizeMenuRef.current) return;
       if (!sizeMenuRef.current.contains(e.target)) setOpenSizeMenu(false);
     };
+
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
@@ -86,6 +122,7 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
   );
   const totalPages = pages.length;
   const pageRows = pages[pageIndex] ?? [];
+
   const pageOptions = useMemo(
     () => buildPageSizeOptions(5, normalizedObjs.length),
     [normalizedObjs.length]
@@ -93,39 +130,13 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
 
   const pillFill = "bg-[rgba(124,111,111,0.2)]";
   const goPrev = () => setPageIndex((p) => Math.max(p - 1, 0));
-  const goNext = () => setPageIndex((p) => Math.min(p + 1, totalPages - 1));
+  const goNext = () =>
+    setPageIndex((p) => Math.min(p + 1, totalPages - 1));
 
   return (
     <div className="space-y-3">
       {/* ✅ CSS shimmer untuk skeleton */}
-      <style>{`
-        .presence-shimmer-row {
-          position: relative;
-          overflow: hidden;
-        }
-        .presence-shimmer-row .gradia-shimmer {
-          position: absolute;
-          inset: 0;
-          background-image: linear-gradient(
-            90deg,
-            rgba(15, 15, 15, 0) 0%,
-            rgba(63, 63, 70, 0.9) 50%,
-            rgba(15, 15, 15, 0) 100%
-          );
-          transform: translateX(-100%);
-          animation: gradia-shimmer-move 1.2s infinite;
-          background-size: 200% 100%;
-          pointer-events: none;
-        }
-        @keyframes gradia-shimmer-move {
-          0% {
-            transform: translateX(-100%);
-          }
-          100% {
-            transform: translateX(100%);
-          }
-        }
-      `}</style>
+      <style>{SHIMMER_CSS}</style>
 
       {/* Header bar */}
       <div className="flex items-center justify-between">
@@ -332,6 +343,12 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
       </div>
     </div>
   );
+};
+
+PresenceTable.propTypes = {
+  rows: PropTypes.arrayOf(PropTypes.object),
+  isLoading: PropTypes.bool,
+  onRowClick: PropTypes.func,
 };
 
 export default PresenceTable;

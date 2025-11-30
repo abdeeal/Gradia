@@ -1,7 +1,12 @@
 // src/pages/Tasks/components/TaskDetail.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback, // ⬅️ tambahan
+} from "react";
+import PropTypes from "prop-types";
 import gsap from "gsap";
-// ⛔ axios DIHAPUS – DB di-handle Tasks
 import { useAlert } from "@/hooks/useAlert";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
@@ -16,6 +21,7 @@ const toDateInput = (d) => {
   if (Number.isNaN(dt.getTime())) return "";
   return dt.toISOString().slice(0, 10);
 };
+
 const toTimeInput = (d, fallbackTime) => {
   if (fallbackTime) return fallbackTime;
   if (!d) return "";
@@ -25,6 +31,7 @@ const toTimeInput = (d, fallbackTime) => {
   const mm = String(dt.getMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
 };
+
 /* dd/mm/yyyy (untuk view) */
 const formatDateDDMMYYYY = (iso) => {
   if (!iso) return "";
@@ -33,11 +40,11 @@ const formatDateDDMMYYYY = (iso) => {
   return `${d}/${m}/${y}`;
 };
 
-/* ---------- Small timing helper ---------- */
+/* small timing helper */
 const wait = (ms) => new Promise((res) => setTimeout(res, ms));
 
 /* ---------- Title (2 baris) ---------- */
-const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
+const Title = ({ value, onChange, className, editable, onFocusOut }) => {
   if (!editable) {
     return (
       <div className={`font-inter ${className}`}>
@@ -85,6 +92,21 @@ const Title = ({ value, onChange, className = "", editable, onFocusOut }) => {
   );
 };
 
+Title.propTypes = {
+  value: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+  className: PropTypes.string,
+  editable: PropTypes.bool,
+  onFocusOut: PropTypes.func,
+};
+
+Title.defaultProps = {
+  value: "",
+  className: "",
+  editable: false,
+  onFocusOut: undefined,
+};
+
 /* ---------- Badge Styles ---------- */
 const BADGE_BASE =
   "inline-flex items-center justify-center h-[30px] rounded-[4px] text-[16px] font-[Montserrat] leading-none w-fit px-2";
@@ -96,7 +118,7 @@ const priorityValueClass = (val) => {
   return BADGE_BASE;
 };
 
-/* ---------- Status normalizer (kompatibel data lama) ---------- */
+/* ---------- Status normalizer ---------- */
 const normalizeStatus = (s) => {
   const m = String(s || "").trim().toLowerCase();
   if (m === "in progress" || m === "inprogress") return "In progress";
@@ -116,7 +138,7 @@ const statusValueClass = (val) => {
 };
 
 /* ---------- Row & Inputs ---------- */
-const Row = ({ icon, label, children, onClick, className = "" }) => (
+const Row = ({ icon, label, children, onClick, className }) => (
   <div
     className={`flex items-center gap-3 group h-[30px] ${
       onClick ? "cursor-pointer" : ""
@@ -133,15 +155,38 @@ const Row = ({ icon, label, children, onClick, className = "" }) => (
   </div>
 );
 
-const InputBase = ({ as = "input", className = "", onBlur, ...rest }) => {
-  const Comp = as;
-  return (
-    <Comp
-      {...rest}
-      onBlur={onBlur}
-      className={`h-[30px] w-full bg-transparent border-none outline-none text-gray-200 text-[16px] placeholder:text-gray-500 ${className}`}
-    />
-  );
+Row.propTypes = {
+  icon: PropTypes.string,
+  label: PropTypes.string.isRequired,
+  children: PropTypes.node.isRequired,
+  onClick: PropTypes.func,
+  className: PropTypes.string,
+};
+
+Row.defaultProps = {
+  icon: undefined,
+  onClick: undefined,
+  className: "",
+};
+
+const InputBase = ({ as: Comp, className, onBlur, ...rest }) => (
+  <Comp
+    {...rest}
+    onBlur={onBlur}
+    className={`h-[30px] w-full bg-transparent border-none outline-none text-gray-200 text-[16px] placeholder:text-gray-500 ${className}`}
+  />
+);
+
+InputBase.propTypes = {
+  as: PropTypes.elementType,
+  className: PropTypes.string,
+  onBlur: PropTypes.func,
+};
+
+InputBase.defaultProps = {
+  as: "input",
+  className: "",
+  onBlur: undefined,
 };
 
 const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
@@ -171,6 +216,18 @@ const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
   </div>
 );
 
+BadgeSelect.propTypes = {
+  value: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+  options: PropTypes.arrayOf(PropTypes.string).isRequired,
+  valueClassFn: PropTypes.func.isRequired,
+  label: PropTypes.string.isRequired,
+};
+
+BadgeSelect.defaultProps = {
+  value: "",
+};
+
 /* ---------- Courses helpers ---------- */
 const normalizeCourses = (list = []) =>
   list
@@ -189,7 +246,7 @@ const normalizeCourses = (list = []) =>
 
 const uniqBy = (arr, keyFn) => {
   const m = new Map();
-  for (const x of arr) m.set(keyFn(x), x);
+  arr.forEach((x) => m.set(keyFn(x), x));
   return Array.from(m.values());
 };
 
@@ -202,24 +259,24 @@ const seedCoursesFromTask = (task) => {
   return [{ id_courses: String(id), name }];
 };
 
+/* ---------- Main component ---------- */
 const TaskDetail = ({
   task,
   setDrawer,
-  refreshTasks, // dibiarkan untuk compat, tidak dipakai DB
+  refreshTasks,
   courses: coursesProp,
-  onTaskUpdated, // compat
-  onTaskDeleted, // compat
+  onTaskUpdated,
+  onTaskDeleted,
   onClose,
-  onSave, // ✅ parent (Tasks) update DB
-  onDelete, // ✅ parent (Tasks) delete DB
+  onSave,
+  onDelete,
 }) => {
   const { showAlert } = useAlert();
   const drawerRef = useRef(null);
-  const deadlineEditRef = useRef(null); // 🔹 ref khusus container edit deadline
+  const deadlineEditRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // ✅ gunakan helper global
   const idWorkspace = getWorkspaceId();
 
   const [form, setForm] = useState({
@@ -251,7 +308,14 @@ const TaskDetail = ({
   const [coursesFetched, setCoursesFetched] = useState(false);
   const [isCourseOpen, setIsCourseOpen] = useState(false);
 
-  const fetchCoursesOnce = async () => {
+  const setVal = (k, v) =>
+    setForm((p) => ({
+      ...p,
+      [k]: v,
+    }));
+
+  /* fetchCoursesOnce dibungkus useCallback agar stable untuk useEffect */
+  const fetchCoursesOnce = useCallback(async () => {
     if (coursesFetched || coursesFetching) return;
     setCoursesFetching(true);
     const t0 = Date.now();
@@ -277,29 +341,33 @@ const TaskDetail = ({
         const byName = list.find(
           (c) => String(c.name) === String(form.id_course)
         );
-        if (byName)
+        if (byName) {
           setForm((p) => ({ ...p, id_course: String(byName.id_courses) }));
+        }
       }
 
       setCoursesFetched(true);
     } catch {
-      // ignore
+      // ignore error, UI sama
     } finally {
       const elapsed = Date.now() - t0;
       if (elapsed < 1000) await wait(1000 - elapsed);
       setCoursesFetching(false);
     }
-  };
+  }, [
+    coursesFetched,
+    coursesFetching,
+    idWorkspace,
+    form.id_course, // dipakai di dalam function
+  ]);
 
   useEffect(() => {
     fetchCoursesOnce();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchCoursesOnce]);
 
   useEffect(() => {
     if (!task) return;
-    setForm((prev) => ({
-      ...prev,
+    setForm({
       id_task: task.id_task,
       title: task.title || "",
       description: task.description || "",
@@ -315,9 +383,8 @@ const TaskDetail = ({
       status: normalizeStatus(task.status) || "Not started",
       score: task.score ?? "",
       link: task.link || "",
-    }));
+    });
     setEditingKey(null);
-
     setCourses((prev) =>
       uniqBy([...prev, ...seedCoursesFromTask(task)], (c) =>
         String(c.id_courses)
@@ -325,7 +392,7 @@ const TaskDetail = ({
     );
   }, [task]);
 
-  /* ---------- GSAP drawer animation (fix target null) ---------- */
+  /* ---------- GSAP drawer animation ---------- */
   useEffect(() => {
     const el = drawerRef.current;
     if (!el) return;
@@ -345,8 +412,6 @@ const TaskDetail = ({
       });
     };
   }, []);
-
-  const setVal = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   const closeDrawer = () => {
     if (onClose) onClose();
@@ -378,13 +443,13 @@ const TaskDetail = ({
     }
 
     const combinedDeadline =
-      form.deadline ? new Date(`${form.deadline}T${form.time || "00:00"}`) : null;
+      form.deadline &&
+      new Date(`${form.deadline}T${form.time || "00:00"}`);
 
     const payload = {
       id_task: task.id_task,
       title: form.title,
       description: form.description || null,
-      // ⬇️ deadline dikirim sebagai ISO string (timestamptz)
       deadline: combinedDeadline ? combinedDeadline.toISOString() : null,
       priority: form.priority || null,
       status: normalizeStatus(form.status) || null,
@@ -398,7 +463,6 @@ const TaskDetail = ({
     };
 
     if (typeof onSave !== "function") {
-      console.warn("TaskDetail: onSave tidak diberikan, tidak mengirim ke DB.");
       return;
     }
 
@@ -407,7 +471,7 @@ const TaskDetail = ({
       const savePromise = onSave(payload);
       const [saveResult] = await Promise.allSettled([
         savePromise,
-        wait(1000), // min 1s UX
+        wait(1000),
       ]);
 
       if (saveResult.status === "rejected") {
@@ -429,8 +493,7 @@ const TaskDetail = ({
 
       setEditingKey(null);
       requestAnimationFrame(() => closeDrawer());
-    } catch (err) {
-      console.log(err?.response?.data || err?.message || err);
+    } catch {
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Error",
@@ -446,12 +509,10 @@ const TaskDetail = ({
 
   const handleDelete = async () => {
     if (!task?.id_task) return;
-    if (typeof onDelete !== "function") {
-      console.warn("TaskDetail: onDelete tidak diberikan, tidak mengirim ke DB.");
-      return;
-    }
+    if (typeof onDelete !== "function") return;
 
     const t0 = Date.now();
+
     try {
       setLoading(true);
 
@@ -471,8 +532,7 @@ const TaskDetail = ({
       });
 
       requestAnimationFrame(() => closeDrawer());
-    } catch (err) {
-      console.log(err?.response?.data || err?.message || err);
+    } catch {
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Error",
@@ -489,7 +549,7 @@ const TaskDetail = ({
     }
   };
 
-  // 🔹 nama course yang tampil di trigger
+  // nama course yang tampil di trigger
   const selectedCourseName =
     courses.find((c) => String(c.id_courses) === String(form.id_course))?.name ||
     task?.course?.name ||
@@ -501,7 +561,7 @@ const TaskDetail = ({
 
   if (!task) return null;
 
-  // 🔹 helper untuk onBlur khusus deadline: tutup edit hanya jika fokus keluar container
+  // onBlur khusus deadline
   const handleDeadlineBlur = () => {
     setTimeout(() => {
       if (!deadlineEditRef.current) return;
@@ -598,7 +658,7 @@ const TaskDetail = ({
                       type="date"
                       value={form.deadline}
                       onChange={(e) => setVal("deadline", e.target.value)}
-                      onBlur={handleDeadlineBlur} // 🔹 khusus deadline
+                      onBlur={handleDeadlineBlur}
                       placeholder="dd/mm/yyyy"
                       autoFocus
                     />
@@ -609,7 +669,7 @@ const TaskDetail = ({
                       type="time"
                       value={form.time}
                       onChange={(e) => setVal("time", e.target.value)}
-                      onBlur={handleDeadlineBlur} // 🔹 khusus deadline
+                      onBlur={handleDeadlineBlur}
                       placeholder="--:--"
                     />
                   </div>
@@ -714,7 +774,7 @@ const TaskDetail = ({
               </div>
             </Row>
 
-            <Row icon="ri-fire-line" label="Priority" cursor="pointer">
+            <Row icon="ri-fire-line" label="Priority">
               <BadgeSelect
                 value={form.priority}
                 onChange={(val) => setVal("priority", val)}
@@ -724,7 +784,7 @@ const TaskDetail = ({
               />
             </Row>
 
-            <Row icon="ri-loader-line" label="Status" cursor="pointer">
+            <Row icon="ri-loader-line" label="Status">
               <BadgeSelect
                 value={form.status}
                 onChange={(val) => setVal("status", normalizeStatus(val))}
@@ -829,6 +889,65 @@ const TaskDetail = ({
       )}
     </div>
   );
+};
+
+TaskDetail.propTypes = {
+  task: PropTypes.shape({
+    id_task: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    title: PropTypes.string,
+    description: PropTypes.string,
+    deadline: PropTypes.oneOfType([
+      PropTypes.string,
+      PropTypes.instanceOf(Date),
+    ]),
+    time: PropTypes.string,
+    id_course: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    relatedCourse: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    priority: PropTypes.string,
+    status: PropTypes.string,
+    score: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    link: PropTypes.string,
+    course: PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      name: PropTypes.string,
+    }),
+    course_name: PropTypes.string,
+  }),
+  setDrawer: PropTypes.func,
+  refreshTasks: PropTypes.func,
+  courses: PropTypes.arrayOf(
+    PropTypes.shape({
+      id_courses: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      id_course: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      course_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      courseId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      name: PropTypes.string,
+      title: PropTypes.string,
+      course_name: PropTypes.string,
+      label: PropTypes.string,
+      course: PropTypes.shape({
+        name: PropTypes.string,
+      }),
+    })
+  ),
+  onTaskUpdated: PropTypes.func,
+  onTaskDeleted: PropTypes.func,
+  onClose: PropTypes.func,
+  onSave: PropTypes.func,
+  onDelete: PropTypes.func,
+};
+
+TaskDetail.defaultProps = {
+  task: null,
+  setDrawer: undefined,
+  refreshTasks: undefined,
+  courses: [],
+  onTaskUpdated: undefined,
+  onTaskDeleted: undefined,
+  onClose: undefined,
+  onSave: undefined,
+  onDelete: undefined,
 };
 
 export default TaskDetail;

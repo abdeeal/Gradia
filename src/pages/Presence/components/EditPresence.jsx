@@ -1,113 +1,121 @@
 // src/pages/Presence/components/EditPresence.jsx
 import React, { useState, useEffect } from "react";
+import PropTypes from "prop-types";
 import { createPortal } from "react-dom";
 import { useAlert } from "@/hooks/useAlert";
-import { getRoom, peekRoom, setRoom as cacheSetRoom } from "@/utils/coursesRoomCache";
+import { getRoom, peekRoom, setRoom as setRoomCache } from "@/utils/coursesRoomCache";
 
-/** "DD/MM/YYYY HH:MM:SS" -> "DD/MM/YY" & "HH:MM:SS" (fallback ISO) */
-const formatDDMMYY_HHMMSS = (dtStr) => {
-  if (!dtStr) return { d: "—", t: "" };
-  if (dtStr.includes("/")) {
-    const [dpart, tpart = ""] = dtStr.split(" ");
-    const [dd = "—", mm = "—", yyyy = ""] = dpart.split("/");
+/* ---------- Helpers ---------- */
+
+// "DD/MM/YYYY HH:MM:SS" -> { d: "DD/MM/YY", t: "HH:MM:SS" } (fallback ISO)
+const fmtDt = (val) => {
+  if (!val) return { d: "—", t: "" };
+
+  if (val.includes("/")) {
+    const [dPart, tPart = ""] = val.split(" ");
+    const [dd = "—", mm = "—", yyyy = ""] = dPart.split("/");
     const yy = yyyy ? String(yyyy).slice(-2) : "—";
-    return { d: `${dd}/${mm}/${yy}`, t: tpart || "" };
+    return { d: `${dd}/${mm}/${yy}`, t: tPart || "" };
   }
+
   try {
-    const d = new Date(dtStr.replace(" ", "T"));
-    if (isNaN(d)) throw new Error("bad date");
+    const dt = new Date(val.replace(" ", "T"));
+    if (Number.isNaN(dt.getTime())) throw new Error("bad date");
+
     const pad = (n) => String(n).padStart(2, "0");
-    const dd = pad(d.getDate());
-    const mm = pad(d.getMonth() + 1);
-    const yy = String(d.getFullYear()).slice(-2);
-    const hh = pad(d.getHours());
-    const mi = pad(d.getMinutes());
-    const ss = pad(d.getSeconds());
+
+    const dd = pad(dt.getDate());
+    const mm = pad(dt.getMonth() + 1);
+    const yy = String(dt.getFullYear()).slice(-2);
+    const hh = pad(dt.getHours());
+    const mi = pad(dt.getMinutes());
+    const ss = pad(dt.getSeconds());
+
     return { d: `${dd}/${mm}/${yy}`, t: `${hh}:${mi}:${ss}` };
   } catch {
     return { d: "—", t: "" };
   }
 };
 
-const normStatus = (s) => {
-  const v = String(s || "").trim().toLowerCase();
+const norm = (val) => {
+  const v = String(val || "").trim().toLowerCase();
   return v === "presence" ? "present" : v;
 };
 
+/* ---------- Component ---------- */
+
 const EditPresence = ({
-  record,                 // { id, id_presence, courseId?, id_course?, courseTitle, datetime, status, note, room? }
+  record, // { id, id_presence, courseId?, id_course?, courseTitle, datetime, status, note, room?, timeRange? }
   onClose,
   onSave,
   onAppendLog,
-  contentPaddingLeft = 272,
+  contentPaddingLeft: padLeft = 272,
 }) => {
   const { showAlert } = useAlert();
 
-  const [status, setStatus] = useState(record?.status || "");
+  const [stat, setStat] = useState(record?.status || "");
   const [note, setNote] = useState(record?.note || "");
-  const idForCourse = record?.id_course ?? record?.courseId ?? null;
+
+  const cid = record?.id_course ?? record?.courseId ?? null;
 
   // Room hanya info (tidak diedit), tapi tetap diambil dari record/cache/server
-  const [courseRoom, setCourseRoom] = useState(
-    () => record?.room ?? (idForCourse ? peekRoom(idForCourse) : "") ?? ""
+  const [room, setRoom] = useState(
+    () => record?.room ?? (cid ? peekRoom(cid) : "") ?? ""
   );
-  const [loadingCourse, setLoadingCourse] = useState(!courseRoom && !!idForCourse);
+  const [roomLoading, setRoomLoading] = useState(!room && !!cid);
 
+  /* Sync ketika record berubah */
   useEffect(() => {
-    setStatus(record?.status || "");
+    setStat(record?.status || "");
     setNote(record?.note || "");
 
-    const fresh = record?.room ?? (idForCourse ? peekRoom(idForCourse) : "") ?? "";
-    setCourseRoom(fresh);
-    setLoadingCourse(!fresh && !!idForCourse);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [record?.id]);
+    const cachedRoom = record?.room ?? (cid ? peekRoom(cid) : "") ?? "";
+    setRoom(cachedRoom);
+    setRoomLoading(!cachedRoom && !!cid);
+  }, [record, cid]);
 
-  // Revalidate room di background (tanpa merusak UX)
+  /* Revalidate room di background */
   useEffect(() => {
-    if (idForCourse == null) {
-      setCourseRoom("");
-      setLoadingCourse(false);
+    if (cid == null) {
+      setRoom("");
+      setRoomLoading(false);
       return;
     }
+
     let ignore = false;
     const ac = new AbortController();
 
-    const cached = peekRoom(idForCourse);
+    const cached = peekRoom(cid);
     if (cached != null) {
-      setCourseRoom(cached);
-      setLoadingCourse(false);
+      setRoom(cached);
+      setRoomLoading(false);
     }
 
-    getRoom(idForCourse, { signal: ac.signal })
-      .then((room) => {
-        if (!ignore) setCourseRoom(room || "");
+    getRoom(cid, { signal: ac.signal })
+      .then((r) => {
+        if (!ignore) setRoom(r || "");
       })
       .catch(() => {})
       .finally(() => {
-        if (!ignore) setLoadingCourse(false);
+        if (!ignore) setRoomLoading(false);
       });
 
     return () => {
       ignore = true;
       ac.abort();
     };
-  }, [idForCourse]);
+  }, [cid]);
 
-  const isPresence = normStatus(status) === "present";
-  const isAbsent = normStatus(status) === "absent";
+  const isPresent = norm(stat) === "present";
+  const isAbsent = norm(stat) === "absent";
 
-  const courseTitle = record?.courseTitle || "—";
-  const { d: dateShort, t: timeFull } = formatDDMMYY_HHMMSS(record?.datetime);
+  const title = record?.courseTitle || "—";
+  const { d: dateShort, t: timeFull } = fmtDt(record?.datetime);
 
-  // 🚀 Versi super cepat:
-  // - validasi
-  // - tutup popup
-  // - langsung show alert sukses (optimistic)
-  // - jalankan onSave di background, kalau gagal → timpa dengan alert error
-  const submit = () => {
-    const normalized = normStatus(status);
-    if (normalized !== "present" && normalized !== "absent") {
+  const save = () => {
+    const n = norm(stat);
+
+    if (n !== "present" && n !== "absent") {
       showAlert({
         icon: "ri-error-warning-fill",
         title: "Pilih status dulu",
@@ -119,26 +127,25 @@ const EditPresence = ({
       return;
     }
 
-    const finalStatus = normalized === "absent" ? "Absent" : "Present";
+    const finalStatus = n === "absent" ? "Absent" : "Present";
 
-    const updated = {
+    const data = {
       ...record,
       id_presence: record?.id_presence || record?.id,
       courseId: record?.courseId ?? record?.id_course,
       status: finalStatus,
       note,
-      room: courseRoom, // hanya info, tidak ada input untuk ubah
+      room, // hanya info, tidak ada input untuk ubah
     };
 
-    // simpan ke cache supaya buka ulang langsung tampil
-    if (updated.courseId != null) {
-      cacheSetRoom(updated.courseId, courseRoom);
+    if (data.courseId != null) {
+      setRoomCache(data.courseId, room);
     }
 
-    // 🔥 1) Tutup popup dulu supaya langsung hilang
+    // Tutup popup dulu
     onClose?.();
 
-    // 🔥 2) TAMPILKAN alert sukses SECARA OPTIMISTIK (instan)
+    // Alert sukses (optimistic)
     showAlert({
       icon: "ri-checkbox-circle-fill",
       title: "Updated",
@@ -148,12 +155,11 @@ const EditPresence = ({
       height: 380,
     });
 
-    // 🔥 3) Proses simpan ke server di background
+    // Simpan ke server di background
     (async () => {
       try {
-        const ok = (await onSave?.(updated)) ?? true;
+        const ok = (await onSave?.(data)) ?? true;
 
-        // kalau backend bilang gagal → timpa dengan alert error
         if (!ok) {
           showAlert({
             icon: "ri-error-warning-fill",
@@ -173,21 +179,17 @@ const EditPresence = ({
             loggedAt: now.toISOString(),
             loggedAtReadable: `${now.toLocaleDateString()} ${now.toLocaleTimeString(
               [],
-              {
-                hour: "2-digit",
-                minute: "2-digit",
-              }
+              { hour: "2-digit", minute: "2-digit" }
             )}`,
-            courseId: updated.courseId,
-            courseTitle: updated.courseTitle,
-            room: courseRoom,
-            status: updated.status,
-            note: updated.note,
+            courseId: data.courseId,
+            courseTitle: data.courseTitle,
+            room,
+            status: data.status,
+            note: data.note,
             timeRange: record?.timeRange,
           });
         }
-      } catch (err) {
-        // kalau network / error lain → juga timpa dengan alert error
+      } catch {
         showAlert({
           icon: "ri-error-warning-fill",
           title: "Error",
@@ -206,12 +208,12 @@ const EditPresence = ({
     <>
       <div
         className="fixed inset-0 z-50 bg-black/60"
-        style={{ paddingLeft: contentPaddingLeft }}
+        style={{ paddingLeft: padLeft }}
         onClick={onClose}
       />
       <div
         className="fixed inset-0 z-[51] pointer-events-none"
-        style={{ paddingLeft: contentPaddingLeft }}
+        style={{ paddingLeft: padLeft }}
       >
         <div className="h-full w-full flex items-center justify-center">
           <div
@@ -239,10 +241,10 @@ const EditPresence = ({
               {/* Course & Room */}
               <div className="mt-0">
                 <h3 className="font-[Montserrat] text-white font-medium leading-snug truncate">
-                  {courseTitle}
+                  {title}
                 </h3>
                 <p className="text-sm text-foreground-secondary font-[Montserrat]">
-                  {loadingCourse ? "…" : courseRoom || "—"}
+                  {roomLoading ? "…" : room || "—"}
                 </p>
               </div>
 
@@ -270,17 +272,17 @@ const EditPresence = ({
               <div className="mt-4 flex gap-3 justify-start">
                 <button
                   type="button"
-                  onClick={() => setStatus("Present")}
+                  onClick={() => setStat("Present")}
                   className={`flex items-center ${
-                    isPresence ? "justify-start pl-2.5" : "justify-center"
+                    isPresent ? "justify-start pl-2.5" : "justify-center"
                   } gap-1.5 px-2.5 h-[34px] rounded-lg border transition-colors font-inter text-[14px] min-w-[120px] cursor-pointer
                     ${
-                      isPresence
+                      isPresent
                         ? "bg-[#22C55E]/20 border-[#22C55E]/30"
                         : "bg-[#1b1b1b] border-[#2c2c2c] hover:bg-[#242424]"
                     }`}
                 >
-                  {isPresence && (
+                  {isPresent && (
                     <i
                       className="ri-check-line text-sm"
                       style={{ color: "#00A13E" }}
@@ -288,7 +290,7 @@ const EditPresence = ({
                   )}
                   <span
                     className={`${
-                      isPresence ? "text-[#4ADE80]" : "text-zinc-300"
+                      isPresent ? "text-[#4ADE80]" : "text-zinc-300"
                     } leading-none`}
                   >
                     Present
@@ -297,7 +299,7 @@ const EditPresence = ({
 
                 <button
                   type="button"
-                  onClick={() => setStatus("Absent")}
+                  onClick={() => setStat("Absent")}
                   className={`flex items-center ${
                     isAbsent ? "justify-start pl-2.5" : "justify-center"
                   } gap-1.5 px-2.5 h-[34px] rounded-lg border transition-colors font-inter text-[14px] min-w-[100px] cursor-pointer
@@ -337,7 +339,7 @@ const EditPresence = ({
               {/* Submit */}
               <div className="mt-8 flex justify-end">
                 <button
-                  onClick={submit}
+                  onClick={save}
                   className="inline-flex items-center gap-2 pl-4 pr-4 h-9 rounded-md text-sm font-[Montserrat]
                              bg-[linear-gradient(to_right,#34146C,#28073B)] hover:brightness-110 transition cursor-pointer"
                 >
@@ -352,6 +354,30 @@ const EditPresence = ({
     </>,
     document.body
   );
+};
+
+/* ---------- PropTypes ---------- */
+
+EditPresence.propTypes = {
+  record: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    id_presence: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    courseId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    id_course: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    courseTitle: PropTypes.string,
+    datetime: PropTypes.oneOfType([
+      PropTypes.string,
+      PropTypes.instanceOf(Date),
+    ]),
+    status: PropTypes.string,
+    note: PropTypes.string,
+    room: PropTypes.string,
+    timeRange: PropTypes.string,
+  }),
+  onClose: PropTypes.func,
+  onSave: PropTypes.func,
+  onAppendLog: PropTypes.func,
+  contentPaddingLeft: PropTypes.number,
 };
 
 export default EditPresence;

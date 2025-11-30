@@ -1,138 +1,152 @@
 import React, { useEffect, useMemo, useState } from "react";
+import PropTypes from "prop-types";
 
-const MIN_SKELETON_MS = 200; // skeleton minimal 6 detik
+const MIN_SKEL_MS = 200;
+
+/* Helpers umum */
+const getWsId = () => {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      const v = Number(window.sessionStorage.getItem("id_workspace"));
+      return Number.isFinite(v) && v > 0 ? v : 1;
+    }
+  } catch (err) {
+    void err; // biar eslint diam
+  }
+  return 1;
+};
+
+const keyfy = (v) => {
+  if (v === null || v === undefined) return "";
+  const s = typeof v === "number" ? String(v) : String(v);
+  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "");
+};
+
+const getStatus = (t) => {
+  if (!t) return "";
+
+  if (t.status && typeof t.status === "object" && "name" in t.status) {
+    return t.status.name;
+  }
+  if (t.status !== undefined) return t.status;
+  if (t.statusId !== undefined) return t.statusId;
+
+  if (t.state && typeof t.state === "object" && "name" in t.state) {
+    return t.state.name;
+  }
+  if (t.state !== undefined) return t.state;
+
+  if (t.status_name !== undefined) return t.status_name;
+
+  return "";
+};
+
+const getId = (t) => t?.id?.task ?? t?.id_task ?? t?.task_id ?? t?.id ?? null;
+
+/* Status base */
+const NOT_BASE = [
+  "not started",
+  "not_started",
+  "not-started",
+  "todo",
+  "to do",
+  "pending",
+  "backlog",
+  "new",
+  "open",
+  "ready",
+  "queued",
+  "created",
+  "belummulai",
+  0,
+  "0",
+];
+
+const PROG_BASE = [
+  "in progress",
+  "in_progress",
+  "in-progress",
+  "on progress",
+  "ongoing",
+  "processing",
+  "doing",
+  "wip",
+  "progress",
+  "started",
+  "active",
+  "sedangdikerjakan",
+  1,
+  "1",
+];
+
+const DONE_BASE = [
+  "completed",
+  "complete",
+  "done",
+  "finished",
+  "closed",
+  "resolved",
+  "selesai",
+  2,
+  "2",
+];
+
+const OVERDUE_BASE = [
+  "overdue",
+  "late",
+  "terlambat",
+  "jatuh tempo",
+  "lewat jatuh tempo",
+  3,
+  "3",
+];
 
 export default function TaskSummary({
   tasks = [],
   taskIds = null,
   apiUrl = "/api/tasks",
   queryParams = null,
-  idWorkspace = null, // opsional override
+  idWorkspace = null,
 }) {
   const [remoteTasks, setRemoteTasks] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // ==== Ambil idWorkspace dari sessionStorage (SSR/CSR-safe) ====
-  const sessionIdWorkspace = React.useMemo(() => {
-    try {
-      if (typeof window !== "undefined" && window.sessionStorage) {
-        const v = Number(window.sessionStorage.getItem("id_workspace"));
-        return Number.isFinite(v) && v > 0 ? v : 1;
-      }
-    } catch {}
-    return 1;
-  }, []);
+  const wsId = useMemo(() => getWsId(), []);
 
-  // ==== Helper normalisasi ====
-  const keyfy = (v) => {
-    if (v === null || v === undefined) return "";
-    const s = typeof v === "number" ? String(v) : String(v);
-    return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "");
-  };
+  const NOT_KEYS = useMemo(() => new Set(NOT_BASE.map(keyfy)), []);
+  const PROG_KEYS = useMemo(() => new Set(PROG_BASE.map(keyfy)), []);
+  const DONE_KEYS = useMemo(() => new Set(DONE_BASE.map(keyfy)), []);
+  const OVERDUE_KEYS = useMemo(() => new Set(OVERDUE_BASE.map(keyfy)), []);
 
-  const extractStatus = (t) => {
-    if (!t) return "";
-    if (t.status && typeof t.status === "object" && "name" in t.status) return t.status.name;
-    if (t.status !== undefined) return t.status;
-    if (t.statusId !== undefined) return t.statusId;
-    if (t.state && typeof t.state === "object" && "name" in t.state) return t.state.name;
-    if (t.state !== undefined) return t.state;
-    if (t.status_name !== undefined) return t.status_name;
-    return "";
-  };
+  const queryObj = useMemo(() => {
+    const hasWs =
+      queryParams &&
+      Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace");
 
-  const extractId = (t) => t?.id?.task ?? t?.id_task ?? t?.task_id ?? t?.id ?? null;
+    const ws = hasWs ? undefined : idWorkspace ?? wsId;
+    const base = ws != null ? { idWorkspace: ws } : {};
 
-  // ==== Kumpulan kunci status ====
-  const NOT_STARTED_KEYS = useMemo(
-    () =>
-      new Set(
-        [
-          "not started",
-          "not_started",
-          "not-started",
-          "todo",
-          "to do",
-          "pending",
-          "backlog",
-          "new",
-          "open",
-          "ready",
-          "queued",
-          "created",
-          "belummulai",
-          0,
-          "0",
-        ].map(keyfy)
-      ),
-    []
-  );
+    return {
+      ...base,
+      ...(queryParams || {}),
+    };
+  }, [queryParams, idWorkspace, wsId]);
 
-  const INPROGRESS_KEYS = useMemo(
-    () =>
-      new Set(
-        [
-          "in progress",
-          "in_progress",
-          "in-progress",
-          "on progress",
-          "ongoing",
-          "processing",
-          "doing",
-          "wip",
-          "progress",
-          "started",
-          "active",
-          "sedangdikerjakan",
-          1,
-          "1",
-        ].map(keyfy)
-      ),
-    []
-  );
-
-  const COMPLETED_KEYS = useMemo(
-    () =>
-      new Set(
-        ["completed", "complete", "done", "finished", "closed", "resolved", "selesai", 2, "2"].map(
-          keyfy
-        )
-      ),
-    []
-  );
-
-  const OVERDUE_KEYS = useMemo(
-    () =>
-      new Set(
-        ["overdue", "late", "terlambat", "jatuh tempo", "lewat jatuh tempo", 3, "3"].map(keyfy)
-      ),
-    []
-  );
-
-  // ==== Gabung query params (priority: queryParams > prop idWorkspace > session) ====
-  const mergedQuery = useMemo(() => {
-    const hasQP =
-      !!(queryParams && Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace"));
-    const effective = hasQP ? undefined : idWorkspace ?? sessionIdWorkspace;
-    const base = effective != null ? { idWorkspace: effective } : {};
-    return { ...base, ...(queryParams || {}) };
-  }, [queryParams, idWorkspace, sessionIdWorkspace]);
-
-  const queryString = useMemo(() => {
-    const entries = Object.entries(mergedQuery).filter(
+  const qs = useMemo(() => {
+    const entries = Object.entries(queryObj).filter(
       ([, v]) => v !== undefined && v !== null && v !== ""
     );
-    if (entries.length === 0) return "";
-    return (
-      "?" +
-      entries
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-        .join("&")
-    );
-  }, [mergedQuery]);
 
-  // ==== Fetch jika props.tasks kosong ====
+    if (!entries.length) return "";
+
+    const str = entries
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+      .join("&");
+
+    return `?${str}`;
+  }, [queryObj]);
+
   useEffect(() => {
     if (tasks && tasks.length > 0) {
       setRemoteTasks(null);
@@ -142,29 +156,40 @@ export default function TaskSummary({
     }
 
     const ctrl = new AbortController();
+    const start = Date.now();
+
     setLoading(true);
     setErr("");
-    const startTime = Date.now();
 
     (async () => {
       try {
-        const resp = await fetch(`${apiUrl}${queryString}`, {
+        const resp = await fetch(`${apiUrl}${qs}`, {
           headers: { Accept: "application/json" },
           signal: ctrl.signal,
         });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+
         const data = await resp.json();
-        setRemoteTasks(Array.isArray(data) ? data : data?.data || []);
+        const list = Array.isArray(data) ? data : data?.data || [];
+        setRemoteTasks(list);
       } catch (e) {
-        if (e.name !== "AbortError") setErr(e?.message || "Gagal memuat tasks");
+        if (e?.name !== "AbortError") {
+          setErr(e?.message || "Gagal memuat tasks");
+        }
       } finally {
-        const endTime = Date.now();
-        const elapsed = endTime - startTime;
+        const elapsed = Date.now() - start;
+
         const finish = () => {
-          if (!ctrl.signal.aborted) setLoading(false);
+          if (!ctrl.signal.aborted) {
+            setLoading(false);
+          }
         };
-        if (elapsed < MIN_SKELETON_MS) {
-          setTimeout(finish, MIN_SKELETON_MS - elapsed);
+
+        if (elapsed < MIN_SKEL_MS) {
+          setTimeout(finish, MIN_SKEL_MS - elapsed);
         } else {
           finish();
         }
@@ -172,29 +197,31 @@ export default function TaskSummary({
     })();
 
     return () => ctrl.abort();
-  }, [apiUrl, queryString, tasks?.length]);
+  }, [apiUrl, qs, tasks?.length]);
 
-  // ==== Sumber data final ====
-  const sourceTasks = useMemo(() => {
+  const srcTasks = useMemo(() => {
     const base = tasks && tasks.length > 0 ? tasks : remoteTasks || [];
+
     if (!taskIds || taskIds.length === 0) return base;
+
     const allow = new Set(taskIds.map((x) => String(x)));
+
     return base.filter((t) => {
-      const id = extractId(t);
+      const id = getId(t);
       return id != null && allow.has(String(id));
     });
   }, [tasks, remoteTasks, taskIds]);
 
-  // ==== Ringkasan ====
-  const summary = useMemo(() => {
-    let pending = 0,
-      inProgress = 0,
-      completed = 0;
+  const sum = useMemo(() => {
+    let pend = 0;
+    let prog = 0;
+    let done = 0;
+
     const seen = new Set();
 
-    for (const t of sourceTasks) {
-      const id = extractId(t);
-      const raw = extractStatus(t);
+    for (const t of srcTasks) {
+      const id = getId(t);
+      const raw = getStatus(t);
       const k = keyfy(raw);
 
       if (id != null) {
@@ -203,25 +230,23 @@ export default function TaskSummary({
         seen.add(sid);
       }
 
-      if (COMPLETED_KEYS.has(k)) completed++;
-      else if (INPROGRESS_KEYS.has(k)) inProgress++;
-      else if (OVERDUE_KEYS.has(k)) pending++;
-      else if (NOT_STARTED_KEYS.has(k)) pending++;
-      else pending++;
+      if (DONE_KEYS.has(k)) done += 1;
+      else if (PROG_KEYS.has(k)) prog += 1;
+      else if (OVERDUE_KEYS.has(k)) pend += 1;
+      else if (NOT_KEYS.has(k)) pend += 1;
+      else pend += 1;
     }
 
-    return { pending, inProgress, completed };
-  }, [sourceTasks, COMPLETED_KEYS, INPROGRESS_KEYS, OVERDUE_KEYS, NOT_STARTED_KEYS]);
+    return { pending: pend, inProgress: prog, completed: done };
+  }, [srcTasks, DONE_KEYS, PROG_KEYS, OVERDUE_KEYS, NOT_KEYS]);
 
-  // ==== UI (dipertahankan) ====
   const cards = [
-    { label: "Tasks Pending", value: summary.pending, width: 231, high: 177 },
-    { label: "Tasks On Progress", value: summary.inProgress, width: 251, high: 177 },
-    { label: "Tasks Completed", value: summary.completed, width: 231, high: 177 },
+    { label: "Tasks Pending", value: sum.pending, width: 231 },
+    { label: "Tasks On Progress", value: sum.inProgress, width: 251 },
+    { label: "Tasks Completed", value: sum.completed, width: 231 },
   ];
 
   if (loading) {
-    // 🔹 Loading: kotak kosong + shimmer, ukuran sama persis dengan card normal
     return (
       <>
         <style>{`
@@ -262,7 +287,7 @@ export default function TaskSummary({
               key={idx}
               style={{
                 width: `${card.width}px`,
-                height: "161px", // sama persis dengan kartu normal
+                height: "161px",
                 fontFamily: "Montserrat, sans-serif",
                 borderColor: "rgba(70,70,70,0.5)",
                 backgroundImage: "linear-gradient(to bottom, #070707, #141414)",
@@ -271,10 +296,7 @@ export default function TaskSummary({
               }}
               className="rounded-2xl border bg-clip-padding"
             >
-              {/* shimmer overlay */}
               <div className="gradia-shimmer" />
-
-              {/* isi kosong, nggak ada text / angka */}
             </div>
           ))}
         </div>
@@ -305,7 +327,9 @@ export default function TaskSummary({
           className="rounded-2xl border bg-clip-padding"
         >
           <div className="h-full p-5 flex flex-col items-start text-left">
-            <p className="text-white text-[20px] leading-none font-semibold">{card.label}</p>
+            <p className="text-white text-[20px] leading-none font-semibold">
+              {card.label}
+            </p>
             <span className="mt-4 text-[#FFEB3B] text-[64px] leading-none font-bold">
               {card.value}
             </span>
@@ -315,3 +339,11 @@ export default function TaskSummary({
     </div>
   );
 }
+
+TaskSummary.propTypes = {
+  tasks: PropTypes.array,
+  taskIds: PropTypes.array,
+  apiUrl: PropTypes.string,
+  queryParams: PropTypes.object,
+  idWorkspace: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+};

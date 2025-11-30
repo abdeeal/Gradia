@@ -1,70 +1,79 @@
+// src/pages/Tasks/components/TaskCard.jsx
 import React from "react";
+import PropTypes from "prop-types";
+
+/* ===== Helpers ===== */
+
+// format "DD Mon YYYY" (pakai locale en-GB)
+const fmtDate = (value) => {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value || "";
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+// normalisasi teks status biar konsisten
+const normStat = (value) => {
+  const s = String(value || "").trim().toLowerCase();
+
+  if (s === "in progress" || s === "inprogress") return "In progress";
+  if (s === "not started" || s === "notstarted") return "Not started";
+  if (s === "completed") return "Completed";
+  if (s === "overdue") return "Overdue";
+
+  return value || "Not started";
+};
+
+// mapping warna badge (priority & status)
+const badgeCls = (type) => {
+  switch (type) {
+    case "High":
+    case "Overdue":
+      return { bg: "bg-[#EF4444]/20", text: "text-[#F87171]" };
+    case "Medium":
+      return { bg: "bg-[#EAB308]/25", text: "text-[#FDE047]" };
+    case "Not started":
+      return { bg: "bg-[#6B7280]/20", text: "text-[#D4D4D8]" };
+    case "In progress":
+      return { bg: "bg-[#06B6D4]/20", text: "text-[#22D3EE]" };
+    case "Completed":
+      return { bg: "bg-[#22C55E]/20", text: "text-[#4ADE80]" };
+    default:
+      return { bg: "bg-[#6B7280]/20", text: "text-[#D4D4D8]" };
+  }
+};
+
+// warna bulatan kecil di kiri waktu
+const dotCls = (statusLabel) => {
+  switch (statusLabel) {
+    case "In progress":
+      return "bg-[#22D3EE]";
+    case "Completed":
+      return "bg-[#4ADE80]";
+    case "Overdue":
+      return "bg-[#F87171]";
+    default:
+      return "bg-gray-400";
+  }
+};
 
 const TaskCard = ({
-  color,
   title,
-  course,        // nama mata kuliah
-  relatedCourse, // course tambahan di antara judul & deskripsi
-  description,   // deskripsi tugas
+  relatedCourse, // course tambahan antara judul & deskripsi
+  description, // deskripsi tugas
   priority,
   status,
   deadline,
   time,
   onClick,
 }) => {
-  // Format tanggal
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    if (isNaN(date)) return dateStr || "";
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  // --- Normalizer status (kompatibel data lama) ---
-  const normalizeStatus = (s) => {
-    const m = String(s || "").trim().toLowerCase();
-    if (m === "in progress" || m === "inprogress") return "In progress";
-    if (m === "not started" || m === "notstarted") return "Not started";
-    if (m === "completed") return "Completed";
-    if (m === "overdue") return "Overdue";
-    return s || "Not started";
-  };
-
-  const normStatus = normalizeStatus(status);
-
-  // Warna badge (tetap sama seperti sebelumnya)
-  const getColors = (type) => {
-    switch (type) {
-      case "High":
-      case "Overdue":
-        return { bg: "bg-[#EF4444]/20", text: "text-[#F87171]" };
-      case "Medium":
-        return { bg: "bg-[#EAB308]/25", text: "text-[#FDE047]" };
-      case "Not started":
-        return { bg: "bg-[#6B7280]/20", text: "text-[#D4D4D8]" };
-      case "In progress":
-        return { bg: "bg-[#06B6D4]/20", text: "text-[#22D3EE]" };
-      case "Completed":
-        return { bg: "bg-[#22C55E]/20", text: "text-[#4ADE80]" };
-      default:
-        return { bg: "bg-[#6B7280]/20", text: "text-[#D4D4D8]" };
-    }
-  };
-
-  const priorityColor = getColors(priority);
-  const statusColor = getColors(normStatus);
-
-  const circleColor =
-    normStatus === "In progress"
-      ? "bg-[#22D3EE]"
-      : normStatus === "Completed"
-      ? "bg-[#4ADE80]"
-      : normStatus === "Overdue"
-      ? "bg-[#F87171]"
-      : "bg-gray-400";
+  const statLabel = normStat(status);
+  const prioColor = badgeCls(priority);
+  const statColor = badgeCls(statLabel);
+  const circleColor = dotCls(statLabel);
 
   return (
     <div
@@ -78,13 +87,11 @@ const TaskCard = ({
         />
         <div className="flex items-center gap-1 text-foreground-secondary">
           {deadline && (
-            <span className="text-[16px]">
-              {formatDate(deadline)}
-            </span>
+            <span className="text-[16px]">{fmtDate(deadline)}</span>
           )}
           {time && (
-            <span className="">
-              {deadline ? "• " : "text-[16px]"}
+            <span className="text-[16px]">
+              {deadline && "• "}
               {time}
             </span>
           )}
@@ -123,18 +130,36 @@ const TaskCard = ({
       {/* === Frame 3: Keterangan (Priority & Progress kiri bawah) === */}
       <div className="flex items-center gap-[8px]">
         <span
-          className={`text-[16px] px-[10px] py-[4px] rounded-md font-medium ${priorityColor.bg} ${priorityColor.text}`}
+          className={`text-[16px] px-[10px] py-[4px] rounded-md font-medium ${prioColor.bg} ${prioColor.text}`}
         >
           {priority}
         </span>
         <span
-          className={`text-[16px] px-[10px] py-[4px] rounded-md font-medium ${statusColor.bg} ${statusColor.text}`}
+          className={`text-[16px] px-[10px] py-[4px] rounded-md font-medium ${statColor.bg} ${statColor.text}`}
         >
-          {normStatus}
+          {statLabel}
         </span>
       </div>
     </div>
   );
+};
+
+TaskCard.propTypes = {
+  // masih boleh dikirim dari luar walaupun tidak dipakai di UI
+  color: PropTypes.string,
+  course: PropTypes.string,
+
+  title: PropTypes.string,
+  relatedCourse: PropTypes.string,
+  description: PropTypes.string,
+  priority: PropTypes.string,
+  status: PropTypes.string,
+  deadline: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.instanceOf(Date),
+  ]),
+  time: PropTypes.string,
+  onClick: PropTypes.func,
 };
 
 export default TaskCard;
