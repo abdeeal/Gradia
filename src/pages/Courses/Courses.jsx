@@ -105,7 +105,6 @@ const toApiCourse = (ui) => {
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 // shimmer config
-const SKELETON_CARD_H = 140;
 const SKELETON_PER_DAY = 1;
 
 export const Courses = () => {
@@ -117,7 +116,6 @@ export const Courses = () => {
 
   const drawerRef = useRef(null);
   const headerRef = useRef(null);
-  const gridRef = useRef(null);
 
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
@@ -317,29 +315,32 @@ export const Courses = () => {
 
   return (
     // gap-6 = 24px antara Sidebar dan konten (sesuai revisi)
-    <div className="flex min-h-screen w-full bg-background text-foreground font-inter relative overflow-hidden gap-[0px]">
+    <div className="relative flex min-h-screen w-full overflow-hidden bg-background font-inter text-foreground gap-[0px]">
       <ShimmerStyles />
       <Sidebar />
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 bg-background px-0 pr-6 py-6 relative z-10">
+      <div className="relative z-10 flex-1 bg-background px-0 py-6 pr-6">
         {/* Header */}
-        <div ref={headerRef} className="flex items-center justify-between mb-8">
+        <div
+          ref={headerRef}
+          className="mb-8 flex items-center justify-between"
+        >
           <div>
             <h1 className="font-inter text-[20px] font-semibold leading-6">
               Courses
             </h1>
-            <p className="font-inter text-[16px] mt-2 text-gray-400">
+            <p className="mt-2 font-inter text-[16px] text-gray-400">
               Keep track of your courses all in one place.
             </p>
           </div>
 
-          <div className="flex items-center bg-[#000000] border border-[#464646] rounded-lg px-3 py-2 w-64">
-            <i className="ri-search-line text-gray-400 mr-2"></i>
+          <div className="flex w-64 items-center rounded-lg border border-[#464646] bg-[#000000] px-3 py-2">
+            <i className="ri-search-line mr-2 text-gray-400" />
             <input
               type="text"
               placeholder="Search"
-              className="bg-transparent outline-none w-full text-sm text-gray-200"
+              className="w-full bg-transparent text-sm text-gray-200 outline-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -347,75 +348,70 @@ export const Courses = () => {
         </div>
 
         {/* Overview */}
-        <div className="flex items-center justify-between mb-4 relative z-30">
+        <div className="relative z-30 mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Overview</h2>
           <button
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] shadow-[0_0_10px_rgba(147,51,234,0.3)] hover:shadow-[0_0_18px_rgba(147,51,234,0.5)] transition cursor-pointer"
+            className="flex cursor-pointer items-center gap-2 rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] px-4 py-2 text-sm shadow-[0_0_10px_rgba(147,51,234,0.3)] transition hover:shadow-[0_0_18px_rgba(147,51,234,0.5)]"
           >
-            <i className="ri-add-line text-purple-200"></i> Add Course
+            <i className="ri-add-line text-purple-200" /> Add Course
           </button>
         </div>
 
-        <div className="border-t border-[#464646]/80 mb-6"></div>
+        <div className="mb-6 border-t border-[#464646]/80" />
 
         {/* GRID */}
         <div
-          className={`bg-[#141414] rounded-2xl p-4 overflow-x-auto relative transition-all duration-300 ${
+          className={`relative overflow-x-auto rounded-2xl bg-[#141414] p-4 transition-all duration-300 ${
             selectedCourse || showAdd ? "opacity-60" : "opacity-100"
           }`}
         >
-          <div className="grid grid-cols-5 gap-4 items-start">
+          <div className="grid grid-cols-5 items-start gap-4">
             {dayOrder.map((day) => {
               const list = groupedWithAllDays[day] || [];
               return (
-                <div key={day} className="flex flex-col w-full">
+                <div key={day} className="flex w-full flex-col">
                   {/* header hari */}
-                  <div className="bg-[#000000] rounded-[8px] px-3 py-5 mb-3 w-full">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-medium text-white text-[16px]">
+                  <div className="mb-3 w-full rounded-[8px] bg-[#000000] px-3 py-5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-[16px] font-medium text-white">
                         {day}
                       </h3>
-                      <span className="bg-drop-yellow px-2 py-[2px] rounded-full text-yellow">
+                      <span className="rounded-full bg-drop-yellow px-2 py-[2px] text-yellow">
                         {list.length}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2 font-[Montserrat] w-full">
+                  <div className="flex w-full flex-col gap-2 font-[Montserrat]">
                     {loading ? (
                       // ===== SHIMMER SKELETON (width ikut kolom, height 160) =====
                       Array.from({ length: SKELETON_PER_DAY }).map((_, idx) => (
                         <div
                           key={idx}
-                          className="relative rounded-xl px-3.5 py-3 overflow-hidden flex flex-col shadow w-full"
-                          style={{
-                            height: `${SKELETON_CARD_H}px`,
-                            background: "#242424",
-                            flexShrink: 0,
-                          }}
+                          className="relative flex h-[140px] w-full shrink-0 flex-col overflow-hidden rounded-xl bg-[#242424] px-3.5 py-3 shadow"
                         >
                           <div className="gradia-shimmer" />
                           {/* konten dummy disembunyikan, hanya buat bentuk layout */}
                           <div className="opacity-0">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 rounded-full bg-gray-500" />
+                                <div className="h-2 w-2 rounded-full bg-gray-500" />
                                 <p className="text-[16px]">00:00 - 00:00</p>
                               </div>
-                              <span className="text-[16px] px-1.5 py-[2px] rounded-md">
+                              <span className="rounded-md px-1.5 py-[2px] text-[16px]">
                                 STATUS
                               </span>
                             </div>
 
-                            <div className="flex-1 flex flex-col justify-center">
-                              <h3 className="text-[16px] font-semibold leading-snug line-clamp-2 break-words">
+                            <div className="flex flex-1 flex-col justify-center">
+                              <h3 className="line-clamp-2 break-words text-[16px] font-semibold leading-snug">
                                 Dummy Course Title
                               </h3>
-                              <p className="text-[16px] mt-1">ROOM</p>
+                              <p className="mt-1 text-[16px]">ROOM</p>
                             </div>
 
-                            <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer">
+                            <button className="mt-2 flex items-center self-start gap-1 rounded-md bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 text-[16px] cursor-pointer">
                               Button{" "}
                               <i className="ri-logout-circle-r-line ml-1" />
                             </button>
@@ -434,7 +430,7 @@ export const Courses = () => {
                       ))
                     ) : (
                       // ======= NO COURSES STATE (TINGGI 160PX) =======
-                      <div className="text-neutral-600 bg-[#0f0f0f] border border-[#2a2a2a] rounded-lg p-5 text-center flex items-center justify-center w-full h-[140px]">
+                      <div className="flex h-[140px] w-full items-center justify-center rounded-lg border border-[#2a2a2a] bg-[#0f0f0f] p-5 text-center text-neutral-600">
                         No courses
                       </div>
                     )}
@@ -449,12 +445,12 @@ export const Courses = () => {
       {/* OVERLAY & DRAWER */}
       {(selectedCourse || showAdd) && (
         <div
-          className="fixed inset-0 bg-black/50 z-[60] flex justify-end items-start"
+          className="fixed inset-0 z-[60] flex items-start justify-end bg-black/50"
           onClick={handleCloseDrawer}
         >
           <div
             ref={drawerRef}
-            className="drawer-panel w-[628px] bg-[#111] h-full shadow-2xl relative"
+            className="drawer-panel relative h-full w-[628px] bg-[#111] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {selectedCourse && (

@@ -1,19 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import PropTypes from "prop-types";
 import Mobile from "./Layout/Mobile";
 import { useAlert } from "@/hooks/useAlert";
 import { useMediaQuery } from "react-responsive";
-import { useNavigate } from "react-router-dom"; // ✅ untuk Enter → /dashboard
+import { useNavigate } from "react-router-dom";
 import DeletePopup from "@/components/Delete";
 
 /* ========== API CONFIG ========== */
-const API_URL = "/api/workspaces"; // route workspace (supabase)
-const API_USER_ME = "/api/index"; // route untuk ambil user (id_user)
+const API_URL = "/api/workspaces";
+const API_USER_ME = "/api/index";
 
 /* ========== Helper: fetch JSON aman ========== */
-async function fetchJsonSafe(input, init) {
+async function fetchJson(input, init) {
   const res = await fetch(input, init);
-  const contentType = res.headers.get("content-type") || "";
-  const isJSON = contentType.includes("application/json");
+  const type = res.headers.get("content-type") || "";
+  const isJSON = type.includes("application/json");
 
   if (res.status === 204) return { res, data: null };
 
@@ -23,7 +24,7 @@ async function fetchJsonSafe(input, init) {
   if (isJSON) {
     try {
       return { res, data: JSON.parse(text) };
-    } catch (e) {
+    } catch {
       throw new Error(
         `Invalid JSON from server (status ${res.status}). Body: "${text.slice(
           0,
@@ -36,30 +37,28 @@ async function fetchJsonSafe(input, init) {
 }
 
 /* ========== Fallback dari localStorage (id_user INT8) ========== */
-const getCurrentUserIdFromLocal = () => {
+const getUidLocal = () => {
   try {
     const id = localStorage.getItem("id_user");
-    if (id !== null && id !== undefined && id !== "") {
-      return Number(id);
-    }
+    if (id !== null && id !== undefined && id !== "") return Number(id);
 
-    const userRaw = localStorage.getItem("user");
-    if (userRaw) {
-      const user = JSON.parse(userRaw);
-      if (user && user.id_user !== undefined && user.id_user !== null) {
-        return Number(user.id_user);
+    const raw = localStorage.getItem("user");
+    if (raw) {
+      const u = JSON.parse(raw);
+      if (u && u.id_user !== undefined && u.id_user !== null) {
+        return Number(u.id_user);
       }
     }
-
     return null;
   } catch {
+    // ignore localStorage error
     return null;
   }
 };
 
 /* ========== Ambil id_user dari /api/index (INT8) ========== */
-async function getUserIdFromApi() {
-  const { res, data } = await fetchJsonSafe(API_USER_ME, { method: "GET" });
+async function getUidApi() {
+  const { res, data } = await fetchJson(API_USER_ME, { method: "GET" });
   if (!res.ok) {
     throw new Error(
       typeof data === "string" ? data : `Failed to fetch user: ${res.status}`
@@ -83,16 +82,20 @@ async function getUserIdFromApi() {
   return Number.isNaN(num) ? null : num;
 }
 
+/* ========== Helper workspace id ========== */
+const getWsId = (wsOrId) =>
+  wsOrId?.__raw?.id_workspace ?? wsOrId.id_workspace ?? wsOrId.id ?? wsOrId;
+
 export default function Workspaces() {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
 
   if (isMobile || isTablet) return <Mobile />;
-  return <GradiaWorkspacePage />;
+  return <WsPage />;
 }
 
 /* ========== Desktop Page ========== */
-function GradiaWorkspacePage() {
+function WsPage() {
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`;
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
 
@@ -106,7 +109,7 @@ function GradiaWorkspacePage() {
   const FOOTER_H = 24;
   const BOTTOM_SPACER = FOOTER_OFFSET + FOOTER_H + 12;
 
-  const gradientText = {
+  const textGrad = {
     background: "linear-gradient(180deg,#FAFAFA 0%, #949494 100%)",
     WebkitBackgroundClip: "text",
     backgroundClip: "text",
@@ -114,28 +117,27 @@ function GradiaWorkspacePage() {
   };
 
   const { showAlert } = useAlert();
-  const navigate = useNavigate(); // ✅
+  const nav = useNavigate();
 
   /* ====== STATE ====== */
-  const [currentUserId, setCurrentUserId] = useState(null);
-  const [workspaces, setWorkspaces] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [uid, setUid] = useState(null);
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const [openMenuId, setOpenMenuId] = useState(null);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [targetWs, setTargetWs] = useState(null);
+  const [menuId, setMenuId] = useState(null);
+  const [confirm, setConfirm] = useState(false);
+  const [selWs, setSelWs] = useState(null);
 
-  const [editingId, setEditingId] = useState(null);
-  const [draftName, setDraftName] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [draft, setDraft] = useState("");
 
   const [createMode, setCreateMode] = useState(false);
-  const [createName, setCreateName] = useState("");
+  const [newName, setNewName] = useState("");
 
-  const [createLoading, setCreateLoading] = useState(false); // ⭐ NEW: loading untuk Add
-  // (hapus deleteLoading, nggak perlu kalau cuma optimistic)
+  const [submitting, setSubmitting] = useState(false);
 
   const pageRef = useRef(null);
-  const createRowRef = useRef(null);
+  const createRef = useRef(null);
 
   /* ====== bootstrap: ambil id_user dari API, fallback localStorage ====== */
   useEffect(() => {
@@ -143,18 +145,18 @@ function GradiaWorkspacePage() {
 
     (async () => {
       try {
-        const idApi = await getUserIdFromApi();
+        const idApi = await getUidApi();
         if (!cancelled) {
           if (idApi !== null) {
-            setCurrentUserId(idApi);
+            setUid(idApi);
           } else {
-            const fallback = getCurrentUserIdFromLocal();
-            setCurrentUserId(fallback ?? null);
+            const fb = getUidLocal();
+            setUid(fb ?? null);
           }
         }
       } catch {
-        const fallback = getCurrentUserIdFromLocal();
-        if (!cancelled) setCurrentUserId(fallback ?? null);
+        const fb = getUidLocal();
+        if (!cancelled) setUid(fb ?? null);
       }
     })();
 
@@ -165,19 +167,13 @@ function GradiaWorkspacePage() {
 
   /* ====== Fetch list workspace setelah id_user diketahui ====== */
   useEffect(() => {
-    const fetchWorkspaces = async () => {
-      setIsLoading(true);
+    const load = async () => {
+      setLoading(true);
       try {
-        const effectiveUserId =
-          currentUserId != null
-            ? Number(currentUserId)
-            : getCurrentUserIdFromLocal();
+        const effUid = uid != null ? Number(uid) : getUidLocal();
+        const qs = effUid ? `?id_user=${encodeURIComponent(effUid)}` : "";
 
-        const qs = effectiveUserId
-          ? `?id_user=${encodeURIComponent(effectiveUserId)}`
-          : "";
-
-        const { res, data } = await fetchJsonSafe(`${API_URL}${qs}`);
+        const { res, data } = await fetchJson(`${API_URL}${qs}`);
         if (!res.ok) {
           throw new Error(
             `Failed to fetch: ${res.status}${
@@ -187,30 +183,26 @@ function GradiaWorkspacePage() {
         }
 
         let rows = [];
-        if (Array.isArray(data)) {
-          rows = data;
-        } else if (data && Array.isArray(data.data)) {
-          rows = data.data;
-        } else if (data && Array.isArray(data.workspaces)) {
-          rows = data.workspaces;
-        }
+        if (Array.isArray(data)) rows = data;
+        else if (data && Array.isArray(data.data)) rows = data.data;
+        else if (data && Array.isArray(data.workspaces)) rows = data.workspaces;
 
         const filtered =
-          effectiveUserId != null
+          effUid != null
             ? rows.filter(
-                (row) =>
-                  row.id_user !== null &&
-                  row.id_user !== undefined &&
-                  Number(row.id_user) === Number(effectiveUserId)
+                (r) =>
+                  r.id_user !== null &&
+                  r.id_user !== undefined &&
+                  Number(r.id_user) === Number(effUid)
               )
             : rows;
 
         const mapped = filtered.map((w) => ({
-          id: w.id_workspace ?? w.id ?? w.id_workspace_id ?? Math.random(),
+          id: getWsId(w) ?? Math.random(),
           name: w.name ?? w.nama ?? w.workspace_name ?? "Untitled",
           __raw: w,
         }));
-        setWorkspaces(mapped);
+        setList(mapped);
       } catch (err) {
         showAlert({
           icon: "ri-error-warning-fill",
@@ -222,65 +214,59 @@ function GradiaWorkspacePage() {
           duration: 2200,
         });
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
 
-    fetchWorkspaces();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUserId]);
+    load();
+  }, [uid]);
 
   /* ====== Close dropdown + cancel create on outside click ====== */
   useEffect(() => {
-    function onDocClick(e) {
+    const handleClick = (e) => {
       if (!pageRef.current) return;
 
       if (!pageRef.current.contains(e.target)) {
-        setOpenMenuId(null);
+        setMenuId(null);
         if (createMode) {
           setCreateMode(false);
-          setCreateName("");
+          setNewName("");
         }
         return;
       }
 
       if (
         createMode &&
-        createRowRef.current &&
-        !createRowRef.current.contains(e.target)
+        createRef.current &&
+        !createRef.current.contains(e.target)
       ) {
         setCreateMode(false);
-        setCreateName("");
+        setNewName("");
       }
 
-      if (openMenuId !== null) {
-        const insideDropdown = e.target.closest(".workspace-dropdown");
-        const onTrigger = e.target.closest(".workspace-more-trigger");
-        if (!insideDropdown && !onTrigger) {
-          setOpenMenuId(null);
-        }
+      if (menuId !== null) {
+        const inside = e.target.closest(".workspace-dropdown");
+        const trigger = e.target.closest(".workspace-more-trigger");
+        if (!inside && !trigger) setMenuId(null);
       }
-    }
+    };
 
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [createMode, openMenuId]);
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [createMode, menuId]);
 
   // ✅ Enter: ke dashboard milik workspace (pakai id_workspace)
-  const onEnter = (ws) => {
-    const rawId = ws.__raw?.id_workspace ?? ws.id;
-    const numericId = Number(rawId);
-    const id_workspace = Number.isNaN(numericId) ? rawId : numericId;
-
-    // simpan id_workspace di local & session (sebagai string angka)
+  const handleEnter = (ws) => {
+    const id_workspace = getWsId(ws);
     try {
       if (!Number.isNaN(Number(id_workspace))) {
         localStorage.setItem("id_workspace", String(id_workspace));
         sessionStorage.setItem("id_workspace", String(id_workspace));
       }
-    } catch {}
+    } catch {
+      // ignore storage error
+    }
 
-    // simpan info workspace aktif
     try {
       localStorage.setItem(
         "current_workspace",
@@ -289,25 +275,27 @@ function GradiaWorkspacePage() {
           name: ws.name,
         })
       );
-    } catch {}
+    } catch {
+      // ignore storage error
+    }
 
-    navigate("/dashboard");
+    nav("/dashboard");
   };
 
   /* ====== Handlers ====== */
   const startEdit = (ws) => {
-    setEditingId(ws.id);
-    setDraftName(ws.name);
-    setOpenMenuId(null);
+    setEditId(ws.id);
+    setDraft(ws.name);
+    setMenuId(null);
   };
 
   const cancelEdit = () => {
-    setEditingId(null);
-    setDraftName("");
+    setEditId(null);
+    setDraft("");
   };
 
   const saveEdit = async (id) => {
-    const next = draftName.trim();
+    const next = draft.trim();
     if (!next) {
       showAlert({
         icon: "ri-error-warning-fill",
@@ -321,13 +309,13 @@ function GradiaWorkspacePage() {
       return;
     }
 
-    const prevName = workspaces.find((w) => w.id === id)?.name;
+    const prevName = list.find((w) => w.id === id)?.name;
 
     try {
-      const target = workspaces.find((w) => w.id === id);
-      const id_workspace = target?.__raw?.id_workspace ?? id;
+      const target = list.find((w) => w.id === id);
+      const id_workspace = getWsId(target ?? id);
 
-      const { res, data } = await fetchJsonSafe(API_URL, {
+      const { res, data } = await fetchJson(API_URL, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_workspace, name: next }),
@@ -341,11 +329,11 @@ function GradiaWorkspacePage() {
         throw new Error(msg);
       }
 
-      setWorkspaces((prev) =>
+      setList((prev) =>
         prev.map((w) => (w.id === id ? { ...w, name: next } : w))
       );
-      setEditingId(null);
-      setDraftName("");
+      setEditId(null);
+      setDraft("");
 
       showAlert({
         icon: "ri-checkbox-circle-fill",
@@ -373,26 +361,25 @@ function GradiaWorkspacePage() {
   };
 
   const askDelete = (ws) => {
-    setTargetWs(ws);
-    setShowConfirm(true);
-    setOpenMenuId(null);
+    setSelWs(ws);
+    setConfirm(true);
+    setMenuId(null);
   };
 
-  // ⭐ NEW: delete sekarang optimistic — popup langsung tutup, row langsung hilang
+  // delete optimistic — popup tutup, row hilang
   const handleDelete = async () => {
-    if (!targetWs) return;
+    if (!selWs) return;
 
-    const ws = targetWs;
-    setShowConfirm(false);
-    setTargetWs(null);
+    const ws = selWs;
+    setConfirm(false);
+    setSelWs(null);
 
-    // hilangkan dari UI dulu (optimistic)
-    setWorkspaces((prev) => prev.filter((w) => w.id !== ws.id));
+    setList((prev) => prev.filter((w) => w.id !== ws.id));
 
     try {
-      const id_workspace = ws?.__raw?.id_workspace ?? ws.id;
+      const id_workspace = getWsId(ws);
 
-      const { res, data } = await fetchJsonSafe(API_URL, {
+      const { res, data } = await fetchJson(API_URL, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_workspace }),
@@ -430,11 +417,16 @@ function GradiaWorkspacePage() {
 
   const startCreate = () => {
     setCreateMode(true);
-    setCreateName("");
+    setNewName("");
   };
 
-  const commitCreate = async () => {
-    const name = createName.trim();
+  const cancelCreate = () => {
+    setCreateMode(false);
+    setNewName("");
+  };
+
+  const addWs = async () => {
+    const name = newName.trim();
     if (!name) {
       showAlert({
         icon: "ri-error-warning-fill",
@@ -448,7 +440,7 @@ function GradiaWorkspacePage() {
       return;
     }
 
-    if (!currentUserId) {
+    if (!uid) {
       showAlert({
         icon: "ri-error-warning-fill",
         title: "User not detected",
@@ -461,14 +453,11 @@ function GradiaWorkspacePage() {
       return;
     }
 
-    setCreateLoading(true); // ⭐ NEW: mulai loading "Adding..."
+    setSubmitting(true);
     try {
-      const payload = {
-        name,
-        id_user: Number(currentUserId),
-      };
+      const payload = { name, id_user: Number(uid) };
 
-      const { res, data } = await fetchJsonSafe(API_URL, {
+      const { res, data } = await fetchJson(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -492,9 +481,9 @@ function GradiaWorkspacePage() {
         name: created.name ?? name,
         __raw: created,
       };
-      setWorkspaces((prev) => [...prev, mapped]);
+      setList((prev) => [...prev, mapped]);
       setCreateMode(false);
-      setCreateName("");
+      setNewName("");
 
       showAlert({
         icon: "ri-checkbox-circle-fill",
@@ -516,30 +505,24 @@ function GradiaWorkspacePage() {
         duration: 2200,
       });
     } finally {
-      setCreateLoading(false); // ⭐ NEW: matikan loading
+      setSubmitting(false);
     }
   };
 
-  const cancelCreate = () => {
-    setCreateMode(false);
-    setCreateName("");
-  };
-
-  const totalRows = workspaces.length + 1;
-  const isScrollable = totalRows > 4;
-  const ROW_AREA_MAX_HEIGHT = 292; // tinggi viewport 4 row
-
-  const SKELETON_COUNT = 4;
+  const totalRows = list.length + 1;
+  const scroll = totalRows > 4;
+  const ROW_AREA_MAX_HEIGHT = 292;
+  const LOAD_COUNT = 4;
 
   return (
     <div
-      className="relative h-screen w-screen overflow-hidden bg-black text-white scrollbar-hide"
       ref={pageRef}
+      className="relative h-screen w-screen overflow-hidden bg-black text-white scrollbar-hide"
     >
-      {/* === style untuk shimmer loading === */}
+      {/* === style untuk loading box (dulu shimmer) === */}
       <style>
         {`
-          @keyframes gradia-shimmer {
+          @keyframes gradia-loading {
             0% {
               background-position: -200% 0;
             }
@@ -547,7 +530,7 @@ function GradiaWorkspacePage() {
               background-position: 200% 0;
             }
           }
-          .gradia-shimmer {
+          .gradia-loading {
             background: linear-gradient(
               90deg,
               #141414 0%,
@@ -555,13 +538,13 @@ function GradiaWorkspacePage() {
               #141414 100%
             );
             background-size: 200% 100%;
-            animation: gradia-shimmer 1.2s linear infinite;
+            animation: gradia-loading 1.2s linear infinite;
           }
         `}
       </style>
 
       {/* === BACKGROUND === */}
-      <div className="absolute inset-0 pointer-events-none select-none">
+      <div className="pointer-events-none absolute inset-0 select-none">
         <img
           src="/Asset 1.svg"
           alt="Asset 1"
@@ -603,7 +586,7 @@ function GradiaWorkspacePage() {
 
       {/* === CONTENT === */}
       <div className="relative z-20 flex h-full w-full">
-        {/* LEFT SIDE – balik ke atas seperti sebelumnya */}
+        {/* LEFT SIDE */}
         <div className="flex h-full grow flex-col pt-[50px] pl-[52px]">
           <div
             className="inline-flex items-baseline gap-1 leading-none"
@@ -620,16 +603,11 @@ function GradiaWorkspacePage() {
 
         {/* RIGHT DRAWER */}
         <aside
-          className="h-full flex flex-col font-[Inter]"
+          className="flex h-full flex-col font-[Inter] text-[#A3A3A3] bg-white/10 rounded-[18px] border border-transparent backdrop-blur-[10px]"
           style={{
             width: vw(DRAWER_W),
-            background: "rgba(255,255,255,0.10)",
-            border: "1px solid transparent",
             borderImageSlice: 1,
             borderImageSource: BORDER_GRADIENT,
-            borderRadius: "18px",
-            backdropFilter: "blur(10px)",
-            color: "#A3A3A3",
             paddingLeft: PAD_X,
             paddingRight: PAD_X,
             paddingTop: TOP_HEADER,
@@ -639,10 +617,10 @@ function GradiaWorkspacePage() {
           }}
         >
           {/* HEADER */}
-          <header className="text-center mb-[48px]">
+          <header className="mb-[48px] text-center">
             <h1
-              className="text-[48px] font-extrabold leading-tight mb-2"
-              style={gradientText}
+              className="mb-2 text-[48px] font-extrabold leading-tight"
+              style={textGrad}
             >
               Welcome to <br /> Gradia Workspace
             </h1>
@@ -653,52 +631,52 @@ function GradiaWorkspacePage() {
 
           {/* WORKSPACE LIST */}
           <div
-            className="px-[16px] scrollbar-hide"
+            className="scrollbar-hide px-[16px]"
             style={{
-              maxHeight: ROW_AREA_MAX_HEIGHT, // viewport fix 4 row
-              overflowY: isScrollable ? "auto" : "hidden",
+              maxHeight: ROW_AREA_MAX_HEIGHT,
+              overflowY: scroll ? "auto" : "hidden",
               paddingBottom: BOTTOM_SPACER,
             }}
           >
             <div className="space-y-[12px]">
-              {isLoading ? (
+              {loading ? (
                 <>
-                  {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
-                    <SkeletonRow key={idx} />
+                  {Array.from({ length: LOAD_COUNT }).map((_, idx) => (
+                    <LoadingRow key={idx} />
                   ))}
                 </>
               ) : (
                 <>
-                  {workspaces.map((ws) => (
-                    <WorkspaceRow
+                  {list.map((ws) => (
+                    <Row
                       key={ws.id}
-                      workspace={ws}
-                      isMenuOpen={openMenuId === ws.id}
-                      onToggleMenu={() =>
-                        setOpenMenuId((v) => (v === ws.id ? null : ws.id))
+                      ws={ws}
+                      menuOpen={menuId === ws.id}
+                      toggleMenu={() =>
+                        setMenuId((v) => (v === ws.id ? null : ws.id))
                       }
-                      onAskDelete={() => askDelete(ws)}
-                      onStartEdit={() => startEdit(ws)}
-                      onCancelEdit={cancelEdit}
-                      isEditing={editingId === ws.id}
-                      draftName={draftName}
-                      setDraftName={setDraftName}
-                      onSave={() => saveEdit(ws.id)}
-                      onEnter={() => onEnter(ws)}
+                      askDelete={() => askDelete(ws)}
+                      startEdit={() => startEdit(ws)}
+                      cancelEdit={cancelEdit}
+                      editing={editId === ws.id}
+                      draft={draft}
+                      setDraft={setDraft}
+                      save={() => saveEdit(ws.id)}
+                      enter={() => handleEnter(ws)}
                     />
                   ))}
 
                   {/* Row Create */}
                   <div className="mt-[12px]">
-                    <CreateNewRow
-                      containerRef={createRowRef}
-                      createMode={createMode}
-                      name={createName}
-                      setName={setCreateName}
-                      onStart={startCreate}
-                      onAdd={commitCreate}
-                      onCancel={cancelCreate}
-                      isSubmitting={createLoading} // ⭐ NEW
+                    <CreateRow
+                      refEl={createRef}
+                      active={createMode}
+                      name={newName}
+                      setName={setNewName}
+                      start={startCreate}
+                      add={addWs}
+                      cancel={cancelCreate}
+                      submitting={submitting}
                     />
                   </div>
                 </>
@@ -706,8 +684,9 @@ function GradiaWorkspacePage() {
             </div>
           </div>
 
-          {/* Footer */}
-          {/* <p
+          {/* Footer (tetap dikomentari agar tampilan sama) */}
+          {/*
+          <p
             className="text-[#B9B9B9] text-[16px] w-full text-center"
             style={{
               position: "fixed",
@@ -718,20 +697,21 @@ function GradiaWorkspacePage() {
             }}
           >
             © 2025 Gradia. All rights reserved.
-          </p> */}
+          </p>
+          */}
         </aside>
       </div>
 
       {/* Delete Popup */}
-      {showConfirm && targetWs && (
+      {confirm && selWs && (
         <DeletePopup
           title="Delete Workspace"
-          warning={`Are you sure you want to delete \"${targetWs.name}\"?`}
+          warning={`Are you sure you want to delete "${selWs.name}"?`}
           onCancel={() => {
-            setShowConfirm(false);
-            setTargetWs(null);
+            setConfirm(false);
+            setSelWs(null);
           }}
-          onDelete={handleDelete} // ⭐ NEW: langsung panggil handleDelete (popup nutup + row hilang)
+          onDelete={handleDelete}
         />
       )}
     </div>
@@ -739,66 +719,66 @@ function GradiaWorkspacePage() {
 }
 
 /* ====================== Item Row ====================== */
-function WorkspaceRow({
-  workspace,
-  isMenuOpen,
-  onToggleMenu,
-  onAskDelete,
-  onStartEdit,
-  onCancelEdit,
-  isEditing,
-  draftName,
-  setDraftName,
-  onSave,
-  onEnter,
+function Row({
+  ws,
+  menuOpen,
+  toggleMenu,
+  askDelete,
+  startEdit,
+  cancelEdit,
+  editing,
+  draft,
+  setDraft,
+  save,
+  enter,
 }) {
   const initials = useMemo(() => {
-    const parts = workspace.name.trim().split(/\s+/);
+    const parts = ws.name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
-  }, [workspace.name]);
+  }, [ws.name]);
 
   const inputRef = useRef(null);
   useEffect(() => {
-    if (isEditing && inputRef.current) inputRef.current.focus();
-  }, [isEditing]);
+    if (editing && inputRef.current) inputRef.current.focus();
+  }, [editing]);
 
-  const [isPressed, setIsPressed] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const [hover, setHover] = useState(false);
 
-  const bgClass =
-    isEditing || isPressed || isHovered ? "bg-[#333131]" : "bg-[#141414]";
+  const bg =
+    editing || pressed || hover ? "bg-[#333131]" : "bg-[#141414]";
 
   return (
     <div
-      className={`relative flex items-center w-full h-[64px] rounded-[12px] transition-colors cursor-pointer ${bgClass}`}
-      onMouseDown={() => setIsPressed(true)}
-      onMouseUp={() => setIsPressed(false)}
+      className={`relative flex h-[64px] w-full cursor-pointer items-center rounded-[12px] transition-colors ${bg}`}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
       onMouseLeave={() => {
-        setIsPressed(false);
-        setIsHovered(false);
+        setPressed(false);
+        setHover(false);
       }}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => setHover(true)}
       onClick={() => {
-        if (!isEditing) onEnter();
+        if (!editing) enter();
       }}
     >
       <div className="flex w-full items-center px-[21px]">
-        {!isEditing && (
+        {!editing && (
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onToggleMenu();
+              toggleMenu();
             }}
-            className="workspace-more-trigger inline-flex h-[35px] w-[35px] items-center justify-center cursor-pointer"
+            className="workspace-more-trigger inline-flex h-[35px] w-[35px] cursor-pointer items-center justify-center"
             title="More"
           >
             <i className="ri-more-2-line text-[22px] text-[#fafafa]" />
           </button>
         )}
 
-        {!isEditing && (
+        {!editing && (
           <span
             className="ml-[18.5px] inline-flex h-[35px] w-[42px] items-center justify-center rounded-md"
             style={{
@@ -806,7 +786,7 @@ function WorkspaceRow({
             }}
           >
             <span
-              className="font-[Inter] font-semibold tracking-wide leading-none"
+              className="font-[Inter] font-semibold leading-none tracking-wide"
               style={{ lineHeight: 1, fontSize: 18, color: "#FAFAFA" }}
             >
               {initials}
@@ -814,35 +794,35 @@ function WorkspaceRow({
           </span>
         )}
 
-        <div className={`${isEditing ? "ml-0" : "ml-[16px]"} text-[18px] flex-1`}>
-          {isEditing ? (
+        <div className={`${editing ? "ml-0" : "ml-[16px]"} flex-1 text-[18px]`}>
+          {editing ? (
             <input
               ref={inputRef}
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") onSave();
-                if (e.key === "Escape") onCancelEdit();
+                if (e.key === "Enter") save();
+                if (e.key === "Escape") cancelEdit();
               }}
-              className="w-full bg-transparent text-[#FAFAFA] placeholder-[#A3A3A3] outline-none ring-0 border-0"
+              className="w-full border-0 bg-transparent text-[#FAFAFA] outline-none ring-0 placeholder-[#A3A3A3]"
               placeholder="New workspace name"
               style={{ fontSize: 18 }}
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="text-foreground">{workspace.name}</span>
+            <span className="text-foreground">{ws.name}</span>
           )}
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          {isEditing ? (
+          {editing ? (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onSave();
+                save();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-white cursor-pointer"
+              className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-white"
               style={{
                 background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                 border: "none",
@@ -858,9 +838,9 @@ function WorkspaceRow({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onEnter();
+                enter();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-white cursor-pointer"
+              className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-white"
               style={{
                 background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                 border: "none",
@@ -875,9 +855,9 @@ function WorkspaceRow({
         </div>
       </div>
 
-      {!isEditing && isMenuOpen && (
+      {!editing && menuOpen && (
         <div
-          className="workspace-dropdown absolute top-[8px] left-[8px] z-30 w-[160px] rounded-[10px] overflow-hidden"
+          className="workspace-dropdown absolute left-[8px] top-[8px] z-30 w-[160px] overflow-hidden rounded-[10px]"
           style={{
             background: "#1c1c1c",
             border: "1px solid rgba(255,255,255,0.12)",
@@ -886,15 +866,15 @@ function WorkspaceRow({
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            className="w-full text-left px-3 py-2 hover:bg-[#2a2a2a] text-[#FAFAFA] flex items-center gap-2 cursor-pointer"
-            onClick={onStartEdit}
+            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[#FAFAFA] hover:bg-[#2a2a2a]"
+            onClick={startEdit}
           >
             <i className="ri-edit-line" />
             Edit
           </button>
           <button
-            className="w-full text-left px-3 py-2 hover:bg-[#2a2a2a] text-[#FF8686] flex items-center gap-2 cursor-pointer"
-            onClick={onAskDelete}
+            className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[#FF8686] hover:bg-[#2a2a2a]"
+            onClick={askDelete}
           >
             <i className="ri-delete-bin-fill" />
             Delete
@@ -905,52 +885,52 @@ function WorkspaceRow({
   );
 }
 
-/* ====================== Skeleton Row (Loading) ====================== */
-function SkeletonRow() {
+/* ====================== Loading Row (dulu Skeleton / shimmer) ====================== */
+function LoadingRow() {
   return (
-    <div className="relative flex items-center w-full h-[64px] rounded-[12px] overflow-hidden bg-[#141414]">
-      <div className="absolute inset-0 gradia-shimmer" />
+    <div className="relative flex h-[64px] w-full items-center overflow-hidden rounded-[12px] bg-[#141414]">
+      <div className="gradia-loading absolute inset-0" />
     </div>
   );
 }
 
 /* ====================== Create Row ====================== */
-function CreateNewRow({
-  containerRef,
-  createMode,
+function CreateRow({
+  refEl,
+  active,
   name,
   setName,
-  onStart,
-  onAdd,
-  onCancel,
-  isSubmitting, // ⭐ NEW
+  start,
+  add,
+  cancel,
+  submitting,
 }) {
-  const [isPressed, setIsPressed] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const [hover, setHover] = useState(false);
 
-  const bgClass =
-    createMode || isPressed || isHovered ? "bg-[#333131]" : "bg-[#141414]";
+  const bg =
+    active || pressed || hover ? "bg-[#333131]" : "bg-[#141414]";
 
-  const disabled = isSubmitting;
+  const disabled = submitting;
 
   return (
     <div
-      ref={containerRef}
-      className={`relative flex items-center w-full h-[64px] rounded-[14px] text-left transition-colors cursor-pointer ${bgClass}`}
-      onMouseDown={() => !disabled && setIsPressed(true)}
-      onMouseUp={() => setIsPressed(false)}
+      ref={refEl}
+      className={`relative flex h-[64px] w-full cursor-pointer items-center rounded-[14px] text-left transition-colors ${bg}`}
+      onMouseDown={() => !disabled && setPressed(true)}
+      onMouseUp={() => setPressed(false)}
       onMouseLeave={() => {
-        setIsPressed(false);
-        setIsHovered(false);
+        setPressed(false);
+        setHover(false);
       }}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => setHover(true)}
       onClick={() => {
-        if (!createMode && !disabled) onStart();
+        if (!active && !disabled) start();
       }}
-      title={createMode ? undefined : "Create new workspace"}
+      title={active ? undefined : "Create new workspace"}
     >
       <div className="flex w-full items-center px-[21px]">
-        {!createMode && (
+        {!active && (
           <span
             className="inline-flex items-center justify-center"
             style={{
@@ -969,18 +949,18 @@ function CreateNewRow({
         )}
 
         <div
-          className={`${createMode ? "ml-0" : "ml-[16px]"} text-[18px] flex-1`}
+          className={`${active ? "ml-0" : "ml-[16px]"} flex-1 text-[18px]`}
           style={{ color: "#A3A3A3" }}
         >
-          {createMode ? (
+          {active ? (
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !disabled) onAdd();
-                if (e.key === "Escape" && !disabled) onCancel();
+                if (e.key === "Enter" && !disabled) add();
+                if (e.key === "Escape" && !disabled) cancel();
               }}
-              className="w-full bg-transparent text-[#FAFAFA] placeholder-[#A3A3A3] outline-none ring-0 border-0"
+              className="w-full border-0 bg-transparent text-[#FAFAFA] outline-none ring-0 placeholder-[#A3A3A3]"
               placeholder="Workspace name"
               style={{ fontSize: 18 }}
               autoFocus
@@ -992,15 +972,15 @@ function CreateNewRow({
           )}
         </div>
 
-        {createMode && (
+        {active && (
           <div className="ml-auto flex items-center">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (!disabled) onAdd();
+                if (!disabled) add();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-white disabled:opacity-60 cursor-pointer"
+              className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-white disabled:opacity-60"
               style={{
                 background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                 border: "none",
@@ -1020,3 +1000,38 @@ function CreateNewRow({
     </div>
   );
 }
+
+/* ========== PropTypes (untuk hilangkan warning react/prop-types) ========== */
+Row.propTypes = {
+  ws: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    name: PropTypes.string.isRequired,
+    __raw: PropTypes.any,
+  }).isRequired,
+  menuOpen: PropTypes.bool.isRequired,
+  toggleMenu: PropTypes.func.isRequired,
+  askDelete: PropTypes.func.isRequired,
+  startEdit: PropTypes.func.isRequired,
+  cancelEdit: PropTypes.func.isRequired,
+  editing: PropTypes.bool.isRequired,
+  draft: PropTypes.string.isRequired,
+  setDraft: PropTypes.func.isRequired,
+  save: PropTypes.func.isRequired,
+  enter: PropTypes.func.isRequired,
+};
+
+CreateRow.propTypes = {
+  refEl: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.instanceOf(Element) }),
+  ]),
+  active: PropTypes.bool.isRequired,
+  name: PropTypes.string.isRequired,
+  setName: PropTypes.func.isRequired,
+  start: PropTypes.func.isRequired,
+  add: PropTypes.func.isRequired,
+  cancel: PropTypes.func.isRequired,
+  submitting: PropTypes.bool.isRequired,
+};
+
+LoadingRow.propTypes = {};

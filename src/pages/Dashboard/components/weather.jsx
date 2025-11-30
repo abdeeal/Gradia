@@ -1,23 +1,21 @@
-// src/pages/Dashboard/components/weather.jsx
 import React, { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 
-const MIN_SKELETON_MS = 6000; // minimal waktu skeleton
+const MIN_SKEL_MS = 6000;
 
 function WeatherCard({ dateText, now }) {
   const [city, setCity] = useState("Loading...");
   const [loading, setLoading] = useState(true);
 
-  // ================== WAKTU (update tiap detik) ==================
   const [timeHM, setTimeHM] = useState("");
   const [dateLabel, setDateLabel] = useState("");
 
   useEffect(() => {
-    const updateTime = () => {
-      const current = new Date();
-      const base = now ? new Date(now) : current; // kalau prop now dikirim, pakai itu
+    const tick = () => {
+      const cur = new Date();
+      const base = now ? new Date(now) : cur;
 
-      const formattedTime = base
+      const t = base
         .toLocaleTimeString("en-US", {
           hour: "2-digit",
           minute: "2-digit",
@@ -25,7 +23,7 @@ function WeatherCard({ dateText, now }) {
         })
         .replace(":", " : ");
 
-      const formattedDate =
+      const d =
         dateText ??
         base.toLocaleDateString("en-US", {
           weekday: "long",
@@ -33,76 +31,73 @@ function WeatherCard({ dateText, now }) {
           month: "long",
         });
 
-      setTimeHM(formattedTime);
-      setDateLabel(formattedDate);
+      setTimeHM(t);
+      setDateLabel(d);
     };
 
-    updateTime(); // set awal
-    const id = setInterval(updateTime, 1000); // update tiap detik
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [dateText, now]);
 
-  // ================== TEMA SIANG / MALAM ==================
   const refDate = now ? new Date(now) : new Date();
   const hour = refDate.getHours();
   const isNight = hour >= 18 || hour < 6;
 
-  const containerGradient = isNight
+  const bgClass = isNight
     ? "bg-gradient-to-bl from-[#000000] to-[#272727]"
     : "bg-gradient-to-bl from-[#164A7B] to-[#539DB8]";
 
-  const circleAColor = isNight ? "bg-[#656565]/[0.22]" : "bg-[#50D0F4]/[0.22]";
-  const circleBColor = isNight ? "bg-[#656565]/[0.13]" : "bg-[#50D0F4]/[0.13]";
-  const circleCColor = isNight ? "bg-[#656565]/[0.39]" : "bg-[#50D0F4]/[0.39]";
-  const circleDColor = isNight ? "bg-[#656565]/[0.67]" : "bg-[#50D0F4]/[0.67]";
-  const circleEGradient = "bg-gradient-to-b from-[#FFE478] to-[#DFA62B]";
-  const montserrat = { fontFamily: '"Montserrat", sans-serif' };
+  const circleA = isNight ? "bg-[#656565]/[0.22]" : "bg-[#50D0F4]/[0.22]";
+  const circleB = isNight ? "bg-[#656565]/[0.13]" : "bg-[#50D0F4]/[0.13]";
+  const circleC = isNight ? "bg-[#656565]/[0.39]" : "bg-[#50D0F4]/[0.39]";
+  const circleD = isNight ? "bg-[#656565]/[0.67]" : "bg-[#50D0F4]/[0.67]";
+  const circleE = "bg-gradient-to-b from-[#FFE478] to-[#DFA62B]";
+  const mono = { fontFamily: '"Montserrat", sans-serif' };
 
-  // ================== LOKASI (SAMA PERSIS SEPERTI MOBILE) ==================
   useEffect(() => {
     let active = true;
-    const startTime = Date.now();
+    const start = Date.now();
 
-    const safeSetCity = (val) => {
-      if (active) setCity(val);
+    const safeSetCity = (v) => {
+      if (active) setCity(v);
     };
-    const safeSetLoading = (val) => {
-      if (active) setLoading(val);
+    const safeSetLoad = (v) => {
+      if (active) setLoading(v);
     };
 
-    const finishLoading = () => {
-      const elapsed = Date.now() - startTime;
-      const done = () => safeSetLoading(false);
+    const doneLoad = () => {
+      const elapsed = Date.now() - start;
+      const stop = () => safeSetLoad(false);
 
-      if (elapsed < MIN_SKELETON_MS) {
-        setTimeout(done, MIN_SKELETON_MS - elapsed);
+      if (elapsed < MIN_SKEL_MS) {
+        setTimeout(stop, MIN_SKEL_MS - elapsed);
       } else {
-        done();
+        stop();
       }
     };
 
-    const getCityFromCoords = async (lat, lon) => {
+    const fromCoords = async (lat, lon) => {
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`
         );
         const data = await res.json();
-        const cityName =
+        const nm =
           data.address.city ||
           data.address.town ||
           data.address.village ||
           data.address.state ||
           "Unknown location";
-        safeSetCity(cityName);
+        safeSetCity(nm);
       } catch {
-        // sama seperti Mobile: fallback ke "Gradia"
         safeSetCity("Gradia");
       } finally {
-        finishLoading();
+        doneLoad();
       }
     };
 
-    const getCityFromIP = async () => {
+    const fromIp = async () => {
       try {
         const res = await fetch("https://ipapi.co/json/");
         const data = await res.json();
@@ -110,33 +105,31 @@ function WeatherCard({ dateText, now }) {
       } catch {
         safeSetCity("Unknown");
       } finally {
-        finishLoading();
+        doneLoad();
       }
     };
 
     if (typeof window === "undefined") {
       safeSetCity("Unknown");
-      finishLoading();
+      doneLoad();
       return () => {
         active = false;
       };
     }
 
-    safeSetLoading(true);
+    safeSetLoad(true);
 
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          getCityFromCoords(pos.coords.latitude, pos.coords.longitude);
+          fromCoords(pos.coords.latitude, pos.coords.longitude);
         },
         () => {
-          // fallback ke IP sama persis seperti di Mobile
-          getCityFromIP();
+          fromIp();
         }
       );
     } else {
-      // kalau geolocation nggak ada, langsung ke IP
-      getCityFromIP();
+      fromIp();
     }
 
     return () => {
@@ -144,7 +137,6 @@ function WeatherCard({ dateText, now }) {
     };
   }, []);
 
-  /* ================= LOADING: kartu kosong + shimmer ================= */
   if (loading) {
     return (
       <>
@@ -162,7 +154,7 @@ function WeatherCard({ dateText, now }) {
             animation: gradia-shimmer-move 1.2s infinite;
             background-size: 200% 100%;
             pointer-events: none;
-            border-radius: 24px; /* rounded-3xl */
+            border-radius: 24px;
           }
 
           @keyframes gradia-shimmer-move {
@@ -172,7 +164,7 @@ function WeatherCard({ dateText, now }) {
         `}</style>
 
         <div
-          className={`relative overflow-hidden rounded-3xl shadow ${containerGradient} text-white`}
+          className={`relative overflow-hidden rounded-3xl shadow ${bgClass} text-white`}
           role="status"
           aria-live="polite"
           aria-label="Loading weather..."
@@ -184,35 +176,32 @@ function WeatherCard({ dateText, now }) {
     );
   }
 
-  /* ================= NORMAL STATE ================= */
   return (
     <div
-      className={`relative overflow-hidden rounded-3xl shadow ${containerGradient} text-white`}
+      className={`relative overflow-hidden rounded-3xl shadow ${bgClass} text-white`}
       style={{ width: 754, height: 161 }}
     >
-      {/* Dekorasi */}
       <div
-        className={`absolute rounded-full ${circleAColor}`}
+        className={`absolute rounded-full ${circleA}`}
         style={{ left: -109, top: 60, width: 218, height: 218 }}
       />
       <div
-        className={`absolute rounded-full ${circleBColor}`}
+        className={`absolute rounded-full ${circleB}`}
         style={{ left: 560, top: -118, width: 326, height: 326 }}
       />
       <div
-        className={`absolute rounded-full ${circleCColor}`}
+        className={`absolute rounded-full ${circleC}`}
         style={{ left: 607, top: -106, width: 265, height: 267 }}
       />
       <div
-        className={`absolute rounded-full ${circleDColor}`}
+        className={`absolute rounded-full ${circleD}`}
         style={{ left: 643, top: -97, width: 218, height: 218 }}
       />
       <div
-        className={`absolute rounded-full ${circleEGradient}`}
+        className={`absolute rounded-full ${circleE}`}
         style={{ left: 691, top: -27, width: 1100, height: 100 }}
       />
 
-      {/* Konten kiri: tanggal + kota */}
       <div
         className="absolute"
         style={{ left: 347.5, top: 56.5, width: 210, height: 48 }}
@@ -220,7 +209,7 @@ function WeatherCard({ dateText, now }) {
         <div
           className="h-full flex flex-col justify-center"
           style={{
-            ...montserrat,
+            ...mono,
             fontSize: 15,
             lineHeight: 1.2,
             borderLeft: "1px solid #FAFAFA",
@@ -232,7 +221,6 @@ function WeatherCard({ dateText, now }) {
         </div>
       </div>
 
-      {/* Jam besar */}
       <div
         className="absolute flex items-center tabular-nums"
         style={{

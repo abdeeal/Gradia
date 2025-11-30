@@ -2,6 +2,7 @@
 import React, { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { useMediaQuery } from "react-responsive";
+import PropTypes from "prop-types"; // ✅ DITAMBAHKAN
 import Mobile from "./Layout/Mobile";
 
 // ===== Presentational (Desktop) =====
@@ -297,3 +298,8 @@ export default function SuccessMsg({ type: typeProp }) {
 
   return type === "reset" ? <ForgotSuccess /> : <RegisterSuccess />;
 }
+
+// ✅ Tambahan untuk eslint(react/prop-types)
+SuccessMsg.propTypes = {
+  type: PropTypes.string,
+};

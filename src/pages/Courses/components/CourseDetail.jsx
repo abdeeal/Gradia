@@ -1,6 +1,7 @@
+import React, { useEffect, useState } from "react";
+import PropTypes from "prop-types";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
-import React, { useEffect, useState } from "react";
 import { useAlert } from "@/hooks/useAlert";
 import DeletePopup from "@/components/Delete";
 
@@ -8,14 +9,14 @@ const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
   const { showAlert } = useAlert();
-  const [formData, setFormData] = useState({});
+  const [form, setForm] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!course) return;
     const [s, e] = (course.time || "").split(" - ");
-    setFormData({
+    setForm({
       ...course,
       startTime: (s || "").trim(),
       endTime: (e || "").trim(),
@@ -24,18 +25,20 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
 
   if (!course) return null;
 
-  const setVal = (k, v) => setFormData((p) => ({ ...p, [k]: v }));
+  const setField = (key, val) =>
+    setForm((prev) => ({
+      ...prev,
+      [key]: val,
+    }));
 
   /* =========================
      SAVE — tutup drawer otomatis jika sukses
      ========================= */
   const handleSave = async () => {
     const updated = {
-      ...formData,
-      sks: formData.sks ? Number(formData.sks) : 0,
-      time: `${formData.startTime || ""} - ${
-        formData.endTime || ""
-      }`.trim(),
+      ...form,
+      sks: form.sks ? Number(form.sks) : 0,
+      time: `${form.startTime || ""} - ${form.endTime || ""}`.trim(),
     };
     delete updated.startTime;
     delete updated.endTime;
@@ -140,8 +143,8 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
 
         <div className="ml-12 mr-12">
           <Title
-            value={formData.title}
-            onChange={(v) => setVal("title", v)}
+            value={form.title}
+            onChange={(v) => setField("title", v)}
             className="max-w-[473px] mb-12"
           />
         </div>
@@ -151,24 +154,24 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
             <InlineField
               label="Alias"
               icon="ri-hashtag"
-              value={formData.alias}
-              onChange={(v) => setVal("alias", v)}
+              value={form.alias}
+              onChange={(v) => setField("alias", v)}
             />
             <InlineField
               label="Lecturer"
               icon="ri-graduation-cap-line"
-              value={formData.lecturer}
-              onChange={(v) => setVal("lecturer", v)}
+              value={form.lecturer}
+              onChange={(v) => setField("lecturer", v)}
             />
             <InlineField
               label="Phone"
               icon="ri-phone-line"
-              value={formData.phone}
-              onChange={(v) => setVal("phone", v)}
+              value={form.phone}
+              onChange={(v) => setField("phone", v)}
               rightAdornment={
-                formData.phone ? (
+                form.phone ? (
                   <a
-                    href={`https://wa.me/${(formData.phone || "").replace(
+                    href={`https://wa.me/${(form.phone || "").replace(
                       /[^0-9]/g,
                       ""
                     )}`}
@@ -184,37 +187,37 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
             <DayField
               label="Day"
               icon="ri-calendar-event-line"
-              value={formData.day}
-              onChange={(v) => setVal("day", v)}
+              value={form.day}
+              onChange={(v) => setField("day", v)}
             />
             <TimeInline
               label="Start / end"
-              start={formData.startTime}
-              end={formData.endTime}
-              onChangeStart={(v) => setVal("startTime", v)}
-              onChangeEnd={(v) => setVal("endTime", v)}
+              start={form.startTime}
+              end={form.endTime}
+              onChangeStart={(v) => setField("startTime", v)}
+              onChangeEnd={(v) => setField("endTime", v)}
             />
             <InlineField
               label="Room"
               icon="ri-door-closed-line"
-              value={formData.room}
-              onChange={(v) => setVal("room", v)}
+              value={form.room}
+              onChange={(v) => setField("room", v)}
             />
             <NumberInline
               label="SKS"
               icon="ri-shopping-bag-line"
-              value={formData.sks}
-              onChange={(v) => setVal("sks", v)}
+              value={form.sks}
+              onChange={(v) => setField("sks", v)}
             />
             <InlineField
               label="Link"
               icon="ri-share-box-line"
-              value={formData.link}
-              onChange={(v) => setVal("link", v)}
+              value={form.link}
+              onChange={(v) => setField("link", v)}
               rightAdornment={
-                formData.link?.startsWith("https://") ? (
+                form.link?.startsWith("https://") ? (
                   <a
-                    href={formData.link}
+                    href={form.link}
                     target="_blank"
                     rel="noreferrer"
                     className="shrink-0"
@@ -261,6 +264,8 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
     </>
   );
 };
+
+/* ===== Sub components ===== */
 
 const Title = ({ value, onChange, className = "" }) => (
   <div className={`font-inter ${className}`}>
@@ -317,7 +322,7 @@ const NumberInline = ({ icon, label, value, onChange }) => (
       <SelectUi
         placeholder="1"
         value={value === "" || value == null ? undefined : String(value)}
-        onValueChange={(v) => onChange(Number(v))}
+        onValueChange={(val) => onChange(Number(val))}
         valueClassFn={(val) => {
           const num = Number(val);
           if (num === 2) return "bg-drop-yellow text-yellow px-3";
@@ -359,5 +364,64 @@ const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => (
     </div>
   </div>
 );
+
+/* ===== PropTypes ===== */
+
+CourseDetail.propTypes = {
+  course: PropTypes.shape({
+    id_courses: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    id_course: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    course_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    title: PropTypes.string,
+    alias: PropTypes.string,
+    lecturer: PropTypes.string,
+    phone: PropTypes.string,
+    day: PropTypes.string,
+    time: PropTypes.string,
+    room: PropTypes.string,
+    sks: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    link: PropTypes.string,
+  }),
+  onClose: PropTypes.func,
+  onSave: PropTypes.func,
+  onDelete: PropTypes.func,
+};
+
+Title.propTypes = {
+  value: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+  className: PropTypes.string,
+};
+
+InlineField.propTypes = {
+  icon: PropTypes.string,
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onChange: PropTypes.func.isRequired,
+  rightAdornment: PropTypes.node,
+};
+
+DayField.propTypes = {
+  icon: PropTypes.string,
+  label: PropTypes.string.isRequired,
+  value: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+};
+
+NumberInline.propTypes = {
+  icon: PropTypes.string,
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onChange: PropTypes.func.isRequired,
+};
+
+TimeInline.propTypes = {
+  label: PropTypes.string.isRequired,
+  start: PropTypes.string,
+  end: PropTypes.string,
+  onChangeStart: PropTypes.func.isRequired,
+  onChangeEnd: PropTypes.func.isRequired,
+};
 
 export default CourseDetail;

@@ -5,7 +5,6 @@ import { getWorkspaceId } from "../../../components/GetWorkspace";
 
 /* ========================= Helpers: Time & Text ========================= */
 
-/** Parse "HH:mm"/"HH.mm" ke Date hari ini */
 function parseHM(hm) {
   if (!hm) return null;
 
@@ -24,14 +23,12 @@ function parseHM(hm) {
   return d;
 }
 
-/** Hitung status berdasarkan waktu: On Going / Upcoming / Done */
-function computeStatus(now, start, end) {
+function getStatus(now, start, end) {
   if (start && end && now >= start && now < end) return "On Going";
   if (start && now < start) return "Upcoming";
   return "Done";
 }
 
-/** Normalisasi ke format tampilan "HH:MM" (tahan "HH:mm", "HH.mm", "HH:mm:ss") */
 function toHM(value) {
   if (!value) return "";
 
@@ -45,30 +42,29 @@ function toHM(value) {
       return `${hh}:${mm}`;
     }
 
-    const dtFromStr = new Date(s);
-    if (!Number.isNaN(dtFromStr)) {
-      const hh = String(dtFromStr.getHours()).padStart(2, "0");
-      const mm = String(dtFromStr.getMinutes()).padStart(2, "0");
+    const dt = new Date(s);
+    if (!Number.isNaN(dt)) {
+      const hh = String(dt.getHours()).padStart(2, "0");
+      const mm = String(dt.getMinutes()).padStart(2, "0");
       return `${hh}:${mm}`;
     }
   }
 
-  const dt = new Date(value);
-  if (!Number.isNaN(dt)) {
-    const hh = String(dt.getHours()).padStart(2, "0");
-    const mm = String(dt.getMinutes()).padStart(2, "0");
+  const dtVal = new Date(value);
+  if (!Number.isNaN(dtVal)) {
+    const hh = String(dtVal.getHours()).padStart(2, "0");
+    const mm = String(dtVal.getMinutes()).padStart(2, "0");
     return `${hh}:${mm}`;
   }
 
   return "";
 }
 
-/** Ambil hanya baris pertama dari lecturer. */
-function firstLineOnlyLecturer(value) {
-  if (!value) return "";
+function firstLectLine(v) {
+  if (!v) return "";
 
-  const normalized = String(value).replace(/<br\s*\/?>/gi, "\n");
-  const lines = normalized
+  const norm = String(v).replace(/<br\s*\/?>/gi, "\n");
+  const lines = norm
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean);
@@ -76,8 +72,7 @@ function firstLineOnlyLecturer(value) {
   return lines[0] || "";
 }
 
-/** Potong string dengan ellipsis tapi hanya pada batas kata. */
-function ellipsizeAtWord(text, maxChars = 42) {
+function cutWords(text, maxChars = 42) {
   const s = String(text).trim();
   if (!s) return "";
   if (s.length <= maxChars) return s;
@@ -89,16 +84,16 @@ function ellipsizeAtWord(text, maxChars = 42) {
 
 /* ========================= Constants & Styles ========================= */
 
-const MIN_SKELETON_MS = 200;
-const SKELETON_COUNT = 4;
+const MIN_SKEL_MS = 200;
+const SKEL_COUNT = 4;
 
-const LIST_CONTAINER_STYLE = {
+const LIST_STYLE = {
   gap: 8,
   alignItems: "flex-start",
   flex: 1,
 };
 
-const COURSE_CARD_STYLE = {
+const CARD_STYLE = {
   minWidth: 245,
   width: 245,
   height: 162,
@@ -110,7 +105,7 @@ const COURSE_CARD_STYLE = {
   justifyContent: "flex-start",
 };
 
-const SHIMMER_STYLES = `
+const SHIMMER_CSS = `
   #id_course .hide-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
   #id_course .hide-scrollbar::-webkit-scrollbar { width:0; height:0; display:none; }
 
@@ -139,17 +134,16 @@ const SHIMMER_STYLES = `
   }
 `;
 
-/* ========================= Small Presentational Components ========================= */
+/* ========================= Presentational Components ========================= */
 
 function SkeletonCard() {
   return (
     <article
       className="relative snap-start rounded-2xl px-4 py-3 shadow overflow-hidden"
-      style={COURSE_CARD_STYLE}
+      style={CARD_STYLE}
     >
       <div className="gradia-shimmer" />
 
-      {/* Konten dummy (disembunyikan supaya shimmer-nya aja yang kelihatan) */}
       <div className="opacity-0">
         <p
           className="text-gray-300 flex items-center gap-2"
@@ -214,7 +208,7 @@ function CourseCard({ course, statusStyle }) {
   return (
     <article
       className="snap-start rounded-2xl px-4 py-3 shadow"
-      style={COURSE_CARD_STYLE}
+      style={CARD_STYLE}
     >
       <p
         className="text-gray-300 flex items-center gap-2"
@@ -255,7 +249,7 @@ function CourseCard({ course, statusStyle }) {
             textOverflow: "ellipsis",
             maxWidth: "100%",
           }}
-          title={course.lecturerFull}
+          title={course.lectFull}
         >
           {course.lecturer}
         </p>
@@ -280,7 +274,6 @@ function CourseCard({ course, statusStyle }) {
   );
 }
 
-/* PropTypes untuk CourseCard (biar eslint/prop-types nggak marah) */
 CourseCard.propTypes = {
   course: PropTypes.shape({
     start: PropTypes.string,
@@ -288,7 +281,7 @@ CourseCard.propTypes = {
     title: PropTypes.string,
     room: PropTypes.string,
     lecturer: PropTypes.string,
-    lecturerFull: PropTypes.string,
+    lectFull: PropTypes.string,
     _status: PropTypes.string,
   }).isRequired,
   statusStyle: PropTypes.func.isRequired,
@@ -300,18 +293,15 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
   const [now, setNow] = useState(new Date());
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [err, setErr] = useState(null);
 
-  // Pakai helper getWorkspaceId yang sudah ada
-  const workspace = useMemo(() => getWorkspaceId(), []);
+  const wsId = useMemo(() => getWorkspaceId(), []);
 
-  // refresh waktu tiap 60 detik
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
 
-  // build endpoint: tambahkan q=today & idWorkspace
   const endpoint = useMemo(() => {
     const origin =
       typeof window !== "undefined"
@@ -322,24 +312,23 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
     const sp = new URLSearchParams(url.search);
 
     if (!sp.get("q")) sp.set("q", "today");
-    if (!sp.get("idWorkspace")) sp.set("idWorkspace", String(workspace));
+    if (!sp.get("idWorkspace")) sp.set("idWorkspace", String(wsId));
 
     url.search = sp.toString();
 
     return typeof window !== "undefined"
       ? url.toString()
       : `${url.pathname}${url.search}`;
-  }, [apiBase, workspace]);
+  }, [apiBase, wsId]);
 
-  // ambil data dari API
   useEffect(() => {
     let active = true;
 
-    async function fetchCourses() {
+    async function load() {
       setLoading(true);
-      setError(null);
+      setErr(null);
 
-      const startTime = Date.now();
+      const start = Date.now();
 
       try {
         const res = await fetch(endpoint, { cache: "no-store" });
@@ -348,56 +337,55 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
         const json = await res.json();
         const arr = Array.isArray(json) ? json : json.data || [];
 
-        const normalized = arr.map((c) => {
-          const firstLineLecturer = firstLineOnlyLecturer(c.lecturer || "");
-          const lecturerOneLine = ellipsizeAtWord(firstLineLecturer, 44);
+        const norm = arr.map((c) => {
+          const first = firstLectLine(c.lecturer || "");
+          const short = cutWords(first, 44);
 
           return {
             start: toHM(c.start ?? ""),
             end: toHM(c.end ?? ""),
             title: c.name || "",
             room: c.room || "",
-            lecturer: lecturerOneLine,
-            lecturerFull: firstLineLecturer,
+            lecturer: short,
+            lectFull: first,
           };
         });
 
-        if (active) setItems(normalized);
+        if (active) setItems(norm);
       } catch (e) {
         if (active) {
           setItems([]);
-          setError(e?.message || "Failed to load");
+          setErr(e?.message || "Failed to load");
         }
       } finally {
-        const endTime = Date.now();
-        const elapsed = endTime - startTime;
+        const end = Date.now();
+        const elapsed = end - start;
 
         const finish = () => {
           if (active) setLoading(false);
         };
 
-        if (elapsed < MIN_SKELETON_MS) {
-          setTimeout(finish, MIN_SKELETON_MS - elapsed);
+        if (elapsed < MIN_SKEL_MS) {
+          setTimeout(finish, MIN_SKEL_MS - elapsed);
         } else {
           finish();
         }
       }
     }
 
-    fetchCourses();
+    load();
 
     return () => {
       active = false;
     };
   }, [endpoint]);
 
-  // status (On Going / Upcoming / Done)
-  const withComputed = useMemo(
+  const rows = useMemo(
     () =>
       items.map((c) => {
-        const start = parseHM(c.start);
-        const end = parseHM(c.end);
-        return { ...c, _status: computeStatus(now, start, end) };
+        const s = parseHM(c.start);
+        const e = parseHM(c.end);
+        return { ...c, _status: getStatus(now, s, e) };
       }),
     [items, now]
   );
@@ -440,9 +428,8 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
         flexDirection: "column",
       }}
     >
-      <style>{SHIMMER_STYLES}</style>
+      <style>{SHIMMER_CSS}</style>
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-[18px]">
         <h2
           className="text-white"
@@ -476,18 +463,16 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
         </a>
       </div>
 
-      {/* Content */}
       {loading ? (
-        // SKELETON
         <div
           className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar"
-          style={LIST_CONTAINER_STYLE}
+          style={LIST_STYLE}
         >
-          {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
+          {Array.from({ length: SKEL_COUNT }).map((_, idx) => (
             <SkeletonCard key={idx} />
           ))}
         </div>
-      ) : error ? (
+      ) : err ? (
         <div
           className="flex items-center justify-center flex-1"
           style={{
@@ -496,9 +481,9 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
             fontSize: 14,
           }}
         >
-          Failed to load: {error}
+          Failed to load: {err}
         </div>
-      ) : withComputed.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div
           className="flex items-center justify-center flex-1"
           style={{
@@ -529,9 +514,9 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
       ) : (
         <div
           className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar"
-          style={LIST_CONTAINER_STYLE}
+          style={LIST_STYLE}
         >
-          {withComputed.map((c, idx) => (
+          {rows.map((c, idx) => (
             <CourseCard key={idx} course={c} statusStyle={statusStyle} />
           ))}
         </div>
@@ -539,7 +524,6 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
     </div>
   );
 }
-
 
 CoursesToday.propTypes = {
   apiBase: PropTypes.string,

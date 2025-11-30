@@ -1,21 +1,33 @@
 // src/pages/Calendar/MonthCalendar.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import PropTypes from "prop-types";
 import { gsap } from "gsap";
 
 /* ===== constants ===== */
-const monthNames = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December"
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
-const daysOfWeek = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // minimal skeleton (samain dengan komponen lain)
 const MIN_SKELETON_MS = 200;
 
-/* Shimmer styles (HARUS persis dengan komponen lain) */
-const ShimmerStyles = () => (
+/* LoadingBox styles (dulu shimmer, sekarang loadingbox) */
+const LoadingBoxStyles = () => (
   <style>{`
-    .gradia-shimmer {
+    .loadingbox {
       position: absolute;
       inset: 0;
       background-image: linear-gradient(
@@ -25,9 +37,9 @@ const ShimmerStyles = () => (
         rgba(15, 15, 15, 0) 100%
       );
       transform: translateX(-100%);
-      animation: gradia-shimmer 1.25s infinite;
+      animation: loadingbox 1.25s infinite;
     }
-    @keyframes gradia-shimmer {
+    @keyframes loadingbox {
       100% {
         transform: translateX(100%);
       }
@@ -36,51 +48,53 @@ const ShimmerStyles = () => (
 );
 
 /* 5 rows × 7 cols, Monday-first */
-const getMonthDays = (year, month) => {
+const buildDays = (year, month) => {
   const first = new Date(year, month, 1);
-  const last  = new Date(year, month + 1, 0);
+  const last = new Date(year, month + 1, 0);
   const start = (first.getDay() + 6) % 7; // Mon=0 ... Sun=6
-  const total = 35; // 🔥 5 baris × 7 kolom
+  const total = 35; // 5 baris × 7 kolom
   const days = [];
 
   const prevLast = new Date(year, month, 0).getDate();
   for (let i = start - 1; i >= 0; i--) {
     days.push({ date: new Date(year, month - 1, prevLast - i), outside: true });
   }
+
   for (let d = 1; d <= last.getDate(); d++) {
     days.push({ date: new Date(year, month, d), outside: false });
   }
-  let next = 1;
+
+  let nxt = 1;
   while (days.length < total) {
-    days.push({ date: new Date(year, month + 1, next++), outside: true });
+    days.push({ date: new Date(year, month + 1, nxt++), outside: true });
   }
   return days;
 };
 
 /* === BADGE STYLE RULES (dipakai juga di detail) === */
 export const BADGE_COLORS = {
-  Blue:   { bg: "rgba(59,130,246,0.2)", text: "rgba(96,165,250,1)" },
-  Green:  { bg: "rgba(34,197,94,0.2)",  text: "rgba(74,222,128,1)" },
+  Blue: { bg: "rgba(59,130,246,0.2)", text: "rgba(96,165,250,1)" },
+  Green: { bg: "rgba(34,197,94,0.2)", text: "rgba(74,222,128,1)" },
   Purple: { bg: "rgba(168,85,247,0.2)", text: "rgba(192,132,252,1)" },
   Orange: { bg: "rgba(249,115,22,0.2)", text: "rgba(251,146,60,1)" },
   Yellow: { bg: "rgba(234,179,8,0.25)", text: "rgba(253,224,71,1)" },
-  Red:    { bg: "rgba(239,68,68,0.2)",  text: "rgba(248,113,113,1)" },
-  Cyan:   { bg: "rgba(6,182,212,0.2)",  text: "rgba(34,211,238,1)" },
-  Pink:   { bg: "rgba(236,72,153,0.2)", text: "rgba(244,114,182,1)" },
-  Gray:   { bg: "rgba(107,114,128,0.2)",text: "rgba(212,212,216,1)" },
+  Red: { bg: "rgba(239,68,68,0.2)", text: "rgba(248,113,113,1)" },
+  Cyan: { bg: "rgba(6,182,212,0.2)", text: "rgba(34,211,238,1)" },
+  Pink: { bg: "rgba(236,72,153,0.2)", text: "rgba(244,114,182,1)" },
+  Gray: { bg: "rgba(107,114,128,0.2)", text: "rgba(212,212,216,1)" },
 };
 
-const normalize = (v = "") => String(v).trim().toLowerCase();
+const norm = (v = "") => String(v).trim().toLowerCase();
 
 // ✅ high + in progress = Purple, walaupun overdue
 export const computeBadgeStyle = (task) => {
-  const pr = normalize(task.priority || task.priority_level || task.level);
-  const st = normalize(task.status || task.state);
+  const pr = norm(task.priority || task.priority_level || task.level);
+  const st = norm(task.status || task.state);
 
   const now = new Date();
   const deadline = task.deadline ? new Date(task.deadline) : null;
   const isOverdue =
-    deadline && !isNaN(+deadline) && deadline < now && st !== "completed";
+    deadline && !Number.isNaN(+deadline) && deadline < now && st !== "completed";
 
   // 1. Completed dulu
   if (st === "completed" || st === "done" || st === "selesai") {
@@ -90,7 +104,7 @@ export const computeBadgeStyle = (task) => {
   // 2. Kombinasi priority + status (ini HARUS menang dari overdue)
   if (pr === "high") {
     if (st === "in progress" || st === "ongoing" || st === "progress") {
-      return BADGE_COLORS.Purple;   // 🔥 high + in progress = ungu
+      return BADGE_COLORS.Purple; // high + in progress = ungu
     }
     if (st === "not started" || st === "todo" || st === "backlog") {
       return BADGE_COLORS.Pink;
@@ -126,7 +140,7 @@ export const computeBadgeStyle = (task) => {
 };
 
 /* Util: YYYY-MM-DD (LOCAL) */
-const toKeyLocal = (d) => {
+const fmtKey = (d) => {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -134,31 +148,30 @@ const toKeyLocal = (d) => {
 };
 
 /* Today check (LOCAL) */
-const isSameLocalDay = (a, b) => {
-  return a.getFullYear() === b.getFullYear() &&
-         a.getMonth() === b.getMonth() &&
-         a.getDate() === b.getDate();
-};
+const isSameDay = (a, b) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
 
 /* Normalisasi teks label event: trim + gabung spasi ganda */
-const normalizeLabelText = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+const cleanLabel = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
 
 /* Helper: safely append query params to relative or absolute URL */
-function withQuery(urlLike, paramsObj) {
+function addQuery(urlLike, paramsObj) {
   try {
     const base = urlLike.startsWith("http")
       ? new URL(urlLike)
       : new URL(urlLike, window.location.origin);
+
     Object.entries(paramsObj || {}).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "") {
         base.searchParams.set(k, String(v));
       }
     });
-    // Return relative path if original was relative, else absolute
+
     const isRelative = !urlLike.startsWith("http");
     return isRelative ? base.pathname + base.search : base.toString();
   } catch {
-    // Fallback: naive concatenation
     const qs = new URLSearchParams(paramsObj).toString();
     return urlLike.includes("?") ? `${urlLike}&${qs}` : `${urlLike}?${qs}`;
   }
@@ -167,39 +180,41 @@ function withQuery(urlLike, paramsObj) {
 export default function MonthCalendar({
   value,
   onChange,
-  onOpenDetails,             // (date, events[]) => void
-  tasksApi = "/api/tasks",   // endpoint GET kamu
+  onOpenDetails, // (date, events[]) => void
+  tasksApi = "/api/tasks",
 }) {
   const [openPicker, setOpenPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState("date"); // "date" | "month" | "year"
   const [eventsByDate, setEventsByDate] = useState({});
-  const [query, setQuery] = useState("");               // <-- search query
-  const [loading, setLoading] = useState(true);         // 🔥 state loading utk skeleton
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true); // state loading utk skeleton
+
   const pickerRef = useRef(null);
   const gridRef = useRef(null);
+  const autoOpenedTodayRef = useRef(false); // auto-open today cuma sekali
 
-  // 🔁 flag supaya auto-open today cuma sekali
-  const autoOpenedTodayRef = useRef(false);
-
-  // === Ambil idWorkspace dari sessionStorage (fallback 1) ===
-  const sessionIdWorkspace = useMemo(() => {
+  // Ambil idWorkspace dari sessionStorage (fallback 1)
+  const sessionWsId = useMemo(() => {
     try {
       if (typeof window !== "undefined" && window.sessionStorage) {
         const v = Number(window.sessionStorage.getItem("id_workspace"));
         return Number.isFinite(v) && v > 0 ? v : 1;
       }
-    } catch {}
+    } catch {
+      // ignore
+    }
     return 1;
   }, []);
 
-  // === Bentuk final URL: '/api/tasks?idWorkspace={id}' ===
-  const finalTasksApi = useMemo(() => {
-    return withQuery(tasksApi, { idWorkspace: sessionIdWorkspace });
-  }, [tasksApi, sessionIdWorkspace]);
+  // Bentuk final URL: '/api/tasks?idWorkspace={id}'
+  const finalApi = useMemo(
+    () => addQuery(tasksApi, { idWorkspace: sessionWsId }),
+    [tasksApi, sessionWsId],
+  );
 
   const month = value.getMonth();
-  const year  = value.getFullYear();
-  const days  = useMemo(() => getMonthDays(year, month), [year, month]);
+  const year = value.getFullYear();
+  const days = useMemo(() => buildDays(year, month), [year, month]);
 
   /* Animasi grid saat ganti bulan */
   useEffect(() => {
@@ -207,31 +222,31 @@ export default function MonthCalendar({
     gsap.fromTo(
       gridRef.current.children,
       { autoAlpha: 0, y: 6 },
-      { autoAlpha: 1, y: 0, duration: 0.2, stagger: 0.008, ease: "power1.out" }
+      { autoAlpha: 1, y: 0, duration: 0.2, stagger: 0.008, ease: "power1.out" },
     );
   }, [year, month]);
 
   /* Fetch tasks → group per tanggal (pakai field deadline) */
   useEffect(() => {
-    let isCancelled = false;
+    let cancelled = false;
     const started = Date.now();
 
     setLoading(true);
 
     (async () => {
       try {
-        const res = await fetch(finalTasksApi);
+        const res = await fetch(finalApi);
         const data = await res.json();
-        if (isCancelled) return;
+        if (cancelled) return;
 
         const map = {};
         (data || []).forEach((task) => {
           const dateObj = task.deadline ? new Date(task.deadline) : null;
-          if (!dateObj || isNaN(dateObj)) return;
-          const k = toKeyLocal(dateObj);
+          if (!dateObj || Number.isNaN(dateObj)) return;
 
+          const key = fmtKey(dateObj);
           const ev = {
-            id: task.id_tasks ?? task.id_task ?? task.id ?? `${k}-${task.title}`,
+            id: task.id_tasks ?? task.id_task ?? task.id ?? `${key}-${task.title}`,
             title: task.title || "(Untitled)",
             desc: task.description || "",
             start: task.start || task.due_time || "",
@@ -241,8 +256,9 @@ export default function MonthCalendar({
             style: computeBadgeStyle(task),
             raw: task,
           };
-          if (!map[k]) map[k] = [];
-          map[k].push(ev);
+
+          if (!map[key]) map[key] = [];
+          map[key].push(ev);
         });
 
         // sort: priority > status
@@ -264,42 +280,41 @@ export default function MonthCalendar({
         const elapsed = Date.now() - started;
         const wait = Math.max(0, MIN_SKELETON_MS - elapsed);
         setTimeout(() => {
-          if (!isCancelled) setLoading(false);
+          if (!cancelled) setLoading(false);
         }, wait);
       }
     })();
 
     return () => {
-      isCancelled = true;
+      cancelled = true;
     };
-  }, [finalTasksApi]);
+  }, [finalApi]);
 
   /* Tutup picker saat klik di luar */
   useEffect(() => {
-    const onDown = (e) => {
+    const handleDown = (e) => {
       if (pickerRef.current && !pickerRef.current.contains(e.target)) {
         setOpenPicker(false);
       }
     };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("mousedown", handleDown);
+    return () => document.removeEventListener("mousedown", handleDown);
   }, []);
 
   /* Pertama kali: pilih HARI INI dan kirim detailnya (init kosong) */
   useEffect(() => {
     const today = new Date();
     onChange?.(today);
-    const tk = toKeyLocal(today);
-    onOpenDetails?.(today, (eventsByDate[tk] || []));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const key = fmtKey(today);
+    onOpenDetails?.(today, eventsByDate[key] || []);
   }, []);
 
-  // ✅ AUTO: kalau hari ini punya event, detail panel langsung keisi
+  // AUTO: kalau hari ini punya event, detail panel langsung keisi
   useEffect(() => {
     if (autoOpenedTodayRef.current) return;
 
     const today = new Date();
-    const key = toKeyLocal(today);
+    const key = fmtKey(today);
     const evs = eventsByDate[key];
 
     if (Array.isArray(evs) && evs.length > 0) {
@@ -309,18 +324,19 @@ export default function MonthCalendar({
     }
   }, [eventsByDate, onChange, onOpenDetails]);
 
-  const selKey = toKeyLocal(value);
+  const selKey = fmtKey(value);
   const today = new Date();
 
   /* Filtering events by search query (case-insensitive) */
   const filteredEventsByDate = useMemo(() => {
-    const q = normalize(query);
+    const q = norm(query);
     if (!q) return eventsByDate;
+
     const out = {};
     Object.entries(eventsByDate).forEach(([k, arr]) => {
       const filtered = arr.filter((ev) => {
-        const t = normalizeLabelText(ev.title).toLowerCase();
-        const d = normalizeLabelText(ev.desc).toLowerCase();
+        const t = cleanLabel(ev.title).toLowerCase();
+        const d = cleanLabel(ev.desc).toLowerCase();
         return t.includes(q) || d.includes(q);
       });
       if (filtered.length) out[k] = filtered;
@@ -329,10 +345,12 @@ export default function MonthCalendar({
   }, [eventsByDate, query]);
 
   /* Helper to get events for a date with current filter */
-  const getEventsForDate = (dateObj) => filteredEventsByDate[toKeyLocal(dateObj)] || [];
+  const getEventsForDate = (dateObj) => filteredEventsByDate[fmtKey(dateObj)] || [];
 
-  const gotoMonth = (m) => onChange?.(new Date(year, m, Math.min(value.getDate(), 28)));
-  const gotoYear  = (y) => onChange?.(new Date(y, month, Math.min(value.getDate(), 28)));
+  const goMonth = (m) =>
+    onChange?.(new Date(year, m, Math.min(value.getDate(), 28)));
+  const goYear = (y) =>
+    onChange?.(new Date(y, month, Math.min(value.getDate(), 28)));
 
   const shiftMonth = (delta) => {
     const next = new Date(year, month + delta, Math.min(value.getDate(), 28));
@@ -343,32 +361,30 @@ export default function MonthCalendar({
   const strokeColor = "rgba(101,101,101,0.5)";
 
   return (
-    <React.Fragment>
-      {/* Shimmer CSS global */}
-      <ShimmerStyles />
+    <>
+      {/* LoadingBox CSS global */}
+      <LoadingBoxStyles />
 
       {/* ===== TOP HEADER (di luar kalender) ===== */}
       <div
+        className="grid bg-transparent items-center"
         style={{
           width: 788,
           padding: "16px 32px 32px 0px",
-          display: "grid",
           gridTemplateColumns: "1fr 280px",
           gridTemplateRows: "auto auto",
           columnGap: 16,
-          background: "rgba(0,0,0,0)",
-          alignItems: "center",
         }}
       >
         {/* Title */}
         <div
+          className="text-[#FAFAFA]"
           style={{
             gridColumn: "1 / 2",
             gridRow: "1 / 2",
-            font: "Montserrat",
+            fontFamily: "Montserrat",
             fontSize: 20,
             fontWeight: 600,
-            color: "rgba(250,250,250,1)",
             lineHeight: 1.6,
           }}
         >
@@ -396,6 +412,7 @@ export default function MonthCalendar({
 
         {/* Search di kanan header */}
         <div
+          className="flex items-center justify-end bg-transparent rounded-xl"
           style={{
             paddingLeft: 10,
             gridColumn: "2 / 3",
@@ -405,25 +422,20 @@ export default function MonthCalendar({
             width: 300,
             height: 44,
             border: "1px solid rgba(101,101,101,0.5)",
-            borderRadius: 12,
-            display: "flex",
-            alignItems: "center",
             padding: "0 12px",
             gap: 8,
-            background: "rgba(0,0,0,0)",
           }}
         >
-          <i className="ri-search-line" style={{ fontSize: 18, color: "rgba(156,163,175,1)" }} />
+          <i
+            className="ri-search-line"
+            style={{ fontSize: 18, color: "rgba(156,163,175,1)" }}
+          />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value ?? "")}
             placeholder="Search"
+            className="flex-1 bg-transparent border-none outline-none text-gray-200"
             style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: "rgba(229,231,235,1)",
               fontFamily:
                 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
               fontSize: 16,
@@ -435,92 +447,65 @@ export default function MonthCalendar({
 
       {/* ===== KALENDER (asli) ===== */}
       <div
+        className="relative overflow-hidden rounded-[10px] bg-zinc-950"
         style={{
           width: 753,
           border: "1px solid rgba(101,101,101,0.5)",
-          borderRadius: 10,
-          overflow: "hidden",
-          background: "rgba(9,9,11,1)",
-          position: "relative",
           fontFamily:
             'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
         }}
       >
         {/* HEADER */}
         <div
+          className="flex items-center gap-[10px] w-full"
           style={{
-            width: "100%",
             minHeight: 82,
-            display: "flex",
-            alignItems: "center",
             padding: "10px 16px",
-            gap: 10,
           }}
         >
           {/* Kotak tanggal */}
           <div
+            className="relative flex flex-col justify-between bg-[#111114]"
             style={{
               width: 80,
               height: 62,
               borderRadius: 8,
               border: "1px solid rgba(101,101,101,0.5)",
-              background: "rgba(17,17,20,1)",
               padding: 10,
-              position: "relative",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "stretch",
-              justifyContent: "space-between",
               gap: 4,
             }}
           >
             {/* Nama bulan */}
-            <div
-              style={{
-                fontSize: 12,
-                color: "rgba(179,179,179,1)",
-                fontWeight: 700,
-                textTransform: "capitalize",
-                lineHeight: 1,
-                marginTop: 0,
-                textAlign: "center",
-              }}
-            >
-              {monthNames[month].slice(0, 3)}
+            <div className="mt-0 text-center text-[12px] font-bold uppercase tracking-tight text-[#B3B3B3] leading-none">
+              {MONTHS[month].slice(0, 3)}
             </div>
 
             {/* Tombol ungu (picker) */}
             <button
               type="button"
-              onClick={() => { setOpenPicker((o) => !o); setPickerMode("date"); }}
-              title="Pick date / month / year"
-              style={{
-                width: 60,
-                height: 25,
-                margin: "0 auto",
-                background: "rgba(100,62,178,1)",
-                borderRadius: 8,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "rgba(255,255,255,1)",
-                fontWeight: 800,
-                cursor: "pointer",
-                outline: "none",
-                border: "none",
+              onClick={() => {
+                setOpenPicker((o) => !o);
+                setPickerMode("date");
               }}
+              title="Pick date / month / year"
+              className="mx-auto flex items-center justify-center rounded-[8px] bg-[#643EB2] text-white font-extrabold outline-none border-none"
+              style={{ width: 60, height: 25 }}
             >
               {value.getDate()}
             </button>
           </div>
 
           {/* Teks bulan */}
-          <div style={{ flex: "0 0 263px", minHeight: 62, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <div style={{ color: "rgba(255,235,59,1)", fontSize: 20, fontWeight: 700 }}>
-              {monthNames[month]} {year}
+          <div
+            className="flex flex-col justify-center"
+            style={{ flex: "0 0 263px", minHeight: 62 }}
+          >
+            <div className="text-[20px] font-bold text-[#FFEB3B]">
+              {MONTHS[month]} {year}
             </div>
-            <div style={{ color: "rgba(156,163,175,1)", fontSize: 14, fontWeight: 500 }}>
-              1 {monthNames[month]} – {new Date(year, month + 1, 0).getDate()} {monthNames[month]}
+            <div className="text-[14px] font-medium text-gray-400">
+              1 {MONTHS[month]} – {new Date(year, month + 1, 0).getDate()}{" "}
+              {MONTHS[month]}
             </div>
           </div>
         </div>
@@ -529,34 +514,27 @@ export default function MonthCalendar({
         {openPicker && (
           <div
             ref={pickerRef}
+            className="absolute z-20 bg-zinc-900 shadow-xl"
             style={{
-              position: "absolute",
               left: 16,
               top: 82,
-              zIndex: 20,
-              background: "rgba(24,24,27,1)",
               border: "1px solid rgba(101,101,101,0.6)",
               borderRadius: 12,
               padding: 10,
               width: 260,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
             }}
           >
             {/* Tabs */}
-            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <div className="mb-2 flex gap-[6px]">
               {["date", "month", "year"].map((m) => (
                 <button
                   key={m}
                   onClick={() => setPickerMode(m)}
+                  className="cursor-pointer rounded-[10px] border px-[10px] py-[6px] text-[12px] font-bold text-gray-200"
                   style={{
-                    padding: "6px 10px",
-                    borderRadius: 10,
                     border: "1px solid rgba(101,101,101,0.5)",
-                    background: pickerMode === m ? "rgba(63,63,70,1)" : "rgba(0,0,0,0)",
-                    color: "rgba(229,231,235,1)",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
+                    background:
+                      pickerMode === m ? "rgba(63,63,70,1)" : "rgba(0,0,0,0)",
                   }}
                 >
                   {m.toUpperCase()}
@@ -566,8 +544,14 @@ export default function MonthCalendar({
 
             {/* Mode Date */}
             {pickerMode === "date" && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-                {Array.from({ length: new Date(year, month + 1, 0).getDate() }, (_, i) => i + 1).map((d) => (
+              <div
+                className="grid gap-1"
+                style={{ gridTemplateColumns: "repeat(7, 1fr)" }}
+              >
+                {Array.from(
+                  { length: new Date(year, month + 1, 0).getDate() },
+                  (_, i) => i + 1,
+                ).map((d) => (
                   <button
                     key={d}
                     onClick={() => {
@@ -576,13 +560,17 @@ export default function MonthCalendar({
                       onOpenDetails?.(next, getEventsForDate(next));
                       setOpenPicker(false);
                     }}
+                    className="cursor-pointer rounded-[10px] font-extrabold"
                     style={{
                       height: 30,
-                      borderRadius: 10,
-                      cursor: "pointer",
-                      background: d === value.getDate() ? "rgba(255,235,59,1)" : "rgba(39,39,42,1)",
-                      color: d === value.getDate() ? "rgba(17,24,39,1)" : "rgba(229,231,235,1)",
-                      fontWeight: 800,
+                      background:
+                        d === value.getDate()
+                          ? "rgba(255,235,59,1)"
+                          : "rgba(39,39,42,1)",
+                      color:
+                        d === value.getDate()
+                          ? "rgba(17,24,39,1)"
+                          : "rgba(229,231,235,1)",
                     }}
                   >
                     {d}
@@ -593,24 +581,30 @@ export default function MonthCalendar({
 
             {/* Mode Month */}
             {pickerMode === "month" && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-                {monthNames.map((m, i) => (
+              <div
+                className="grid gap-[6px]"
+                style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
+              >
+                {MONTHS.map((m, i) => (
                   <button
                     key={m}
                     onClick={() => {
-                      gotoMonth(i);
+                      goMonth(i);
                       const next = new Date(year, i, value.getDate());
                       onOpenDetails?.(next, getEventsForDate(next));
                       setOpenPicker(false);
                     }}
+                    className="cursor-pointer rounded-[10px] text-[12px] font-extrabold"
                     style={{
                       height: 34,
-                      borderRadius: 10,
-                      cursor: "pointer",
-                      background: i === month ? "rgba(255,235,59,1)" : "rgba(39,39,42,1)",
-                      color: i === month ? "rgba(17,24,39,1)" : "rgba(229,231,235,1)",
-                      fontWeight: 800,
-                      fontSize: 12,
+                      background:
+                        i === month
+                          ? "rgba(255,235,59,1)"
+                          : "rgba(39,39,42,1)",
+                      color:
+                        i === month
+                          ? "rgba(17,24,39,1)"
+                          : "rgba(229,231,235,1)",
                     }}
                   >
                     {m.slice(0, 3)}
@@ -621,29 +615,37 @@ export default function MonthCalendar({
 
             {/* Mode Year */}
             {pickerMode === "year" && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, maxHeight: 200, overflow: "auto" }}>
-                {Array.from({ length: 21 }, (_, i) => year - 10 + i).map((y) => (
-                  <button
-                    key={y}
-                    onClick={() => {
-                      gotoYear(y);
-                      const next = new Date(y, month, value.getDate());
-                      onOpenDetails?.(next, getEventsForDate(next));
-                      setOpenPicker(false);
-                    }}
-                    style={{
-                      height: 34,
-                      borderRadius: 10,
-                      cursor: "pointer",
-                      background: y === year ? "rgba(255,235,59,1)" : "rgba(39,39,42,1)",
-                      color: y === year ? "rgba(17,24,39,1)" : "rgba(229,231,235,1)",
-                      fontWeight: 800,
-                      fontSize: 12,
-                    }}
-                  >
-                    {y}
-                  </button>
-                ))}
+              <div
+                className="grid max-h-[200px] gap-[6px] overflow-auto"
+                style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
+              >
+                {Array.from({ length: 21 }, (_, i) => year - 10 + i).map(
+                  (y) => (
+                    <button
+                      key={y}
+                      onClick={() => {
+                        goYear(y);
+                        const next = new Date(y, month, value.getDate());
+                        onOpenDetails?.(next, getEventsForDate(next));
+                        setOpenPicker(false);
+                      }}
+                      className="cursor-pointer rounded-[10px] text-[12px] font-extrabold"
+                      style={{
+                        height: 34,
+                        background:
+                          y === year
+                            ? "rgba(255,235,59,1)"
+                            : "rgba(39,39,42,1)",
+                        color:
+                          y === year
+                            ? "rgba(17,24,39,1)"
+                            : "rgba(229,231,235,1)",
+                      }}
+                    >
+                      {y}
+                    </button>
+                  ),
+                )}
               </div>
             )}
           </div>
@@ -652,27 +654,23 @@ export default function MonthCalendar({
         {/* GRID */}
         <div
           ref={gridRef}
+          className="grid"
           style={{
             width: 753,
-            display: "grid",
             gridTemplateColumns: "repeat(7, 1fr)",
-            gridTemplateRows: "34px repeat(5, 112px)", // 🔥 5 baris
+            gridTemplateRows: "34px repeat(5, 112px)", // 5 baris
             borderTop: "1px solid rgba(101,101,101,0.5)",
           }}
         >
           {/* Header hari */}
-          {daysOfWeek.map((d, i) => (
+          {DAYS.map((d, i) => (
             <div
               key={d}
+              className="flex items-center justify-center bg-[#0F0F0F] font-bold text-gray-200"
               style={{
                 borderBottom: "1px solid rgba(101,101,101,0.5)",
-                borderRight: i === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                background: "rgba(15,15,15,1)",
-                color: "rgba(229,231,235,1)",
+                borderRight:
+                  i === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
               }}
             >
               {d}
@@ -681,30 +679,26 @@ export default function MonthCalendar({
 
           {/* Cells 5×7 */}
           {loading
-            ? // 🔥 Skeleton shimmer per sel, FULL sel
+            ? // Loadingbox skeleton per sel, FULL sel
               Array.from({ length: 7 * 5 }).map((_, idx) => {
                 const col = idx % 7;
                 const row = Math.floor(idx / 7);
                 return (
                   <div
                     key={`sk-${idx}`}
+                    className="relative bg-transparent overflow-hidden"
                     style={{
-                      position: "relative",
-                      borderRight: col === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
-                      borderBottom: row === 4 ? "none" : "1px solid rgba(101,101,101,0.5)",
-                      background: "rgba(0,0,0,0)",
-                      overflow: "hidden",
+                      borderRight:
+                        col === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      borderBottom:
+                        row === 4 ? "none" : "1px solid rgba(101,101,101,0.5)",
                     }}
                   >
                     <div
-                      style={{
-                        position: "absolute",
-                        inset: 0,              // ⬅️ FULL satu sel
-                        background: "rgba(24,24,27,1)",
-                        overflow: "hidden",
-                      }}
+                      className="absolute inset-0 overflow-hidden"
+                      style={{ background: "rgba(24,24,27,1)" }}
                     >
-                      <div className="gradia-shimmer" />
+                      <div className="loadingbox" />
                     </div>
                   </div>
                 );
@@ -713,9 +707,9 @@ export default function MonthCalendar({
               days.map(({ date, outside }, idx) => {
                 const col = idx % 7;
                 const row = Math.floor(idx / 7);
-                const dateStr = toKeyLocal(date);
+                const dateStr = fmtKey(date);
                 const isSel = dateStr === selKey;
-                const isToday = isSameLocalDay(date, today);
+                const isToday = isSameDay(date, today);
                 const events = getEventsForDate(date);
 
                 const shown = events.slice(0, 2);
@@ -728,37 +722,38 @@ export default function MonthCalendar({
                       onChange?.(date);
                       onOpenDetails?.(date, events);
                     }}
+                    className="relative h-full overflow-hidden bg-transparent text-left"
                     style={{
-                      position: "relative",
-                      borderRight: col === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
-                      borderBottom: row === 4 ? "none" : "1px solid rgba(101,101,101,0.5)",
-                      background: outside ? "rgba(36,36,36,1)" : "rgba(0,0,0,0)",
+                      borderRight:
+                        col === 6 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      borderBottom:
+                        row === 4 ? "none" : "1px solid rgba(101,101,101,0.5)",
+                      background: outside
+                        ? "rgba(36,36,36,1)"
+                        : "rgba(0,0,0,0)",
                       padding: 8,
-                      textAlign: "left",
                       cursor: "pointer",
-                      height: "100%",
-                      overflow: "hidden",
-                      boxShadow: isSel ? `inset 0 0 0 2px ${strokeColor}` : "none",
+                      boxShadow: isSel
+                        ? `inset 0 0 0 2px ${strokeColor}`
+                        : "none",
                     }}
                   >
                     {/* angka tanggal + lingkaran 22×22 HANYA untuk HARI INI */}
                     <div
+                      className="absolute flex items-center justify-center rounded-full text-[12px] font-extrabold"
                       style={{
-                        position: "absolute",
                         top: 6,
                         left: 8,
                         width: 22,
                         height: 22,
-                        borderRadius: "50%",
-                        background: isToday ? "rgba(255,235,59,1)" : "rgba(0,0,0,0)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 12,
-                        fontWeight: 800,
+                        background: isToday
+                          ? "rgba(255,235,59,1)"
+                          : "rgba(0,0,0,0)",
                         color: isToday
                           ? "rgba(17,24,39,1)"
-                          : (outside ? "rgba(107,114,128,1)" : "rgba(229,231,235,1)"),
+                          : outside
+                          ? "rgba(107,114,128,1)"
+                          : "rgba(229,231,235,1)",
                       }}
                     >
                       {date.getDate()}
@@ -766,42 +761,28 @@ export default function MonthCalendar({
 
                     {/* event badges (maks 2) + "x more..." */}
                     <div
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "flex-start",
-                        alignItems: "stretch",
-                        gap: 4,
-                        paddingTop: 25,
-                      }}
+                      className="flex h-full w-full flex-col items-stretch justify-start gap-1"
+                      style={{ paddingTop: 25 }}
                     >
                       {shown.map((ev) => (
                         <div
                           key={ev.id}
                           title={ev.title}
+                          className="inline-block w-full max-w-[95%] truncate rounded-[4px] text-[11px] font-semibold text-left"
                           style={{
-                            display: "inline-block",
-                            width: "100%",
-                            maxWidth: "95%",
                             marginLeft: 0,
                             height: 22,
                             lineHeight: "22px",
-                            borderRadius: 4,
                             padding: "0 10px",
-                            overflow: "hidden",
-                            whiteSpace: "nowrap",
-                            textOverflow: "ellipsis",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: ev.style?.bg || "rgba(82,82,91,1)",
-                            color: ev.style?.text || "rgba(229,229,229,1)",
-                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
-                            textAlign: "left",
+                            background:
+                              ev.style?.bg || "rgba(82,82,91,1)",
+                            color:
+                              ev.style?.text || "rgba(229,229,229,1)",
+                            boxShadow:
+                              "inset 0 0 0 1px rgba(255,255,255,0.06)",
                           }}
                         >
-                          {normalizeLabelText(ev.title)}
+                          {cleanLabel(ev.title)}
                         </div>
                       ))}
 
@@ -809,24 +790,16 @@ export default function MonthCalendar({
                         <div
                           onClick={() => onOpenDetails?.(date, events)}
                           title="View all"
+                          className="w-full max-w-[95%] cursor-pointer truncate rounded-[4px] text-left text-[11px] font-bold"
                           style={{
-                            width: "100%",
-                            maxWidth: "95%",
                             marginLeft: 0,
                             height: 20,
                             lineHeight: "20px",
-                            borderRadius: 4,
                             padding: "0 6px",
-                            overflow: "hidden",
-                            whiteSpace: "nowrap",
-                            textOverflow: "ellipsis",
-                            fontSize: 11,
-                            fontWeight: 700,
                             background: "rgba(39,39,42,0.6)",
                             color: "rgba(156,163,175,1)",
-                            boxShadow: "inset 0 0 0 1px rgba(101,101,101,0.25)",
-                            textAlign: "left",
-                            cursor: "pointer",
+                            boxShadow:
+                              "inset 0 0 0 1px rgba(101,101,101,0.25)",
                           }}
                         >
                           {moreCount} more...
@@ -840,60 +813,42 @@ export default function MonthCalendar({
 
         {/* BOTTOM NAV */}
         <div
+          className="flex items-center justify-between bg-[#0F0F0F]"
           style={{
             width: 753,
             height: 34,
             borderTop: "1px solid rgba(101,101,101,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
             padding: "0 10px",
-            background: "rgba(15,15,15,1)",
           }}
         >
           <button
             onClick={() => shiftMonth(-1)}
             title="Previous month"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "rgba(0,0,0,0)",
-              color: "rgba(229,231,235,1)",
-              padding: "3px 8px",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontWeight: 500,
-              fontSize: 13,
-            }}
+            className="flex items-center gap-[6px] cursor-pointer rounded-[6px] bg-transparent px-[8px] py-[3px] text-[13px] font-medium text-gray-200"
           >
             <i className="ri-arrow-left-s-line" /> Prev
           </button>
 
-          <div style={{ color: "rgba(229,231,235,1)", fontSize: 13, fontWeight: 500 }}>
-            {monthNames[month]} {year}
+          <div className="text-[13px] font-medium text-gray-200">
+            {MONTHS[month]} {year}
           </div>
 
           <button
             onClick={() => shiftMonth(1)}
             title="Next month"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "rgba(0,0,0,0)",
-              color: "rgba(229,231,235,1)",
-              padding: "3px 8px",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontWeight: 500,
-              fontSize: 13,
-            }}
+            className="flex items-center gap-[6px] cursor-pointer rounded-[6px] bg-transparent px-[8px] py-[3px] text-[13px] font-medium text-gray-200"
           >
             Next <i className="ri-arrow-right-s-line" />
           </button>
         </div>
       </div>
-    </React.Fragment>
+    </>
   );
 }
+
+MonthCalendar.propTypes = {
+  value: PropTypes.instanceOf(Date).isRequired,
+  onChange: PropTypes.func,
+  onOpenDetails: PropTypes.func,
+  tasksApi: PropTypes.string,
+};
