@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       )
       .order("presences_at", { ascending: false })
       // filter berdasarkan id_workspace dari tabel relasi course
-      .eq("course.id_workspace", idWorkspace);
+      .eq("id_workspace", idWorkspace);
 
     if (error) {
       return res.status(500).json({ error: error.message });

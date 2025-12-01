@@ -122,21 +122,21 @@ Row.defaultProps = {
   icon: null,
 };
 
-const InputBase = ({ as: Comp, className, ...rest }) => (
-  <Comp
-    {...rest}
-    className={`h-[30px] w-full bg-transparent border-none outline-none text-gray-200 text-[16px] placeholder:text-gray-500 px-2 ${className}`}
-  />
-);
+const InputBase = ({ as: Comp = "input", className = "", ...rest }) => {
+  const Component = Comp || "input"; // jaga-jaga kalau as = undefined/null
+
+  return (
+    <Component
+      {...rest}
+      className={`h-[30px] w-full bg-transparent border-none outline-none text-gray-200 text-[16px] placeholder:text-gray-500 px-2 ${className}`}
+    />
+  );
+};
+
 
 InputBase.propTypes = {
   as: PropTypes.oneOfType([PropTypes.string, PropTypes.elementType]),
   className: PropTypes.string,
-};
-
-InputBase.defaultProps = {
-  as: "input",
-  className: "",
 };
 
 const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => {

@@ -7,7 +7,7 @@ import { Link } from "react-router-dom";
 
 const Mobile = () => {
   const [courses, setCourses] = useState([]);
-  const [tasks, setTasks] = useState([]);
+  // const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState({
     completed: 0,
     inProgress: 0,
@@ -17,7 +17,7 @@ const Mobile = () => {
     dueToday: [],
   });
 
-const user = JSON.parse(localStorage.getItem("user"));
+  const user = JSON.parse(localStorage.getItem("user"));
 
   const idWorkspace = sessionStorage.getItem("id_workspace");
 
@@ -39,6 +39,13 @@ const user = JSON.parse(localStorage.getItem("user"));
     if (idWorkspace) fetchCourses();
   }, [idWorkspace]);
 
+  const toLocalYmd = (value) => {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("en-CA"); // "2025-12-02"
+  };
+
   // Fetch Tasks (tanpa ubah API)
   useEffect(() => {
     const fetchTasks = async () => {
@@ -46,23 +53,33 @@ const user = JSON.parse(localStorage.getItem("user"));
         const res = await fetch(`/api/tasks?idWorkspace=${idWorkspace}`);
         if (!res.ok) throw new Error("Failed to fetch tasks");
         const data = await res.json();
+        const tasks = Array.isArray(data) ? data : data.data || [];
 
-        // Hitung statistik berdasarkan data
-        const today = new Date().toISOString().split("T")[0];
-        const completed = data.filter((t) => t.status === "Completed").length;
-        const inProgress = data.filter(
+        const todayYmd = toLocalYmd(new Date());
+
+        const completed = tasks.filter((t) => t.status === "Completed").length;
+        const inProgress = tasks.filter(
           (t) => t.status === "In progress"
         ).length;
-        const notStarted = data.filter(
-          (t) => t.status === "Not started"
+        const notStarted = tasks.filter(
+          (t) =>
+            t.status === "Not started" ||
+            t.status === "Pending" ||
+            t.status === "Overdue"
         ).length;
-        const total = data.length;
-        const addedToday = data.filter((t) =>
-          t.created_at?.startsWith(today)
-        ).length;
-        const dueToday = data.filter((t) => t.deadline?.startsWith(today));
 
-        setTasks(data);
+        const total = tasks.length;
+
+        const addedToday = tasks.filter((t) => {
+          const created = toLocalYmd(t.created_at);
+          return created === todayYmd;
+        }).length;
+
+        const dueToday = tasks.filter((t) => {
+          const deadline = toLocalYmd(t.deadline);
+          return deadline === todayYmd;
+        });
+
         setStats({
           completed,
           inProgress,
@@ -172,7 +189,6 @@ const user = JSON.parse(localStorage.getItem("user"));
     }
   }, []);
 
-
   return (
     <div className="flex flex-col gap-6 text-foreground pb-6">
       {/* Header */}
@@ -247,7 +263,7 @@ const user = JSON.parse(localStorage.getItem("user"));
                     </p>
                     <Badges
                       title={task.priority || "Normal"}
-                      color="green"
+                      color={task.priority == 'High' ? "red" : task.priority == "Medium" ?  "Yellow" : "Green"}
                       className="w-fit"
                     />
                   </div>
@@ -300,25 +316,25 @@ const user = JSON.parse(localStorage.getItem("user"));
           <div className="w-full flex flex-col justify-center text-white">
             <p className="text-lg font-semibold mb-4">Task Progress</p>
             <div className="relative w-full h-[250px] flex justify-center items-center flex-col">
-              <ResponsiveContainer width={390} height={220} minWidth={0} minHeight={0}>
+              <ResponsiveContainer width="100%" height="140">
                 <PieChart>
                   <Pie
                     data={dataPie}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
-                    startAngle={190}
-                    endAngle={-10}
-                    paddingAngle={-25}
                     dataKey="value"
-                    cornerRadius={500}
+                    startAngle={180}
+                    endAngle={0}
+                    innerRadius={65}
+                    outerRadius={110}
+                    cx="50%"
+                    cy="100%"
+                    paddingAngle={0}
+                    cornerRadius={20}
                     stroke="none"
                   >
-                    {dataPie.map((entry, index) => (
+                    {dataPie.map((_, d) => (
                       <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
+                        key={`cell-${d}`}
+                        fill={COLORS[d % COLORS.length]}
                       />
                     ))}
                   </Pie>
@@ -335,7 +351,7 @@ const user = JSON.parse(localStorage.getItem("user"));
                 <p className="text-logo">Task completed</p>
               </div>
 
-              <div className="w-full flex justify-between">
+              <div className="w-full flex justify-between pt-16">
                 {bg.map((item, idx) => (
                   <div key={idx} className="flex gap-1.5 items-center">
                     <div className={`w-4 h-4 rounded-full ${item.color}`} />

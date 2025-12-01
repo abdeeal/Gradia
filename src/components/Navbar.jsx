@@ -92,14 +92,14 @@ export const Navbar = () => {
       if (!res.ok) throw new Error("Failed to logout");
       localStorage.removeItem("user");
 
-      window.location.href = "/auth/login";
+      window.location.href = "/";
     } catch (err) {
       console.error("Logout failed:", err.message);
     }
   };
 
   return (
-    <nav className="sticky top-0 bg-black py-[22px] pl-6 z-[90] xl:hidden">
+    <nav className="sticky top-0 bg-black py-[22px] px-6 z-[90] xl:hidden">
       {(isTablet || isMobile) && (
         <div className="flex justify-between items-center relative  w-full">
           {/* drawer */}

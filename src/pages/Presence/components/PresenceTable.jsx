@@ -224,10 +224,10 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
         </div>
 
         {/* Rows area – tinggi fix 240px */}
-        <div className="bg-black rounded-xl h-[240px]">
+        <div className="bg-black rounded-xl min-h-[240px]">
           {isLoading && (
             // ✅ SHIMMER: bentuk sama persis kayak "No data" (tengah), tapi dengan efek shimmer
-            <div className="presence-shimmer-row h-full rounded-xl">
+            <div className="presence-shimmer-row h-[240px] rounded-xl">
               <div className="gradia-shimmer" />
               <div className="h-full flex items-center justify-center opacity-0">
                 <div className="text-center text-foreground-secondary text-base">
@@ -293,7 +293,7 @@ const PresenceTable = ({ rows = [], isLoading = false, onRowClick }) => {
 
       {/* Pagination */}
       <div className="relative">
-        <div className="flex items-center justify-between text-base text-foreground-secondary pb-2">
+        <div className="flex items-center justify-between text-base text-foreground-secondary pb-2 pt-2">
           <button
             onClick={goPrev}
             disabled={isLoading || pageIndex === 0}

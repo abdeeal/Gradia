@@ -7,8 +7,8 @@ import { getWorkspaceId } from "../../../components/GetWorkspace";
 const CARD_W = 269;
 const CARD_H = 191;
 const GAP = 10;
-const SKEL_MIN = 200;
 const SKEL_COUNT = 4;
+const SKEL_MIN = 200; // minimal shimmer 200ms
 
 /* ===== Helpers ===== */
 const buildUrl = (ws) => {
@@ -92,17 +92,65 @@ const HideScroll = () => (
       animation: gradia-shimmer-move 1.2s infinite;
       background-size: 200% 100%;
       pointer-events: none;
-      z-index: 1; /* ⭐ penting supaya di atas dummy */
+      z-index: 1;
     }
 
     @keyframes gradia-shimmer-move {
       0% { transform: translateX(-100%); }
       100% { transform: translateX(100%); }
     }
+
+    /* 🌟 2XL: besarkan card & container pakai class */
+    @media (min-width: 1536px) {
+      .presence-grid {
+        grid-auto-columns: 320px !important;
+      }
+
+      .presence-card,
+      .presence-card-skel {
+        width: 320px !important;
+        height: 220px !important;
+      }
+
+      .presence-box,
+      .presence-side,
+      .presence-side-divider {
+        height: 220px !important;
+      }
+    }
+
+    /* 🌟 Layar ≥ 1960px: lebarin & tinggikan card + panel total, dan center */
+    @media (min-width: 1960px) {
+      .presence-grid {
+        grid-auto-columns: 360px !important;
+      }
+
+      .presence-card,
+      .presence-card-skel {
+        width: 360px !important;
+        height: 240px !important;
+      }
+
+      .presence-left,
+      .presence-box {
+        max-width: 1300px !important;
+      }
+
+      .presence-box,
+      .presence-side,
+      .presence-side-divider {
+        height: 240px !important;
+      }
+
+      .presence-side {
+        width: 220px !important;
+        justify-content: center !important;
+      }
+    }
   `}</style>
 );
 
-const Box = ({ kids, frame = false }) => {
+const Box = ({ children, frame = false }) => {
   const style = frame
     ? {
         height: `${CARD_H}px`,
@@ -117,23 +165,20 @@ const Box = ({ kids, frame = false }) => {
 
   return (
     <div
-      className="rounded-lg max-w-[864px] w-full transition-all duration-300"
+      className="presence-box rounded-lg max-w-[864px] w-full transition-all duration-300"
       style={style}
     >
-      {kids}
+      {children}
     </div>
   );
-};
-
-Box.propTypes = {
-  kids: PropTypes.node,
-  frame: PropTypes.bool,
 };
 
 const BoxFull = ({ text }) => (
   <Box frame>
     <div className="h-full w-full flex items-center justify-center">
-      <p className="text-white font-semibold">{text}</p>
+      <p className="text-white font-semibold text-[16px] 2xl:text-[18px]">
+        {text}
+      </p>
     </div>
   </Box>
 );
@@ -148,7 +193,8 @@ const PresenceCard = ({
   rows = [],
   onOpenAddPresence,
   totalsTodayOverride = null,
-  isLoading: isLoadingProp = null,
+  /* 🔥 loading dari parent (optional) */
+  isLoading: isLoadingProp,
 }) => {
   const ws = getWorkspaceId();
   const apiUrl = useMemo(() => buildUrl(ws), [ws]);
@@ -159,14 +205,29 @@ const PresenceCard = ({
   useEffect(() => {
     let alive = true;
 
-    (async () => {
-      setLoad(true);
+    const finishLoading = (startTime) => {
+      if (!alive) return;
+      const elapsed = Date.now() - startTime;
+      const extra = Math.max(0, SKEL_MIN - elapsed);
+
+      if (extra > 0) {
+        setTimeout(() => {
+          if (alive) setLoad(false);
+        }, extra);
+      } else {
+        setLoad(false);
+      }
+    };
+
+    const fetchCourses = async () => {
       const start = Date.now();
+      setLoad(true);
 
       try {
         const res = await fetch(apiUrl, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
+        console.log("PresenceCard courses raw data =", data);
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.data)
@@ -176,17 +237,12 @@ const PresenceCard = ({
       } catch {
         if (alive) setCs([]);
       } finally {
-        const end = Date.now();
-        const diff = end - start;
-        const finish = () => alive && setLoad(false);
-
-        if (diff < SKEL_MIN) {
-          setTimeout(finish, SKEL_MIN - diff);
-        } else {
-          finish();
-        }
+        finishLoading(start);
       }
-    })();
+    };
+
+    fetchCourses();
+    console.log("PresenceCard apiUrl =", apiUrl);
 
     return () => {
       alive = false;
@@ -197,7 +253,10 @@ const PresenceCard = ({
   const raw = useProp ? coursesProp : cs;
 
   const courses = useMemo(() => raw.map(splitTime), [raw]);
-  const isLoading = isLoadingProp ?? load;
+
+  // 🔑 loading: prioritas dari parent, kalau nggak ada pakai internal
+  const isLoading =
+    typeof isLoadingProp === "boolean" ? isLoadingProp : load;
 
   const { totalP, totalA } = useMemo(() => {
     if (totalsTodayOverride) {
@@ -235,12 +294,16 @@ const PresenceCard = ({
 
   const noToday = !isLoading && list.length === 0;
 
+  useEffect(() => {
+    console.log("cs state changed:", cs);
+  }, [cs]);
+
   return (
     <div className="font-[Montserrat]">
       <HideScroll />
-      <div className="flex gap-4">
+      <div className="grid grid-cols-[80%_20%] gap-4">
         {/* LEFT */}
-        <div className="flex-1 max-w-[864px]">
+        <div className="presence-left flex-1 w-full">
           {isLoading ? (
             <Box>
               <div
@@ -250,48 +313,53 @@ const PresenceCard = ({
                 {Array.from({ length: SKEL_COUNT }).map((_, idx) => (
                   <div
                     key={idx}
-                    className="rounded-xl px-3.5 py-3 overflow-hidden flex flex-col shadow"
+                    className="presence-card-skel rounded-xl px-3.5 py-3 overflow-hidden flex flex-col shadow"
                     style={{
                       width: `${CARD_W}px`,
                       height: `${CARD_H}px`,
                       background: "#242424",
                       flexShrink: 0,
-                      position: "relative", // ⭐ parent utk shimmer
+                      position: "relative",
                     }}
                   >
-                    {/* Konten dummy (buat layout), disembunyikan */}
+                    {/* Konten dummy buat layout */}
                     <div className="opacity-0">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 2xl:gap-2">
                           <div className="w-2 h-2 rounded-full bg-gray-500" />
-                          <p className="text-[16px]">00:00 - 00:00</p>
+                          <p className="text-[16px] 2xl:text-[18px]">
+                            00:00 - 00:00
+                          </p>
                         </div>
-                        <span className="text-[16px] px-1.5 py-[2px] rounded-md">
+                        <span className="text-[16px] 2xl:text-[18px] px-1.5 py-[2px] rounded-md">
                           STATUS
                         </span>
                       </div>
 
                       <div className="flex-1 flex flex-col justify-center">
-                        <h3 className="text-[16px] font-semibold leading-snug line-clamp-2 break-words">
+                        <h3 className="text-[16px] 2xl:text-[18px] font-semibold leading-snug line-clamp-2 break-words">
                           Dummy Course Title
                         </h3>
-                        <p className="text-[16px] mt-1">ROOM</p>
+                        <p className="text-[16px] 2xl:text-[18px] mt-1">
+                          ROOM
+                        </p>
                       </div>
 
-                      <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer">
+                      <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer
+                                         2xl:px-3.5 2xl:py-2 2xl:text-[18px] 2xl:gap-1.5">
                         Log Presence{" "}
                         <i className="ri-logout-circle-r-line ml-1" />
                       </button>
                     </div>
 
-                    {/* Shimmer overlay (di paling akhir, nutup dummy) */}
+                    {/* Shimmer overlay */}
                     <div className="gradia-shimmer" />
                   </div>
                 ))}
               </div>
             </Box>
           ) : noToday ? (
-            <BoxFull text="No Schedule Today" />
+            <BoxFull text="No Course Today" />
           ) : (
             <Box>
               <div className="h-full w-full hide-scrollbar overflow-x-auto overflow-y-hidden">
@@ -329,9 +397,7 @@ const PresenceCard = ({
                         ? "bg-[#22C55E]"
                         : "bg-gray-500";
 
-                    const done = ["present", "presence"].includes(
-                      normStatus(c?.presence?.status)
-                    );
+                    const presenced = !!c?.presence;
 
                     return (
                       <div
@@ -341,15 +407,15 @@ const PresenceCard = ({
                       >
                         {/* TOP */}
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 2xl:gap-2">
                             <div className={`w-2 h-2 rounded-full ${dotCls}`} />
-                            <p className="text-[16px] text-foreground-secondary">
+                            <p className="text-[16px] 2xl:text-[18px] text-foreground-secondary">
                               {getTimeLabel(c?.start, c?.end)}
                             </p>
                           </div>
                           {label && (
                             <span
-                              className={`text-[16px] px-1.5 py-[2px] rounded-md ${labelCls}`}
+                              className={`text-[16px] 2xl:text-[18px] px-1.5 py-[2px] rounded-md ${labelCls}`}
                             >
                               {label}
                             </span>
@@ -358,26 +424,29 @@ const PresenceCard = ({
 
                         {/* MID */}
                         <div className="flex-1 flex flex-col justify-center">
-                          <h3 className="text-[16px] font-semibold leading-snug text-foreground line-clamp-2 break-words">
+                          <h3 className="text-[16px] 2xl:text-[18px] font-semibold leading-snug text-foreground line-clamp-2 break-words">
                             {c?.title ?? c?.name ?? "—"}
                           </h3>
-                          <p className="text-[16px] text-foreground-secondary mt-1">
+                          <p className="text-[16px] 2xl:text-[18px] text-foreground-secondary mt-1">
                             {c?.room ?? c?.presence?.room ?? "—"}
                           </p>
                         </div>
 
                         {/* BOTTOM */}
                         <button
-                          onClick={done ? undefined : () => onOpenAddPresence?.(c)}
+                          onClick={
+                            presenced ? undefined : () => onOpenAddPresence?.(c)
+                          }
                           className={[
                             "bg-gradient-to-l from-[#28073B] to-[#34146C] transition-all px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer",
-                            done
+                            "2xl:px-3.5 2xl:py-2 2xl:text-[18px] 2xl:gap-1.5",
+                            presenced
                               ? "opacity-50 cursor-not-allowed pointer-events-none"
                               : "hover:opacity-90",
                           ].join(" ")}
-                          aria-disabled={done ? "true" : "false"}
+                          aria-disabled={presenced ? "true" : "false"}
                         >
-                          {done ? (
+                          {presenced ? (
                             <>Presenced</>
                           ) : (
                             <>
@@ -396,33 +465,33 @@ const PresenceCard = ({
         </div>
 
         {/* RIGHT */}
-        <div className="ml-4 flex items-start gap-4">
+        <div className="ml-4 flex items-start gap-4 w-full">
           <div
-            className="w-px bg-[#2c2c2c]"
+            className="presence-side-divider w-px bg-[#2c2c2c]"
             style={{ height: `${CARD_H}px` }}
           />
           <div
-            className="w-[160px] flex flex-col items-center text-center"
+            className="presence-side w-[160px] 2xl:w-[190px] flex flex-col items-center text-center"
             style={{ height: `${CARD_H}px` }}
           >
-            <h4 className="text-[16px] font-semibold text-foreground mt-1 mb-6">
+            <h4 className="text-[16px] 2xl:text-[18px] font-semibold text-foreground mt-1 mb-6 2xl:mb-7">
               Total Present
             </h4>
 
-            <div className="flex flex-col items-center mb-5">
-              <div className="bg-[#22C55E]/20 text-[#4ADE80] text-[13px] font-semibold px-3 py-1 rounded-md mb-1">
+            <div className="flex flex-col items-center mb-5 2xl:mb-6">
+              <div className="bg-[#22C55E]/20 text-[#4ADE80] text-[13px] 2xl:text-[14px] font-semibold px-3 py-1 rounded-md mb-1 2xl:mb-1.5">
                 {totalP}
               </div>
-              <span className="text-[16px] text-foreground-secondary">
+              <span className="text-[16px] 2xl:text-[18px] text-foreground-secondary">
                 Present
               </span>
             </div>
 
             <div className="flex flex-col items-center mt-auto">
-              <div className="bg-[#EF4444]/20 text-[#F87171] text-[13px] font-semibold px-3 py-1 rounded-md mb-1">
+              <div className="bg-[#EF4444]/20 text-[#F87171] text-[13px] 2xl:text-[14px] font-semibold px-3 py-1 rounded-md mb-1 2xl:mb-1.5">
                 {totalA}
               </div>
-              <span className="text-[16px] text-foreground-secondary">
+              <span className="text-[16px] 2xl:text-[18px] text-foreground-secondary">
                 Absent
               </span>
             </div>

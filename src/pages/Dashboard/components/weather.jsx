@@ -164,11 +164,11 @@ function WeatherCard({ dateText, now }) {
         `}</style>
 
         <div
-          className={`relative overflow-hidden rounded-3xl shadow ${bgClass} text-white`}
+          className={`relative overflow-hidden rounded-3xl shadow ${bgClass} text-white h-[161px] 2xl:h-[250px]`}
           role="status"
           aria-live="polite"
           aria-label="Loading weather..."
-          style={{ width: 754, height: 161 }}
+          style={{ width: "100%" }}
         >
           <div className="gradia-shimmer" />
         </div>
@@ -178,63 +178,51 @@ function WeatherCard({ dateText, now }) {
 
   return (
     <div
-      className={`relative overflow-hidden rounded-3xl shadow ${bgClass} text-white`}
-      style={{ width: 754, height: 161 }}
+      className={`relative overflow-hidden rounded-3xl shadow ${bgClass} text-white h-[161px] 2xl:h-[250px]`}
+      style={{ width: "100%" }}
     >
       <div
-        className={`absolute rounded-full ${circleA}`}
-        style={{ left: -109, top: 60, width: 218, height: 218 }}
+        className={`absolute rounded-full left-[-16%] top-[40%] w-[218px] h-[218px] 2xl:left-[-10%] 2xl:top-[45%] 2xl:w-[296px] 2xl:h-[296px] ${circleA}`}
       />
       <div
-        className={`absolute rounded-full ${circleB}`}
-        style={{ left: 560, top: -118, width: 326, height: 326 }}
+        className={`absolute rounded-full left-[71%] top-[-75%] w-[326px] h-[326px] 2xl:left-[72%] 2xl:w-[575px] 2xl:h-[575px] ${circleB}`}
       />
       <div
-        className={`absolute rounded-full ${circleC}`}
-        style={{ left: 607, top: -106, width: 265, height: 267 }}
+        className={`absolute rounded-full left-[78%] top-[-76%] w-[265px] h-[267px] 2xl:left-[80%] 2xl:top-[-85%] ${circleC} 2xl:w-[480px] 2xl:h-[480px]`}
       />
       <div
-        className={`absolute rounded-full ${circleD}`}
-        style={{ left: 643, top: -97, width: 218, height: 218 }}
+        className={`absolute rounded-full left-[84%] top-[-70%] w-[218px] h-[218px] 2xl:left-[86%] 2xl:w-[350px] 2xl:h-[350px] ${circleD}`}
       />
       <div
-        className={`absolute rounded-full ${circleE}`}
-        style={{ left: 691, top: -27, width: 1100, height: 100 }}
+        className={`absolute rounded-full left-[90%] top-[-20%] w-[100px] h-[100px] 2xl:left-[92%] 2xl:w-[145px] 2xl:h-[145px] ${circleE}`}
       />
+      <div className="flex flex-row-reverse justify-center items-center h-full gap-3">
+        <div className="">
+          <div
+            className="h-full flex flex-col justify-center text-[16px] 2xl:text-[24px]"
+            style={{
+              ...mono,
+              lineHeight: 1.2,
+              borderLeft: "1px solid #FAFAFA",
+              paddingLeft: 8,
+            }}
+          >
+            <div>{dateLabel}</div>
+            <div style={{ marginTop: 8, opacity: 0.95 }}>{city}</div>
+          </div>
+        </div>
 
-      <div
-        className="absolute"
-        style={{ left: 347.5, top: 56.5, width: 210, height: 48 }}
-      >
         <div
-          className="h-full flex flex-col justify-center"
+          className="flex items-center tabular-nums text-[32px] 2xl:text-[64px]"
           style={{
-            ...mono,
-            fontSize: 15,
-            lineHeight: 1.2,
-            borderLeft: "1px solid #FAFAFA",
-            paddingLeft: 8,
+            fontFamily: "Montserrat, ui-sans-serif",
+
+            fontWeight: 600,
+            lineHeight: 1,
           }}
         >
-          <div>{dateLabel}</div>
-          <div style={{ marginTop: 8, opacity: 0.95 }}>{city}</div>
+          {timeHM}
         </div>
-      </div>
-
-      <div
-        className="absolute flex items-center tabular-nums"
-        style={{
-          left: 235.5,
-          top: 61,
-          width: 774 - 240.5 - 405.5,
-          height: 161 - 61 - 61,
-          fontFamily: "Montserrat, ui-sans-serif",
-          fontSize: 30,
-          fontWeight: 600,
-          lineHeight: 1,
-        }}
-      >
-        {timeHM}
       </div>
     </div>
   );

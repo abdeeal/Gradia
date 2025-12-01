@@ -47,6 +47,39 @@ const LoadingBoxStyles = () => (
   `}</style>
 );
 
+const CalendarResponsiveStyles = () => (
+  <style>{`
+    @media (min-width: 1536px) {
+
+      /* WRAPPER HEADER */
+
+      /* ROOT CALENDAR */
+      .gradia-cal-root {
+        width: 1030px !important; /* dari 944 → lebih panjang */
+      }
+
+      /* HEADER BAR */
+      .gradia-cal-headbar {
+        min-height: 112px !important; /* dari 98px → lebih tinggi */
+      }
+
+      /* GRID */
+      .gradia-cal-grid {
+        width: 100% !important; 
+        grid-template-rows: 
+          48px /* header days dari 41 → lebih tinggi */
+          repeat(5, 160px) !important; /* dari 134px → lebih tinggi */
+      }
+
+      /* BOTTOM */
+      .gradia-cal-bottom {
+        width: 1030px !important;
+        height: 48px !important; /* dari 41 → lebih tinggi */
+      }
+    }
+  `}</style>
+);
+
 /* 5 rows × 7 cols, Monday-first */
 const buildDays = (year, month) => {
   const first = new Date(year, month, 1);
@@ -364,12 +397,13 @@ export default function MonthCalendar({
     <>
       {/* LoadingBox CSS global */}
       <LoadingBoxStyles />
+      {/* Responsive calendar CSS (min-2xl) */}
+      <CalendarResponsiveStyles />
 
       {/* ===== TOP HEADER (di luar kalender) ===== */}
       <div
-        className="grid bg-transparent items-center"
+        className="grid bg-transparent items-center gradia-cal-headerwrap w-full"
         style={{
-          width: 788,
           padding: "16px 32px 32px 0px",
           gridTemplateColumns: "1fr 280px",
           gridTemplateRows: "auto auto",
@@ -447,9 +481,8 @@ export default function MonthCalendar({
 
       {/* ===== KALENDER (asli) ===== */}
       <div
-        className="relative overflow-hidden rounded-[10px] bg-zinc-950"
+        className="relative overflow-hidden rounded-[10px] bg-zinc-950 w-full "
         style={{
-          width: 753,
           border: "1px solid rgba(101,101,101,0.5)",
           fontFamily:
             'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif',
@@ -457,7 +490,7 @@ export default function MonthCalendar({
       >
         {/* HEADER */}
         <div
-          className="flex items-center gap-[10px] w-full"
+          className="flex items-center gap-[10px] w-full gradia-cal-headbar"
           style={{
             minHeight: 82,
             padding: "10px 16px",
@@ -467,8 +500,6 @@ export default function MonthCalendar({
           <div
             className="relative flex flex-col justify-between bg-[#111114]"
             style={{
-              width: 80,
-              height: 62,
               borderRadius: 8,
               border: "1px solid rgba(101,101,101,0.5)",
               padding: 10,
@@ -654,9 +685,8 @@ export default function MonthCalendar({
         {/* GRID */}
         <div
           ref={gridRef}
-          className="grid"
+          className="grid gradia-cal-grid"
           style={{
-            width: 753,
             gridTemplateColumns: "repeat(7, 1fr)",
             gridTemplateRows: "34px repeat(5, 112px)", // 5 baris
             borderTop: "1px solid rgba(101,101,101,0.5)",
@@ -813,7 +843,7 @@ export default function MonthCalendar({
 
         {/* BOTTOM NAV */}
         <div
-          className="flex items-center justify-between bg-[#0F0F0F]"
+          className="flex items-center justify-between bg-[#0F0F0F] gradia-cal-bottom pt-4"
           style={{
             width: 753,
             height: 34,

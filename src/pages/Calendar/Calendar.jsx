@@ -37,15 +37,23 @@ const Calendar = () => {
 
   // desktop layout
   return (
-    <div className="flex">
+    // 🔥 min-h-screen biar sidebar selalu sepanjang viewport
+    <div className="flex min-h-screen">
       {/* sidebar di kiri tanpa gap */}
       <Sidebar className="mr-0" />
 
       {/* area konten; tetap pakai grid 2 kolom seperti semula */}
       <div className="flex-1 ml-0">
-        <div className="grid grid-cols-[753px_318px] gap-[20px] items-start">
+        <div
+          className="
+            grid 
+            grid-cols-[70%_30%]
+            gap-[20px] 
+            items-start
+          "
+        >
           {/* ======= CALENDAR ======= */}
-          <div className="relative">
+          <div className="relative w-full">
             <MonthCalendar
               value={selectedDate}
               onChange={setSelectedDate}
