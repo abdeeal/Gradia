@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import ProtectedRoute from "./ProtectedRoute";
 import React from "react";
+import NotFound from "@/pages/NotFound/NotFound";
+import Landing from "@/pages/Landing/Landing";
 
 const Courses = lazy(() => import("@/pages/Courses/Courses.jsx"));
 const Tasks = lazy(() => import("@/pages/Tasks/Tasks.jsx"));
@@ -105,8 +107,8 @@ export default function AppRoutes() {
           element={<SuccessMsg type="reset" />}
         />
 
-        <Route path="/" element={<Navigate to="/auth/login" replace />} />
-        <Route path="*" element={<Navigate to="/auth/login" replace />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
   );

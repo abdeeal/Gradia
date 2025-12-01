@@ -92,7 +92,7 @@ export const Navbar = () => {
       if (!res.ok) throw new Error("Failed to logout");
       localStorage.removeItem("user");
 
-      window.location.href = "/auth/login";
+      window.location.href = "/";
     } catch (err) {
       console.error("Logout failed:", err.message);
     }

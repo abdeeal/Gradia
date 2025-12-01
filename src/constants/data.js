@@ -14,6 +14,20 @@ export const navItemsSide = [
   { name: "Logout", href: "/logout" },
 ];
 
+export const navLanding = [
+  { name: "Why us", href: "/#whyus" },
+  { name: "Features", href: "/#features" },
+];
+
+export const navAuth = [
+  { name: "Login", href: "/auth/login" },
+  { name: "Register", href: "/auth/register" },
+];
+
+export const navUser = [
+  { name: "Workspaces", href: "/workspaces" },
+];
+
 export const dataPresence = [
   {
     id: 1,
