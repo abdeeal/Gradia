@@ -241,8 +241,7 @@ function Presence() {
 
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
-  if (isMobile || isTablet) return <Mobile />;
-
+  
   /* ---------- Fetch totals dari API ---------- */
   const fetchTotals = useCallback(async () => {
     const tryStats = async () => {
@@ -255,15 +254,15 @@ function Presence() {
           if (data && typeof data === "object") {
             const presence = Number(
               data.totalPresence ??
-                data.presence ??
-                data.present ??
-                0
+              data.presence ??
+              data.present ??
+              0
             );
             const absent = Number(
               data.totalAbsent ??
-                data.absent ??
-                data.absence ??
-                0
+              data.absent ??
+              data.absence ??
+              0
             );
             return { ok: true, presence, absent };
           }
@@ -273,13 +272,13 @@ function Presence() {
       }
       return { ok: false };
     };
-
+    
     const tryList = async () => {
       const urls = [
         `/api/presences?limit=100000&idWorkspace=${idWorkspace}`,
         `/api/presences?idWorkspace=${idWorkspace}`,
       ];
-
+      
       for (const u of urls) {
         try {
           const r = await fetch(u);
@@ -302,15 +301,15 @@ function Presence() {
       }
       return { ok: false };
     };
-
+    
     let x = await tryStats();
     if (!x.ok) x = await tryList();
-
+    
     if (x.ok) {
       setTotals({ presence: x.presence, absent: x.absent });
     }
   }, []);
-
+  
   /* ---------- Initial fetch ---------- */
   const fetchInitial = useCallback(async () => {
     setInitialLoading(true);
@@ -319,16 +318,16 @@ function Presence() {
         fetch(`/api/presences?idWorkspace=${idWorkspace}`),
         fetchToday(),
       ]);
-
+      
       const presRaw = await json(presR);
       const mapped = (Array.isArray(presRaw) ? presRaw : []).map(mapRow);
-
+      
       const merged = mapped.map((r) => {
         if (r.room && r.room !== "-") return r;
         const c = today.find((x) => x.id === r.courseId);
         return { ...r, room: c?.room || r.room || "-" };
       });
-
+      
       setRows(merged);
       setCoursesToday(today);
     } catch (e) {
@@ -340,35 +339,35 @@ function Presence() {
       fetchTotals();
     }
   }, [fetchTotals]);
-
+  
   useEffect(() => {
     fetchInitial();
   }, [fetchInitial]);
-
+  
   /* ---------- Update status tiap 30 detik ---------- */
   useEffect(() => {
     const t = setInterval(() => {
       setCoursesToday((prev) =>
         prev.map((c) => {
           const dash =
-            c.start && c.end ? `${c.start} - ${c.end}` : c.start || c.end || "";
+          c.start && c.end ? `${c.start} - ${c.end}` : c.start || c.end || "";
           return { ...c, status: getStatus(dash) };
         })
       );
       fetchTotals();
     }, 30000);
-
+    
     return () => clearInterval(t);
   }, [fetchTotals]);
-
+  
   /* ---------- Add Presence ---------- */
   const handleAdd = async ({ courseId, status, note }) => {
     const now = new Date();
     const tempId =
-      "temp-" + now.getTime() + "-" + Math.random().toString(36).slice(2, 7);
-
+    "temp-" + now.getTime() + "-" + Math.random().toString(36).slice(2, 7);
+    
     const meta = coursesToday.find((c) => c.id === courseId);
-
+    
     const optimistic = {
       id: tempId,
       id_presence: tempId,
@@ -380,9 +379,9 @@ function Presence() {
       note: note || "",
       _raw: null,
     };
-
+    
     setRows((prev) => setRow(prev, optimistic));
-
+    
     try {
       const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`, {
         method: "POST",
@@ -394,7 +393,7 @@ function Presence() {
           id_workspace: idWorkspace,
         }),
       });
-
+      
       if (res.ok) {
         const body = await json(res);
         const realId = body?.id_presence || body?.id;
@@ -410,34 +409,34 @@ function Presence() {
       setRows((prev) => prev.filter((r) => r.id !== tempId));
     }
   };
-
+  
   /* ---------- Edit Presence ---------- */
   const handleEdit = async (u) => {
     const rawId = u.id_presence ?? u.id;
     const idStr = String(rawId).trim();
-
+    
     if (!isNumId(idStr)) return false;
-
+    
     const prevSnap = rows.find(
       (r) => String(r.id_presence || r.id) === idStr
     );
     if (!prevSnap) return false;
-
+    
     const resolvedRoom =
-      (u.room && u.room.trim() !== "" ? u.room : null) ??
-      peekRoom(u.courseId) ??
-      prevSnap.room ??
-      "-";
-
+    (u.room && u.room.trim() !== "" ? u.room : null) ??
+    peekRoom(u.courseId) ??
+    prevSnap.room ??
+    "-";
+    
     const updated = {
       ...prevSnap,
       status: u.status,
       note: u.note ?? prevSnap.note ?? "",
       room: resolvedRoom,
     };
-
+    
     setRows((prev) => setRow(prev, updated));
-
+    
     try {
       const res = await fetch(`/api/presences?idWorkspace=${idWorkspace}`, {
         method: "PUT",
@@ -449,12 +448,12 @@ function Presence() {
           note: u.note,
         }),
       });
-
+      
       if (!res.ok) {
         setRows((prev) => setRow(prev, prevSnap));
         return false;
       }
-
+      
       fetchTotals();
       return true;
     } catch (e) {
@@ -463,11 +462,12 @@ function Presence() {
       return false;
     }
   };
-
+  
   /* ---------- UI State ---------- */
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [editingRow, setEditingRow] = useState(null);
-
+  
+  if (isMobile || isTablet) return <Mobile />;
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -489,6 +489,8 @@ function Presence() {
               rows={rows}
               onOpenAddPresence={setSelectedCourse}
               totalsTodayOverride={totals}
+              /* 🔥 loading dioper ke PresenceCard */
+              isLoading={initialLoading}
             />
           </section>
 

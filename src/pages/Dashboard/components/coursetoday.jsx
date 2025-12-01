@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import "remixicon/fonts/remixicon.css";
 import { getWorkspaceId } from "../../../components/GetWorkspace";
+import CourseCard from "@/pages/Courses/components/Card";
 
 /* ========================= Helpers: Time & Text ========================= */
 
@@ -94,8 +95,8 @@ const LIST_STYLE = {
 };
 
 const CARD_STYLE = {
-  minWidth: 245,
   width: 245,
+  maxWidth: "100%",
   height: 162,
   background: "#242424",
   fontFamily: "Inter, ui-sans-serif, system-ui",
@@ -139,7 +140,7 @@ const SHIMMER_CSS = `
 function SkeletonCard() {
   return (
     <article
-      className="relative snap-start rounded-2xl px-4 py-3 shadow overflow-hidden"
+      className="relative rounded-2xl px-4 py-3 shadow overflow-hidden"
       style={CARD_STYLE}
     >
       <div className="gradia-shimmer" />
@@ -204,88 +205,6 @@ function SkeletonCard() {
   );
 }
 
-function CourseCard({ course, statusStyle }) {
-  return (
-    <article
-      className="snap-start rounded-2xl px-4 py-3 shadow"
-      style={CARD_STYLE}
-    >
-      <p
-        className="text-gray-300 flex items-center gap-2"
-        style={{ fontSize: 14, lineHeight: 1.25 }}
-      >
-        <i
-          className="ri-time-line text-[#643EB2]"
-          style={{ fontSize: 16, marginLeft: -3 }}
-        />
-        {course.start} - {course.end}
-      </p>
-
-      <h3
-        className="text-white font-semibold leading-snug"
-        style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
-      >
-        {course.title}
-      </h3>
-
-      {course.room && (
-        <p
-          className="text-gray-300"
-          style={{ fontSize: 16, marginTop: 6, lineHeight: 1.2 }}
-        >
-          {course.room}
-        </p>
-      )}
-
-      {course.lecturer && (
-        <p
-          className="text-gray-300"
-          style={{
-            fontSize: 16,
-            marginTop: 6,
-            lineHeight: 1.2,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            maxWidth: "100%",
-          }}
-          title={course.lectFull}
-        >
-          {course.lecturer}
-        </p>
-      )}
-
-      <div className="mt-1 pt-1 border-t border-white/30">
-        <span
-          className="inline-block rounded"
-          style={{
-            ...statusStyle(course._status),
-            marginTop: 6,
-            fontSize: 16,
-            height: 26,
-            padding: "0 16px",
-            borderRadius: 4,
-          }}
-        >
-          {course._status}
-        </span>
-      </div>
-    </article>
-  );
-}
-
-CourseCard.propTypes = {
-  course: PropTypes.shape({
-    start: PropTypes.string,
-    end: PropTypes.string,
-    title: PropTypes.string,
-    room: PropTypes.string,
-    lecturer: PropTypes.string,
-    lectFull: PropTypes.string,
-    _status: PropTypes.string,
-  }).isRequired,
-  statusStyle: PropTypes.func.isRequired,
-};
 
 /* ========================= Main Component ========================= */
 
@@ -296,6 +215,31 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
   const [err, setErr] = useState(null);
 
   const wsId = useMemo(() => getWorkspaceId(), []);
+
+  const [courses, setCourses] = useState([]);
+  const idWorkspace = sessionStorage.getItem("id_workspace");
+
+  // Fetch Courses
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const res = await fetch(
+          `/api/courses?q=today&idWorkspace=${idWorkspace}`
+        );
+        if (!res.ok) throw new Error("Failed to fetch courses");
+        const data = await res.json();
+        setCourses(data);
+      } catch (err) {
+        console.error("Error fetching courses:", err);
+      }
+    };
+
+    if (idWorkspace) fetchCourses();
+  }, [idWorkspace]);
+
+  useEffect(() => {
+    console.log(courses);
+  }, [courses]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
@@ -417,10 +361,8 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
   return (
     <div
       id="id_course"
-      className="rounded-2xl border border-[#464646]/50"
+      className="rounded-2xl border border-[#464646]/50 box-border w-full min-w-0 h-[246px] 2xl:h-[300px]"
       style={{
-        width: 479,
-        height: 246,
         backgroundImage: "linear-gradient(180deg, #070707 0%, #141414 100%)",
         padding: 16,
         overflow: "hidden",
@@ -458,7 +400,11 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
             stroke="white"
             strokeWidth="2"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M7 7h10v10" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M7 17L17 7M7 7h10v10"
+            />
           </svg>
         </a>
       </div>
@@ -496,7 +442,7 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
           <div
             className="rounded-2xl shadow"
             style={{
-              width: 500,
+              width: "100%",
               height: 162,
               background: "#181818",
               display: "flex",
@@ -513,12 +459,29 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
         </div>
       ) : (
         <div
-          className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory hide-scrollbar"
+          className="flex overflow-x-auto overflow-y-hidden hide-scrollbar"
           style={LIST_STYLE}
         >
-          {rows.map((c, idx) => (
-            <CourseCard key={idx} course={c} statusStyle={statusStyle} />
-          ))}
+          {courses.length > 0 ? (
+            courses.map((course, idx) => (
+              <CourseCard
+                key={idx}
+                start={course.start}
+                end={course.end}
+                title={course.name}
+                alias={course.alias}
+                room={course.room}
+                lecturer={course.lecturer}
+                sks={course.sks}
+                idCourse={course.idCourse}
+                setDrawer={() => {}}
+              />
+            ))
+          ) : (
+            <div className="flex justify-center items-center h-[100px] bg-background-secondary rounded-[12px]">
+              <p className="text-foreground-secondary">No courses today.</p>
+            </div>
+          )}
         </div>
       )}
     </div>

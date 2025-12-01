@@ -299,8 +299,7 @@ const Tasks = () => {
 
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
-  if (isMobile || isTablet) return <Mobile />;
-
+  
   /* ========= LISTEN to optimistic events ========= */
   useEffect(() => {
     const placeTask = (prevCols, task) => {
@@ -314,13 +313,13 @@ const Tasks = () => {
       next[key] = [task, ...next[key]];
       return next;
     };
-
+    
     const onCreated = (e) => {
       const { task } = e.detail || {};
       if (!task) return;
       setCols((prev) => placeTask(prev, task));
     };
-
+    
     const onReconcile = (e) => {
       const { temp_id, task } = e.detail || {};
       if (!temp_id || !task) return;
@@ -334,86 +333,87 @@ const Tasks = () => {
         return placeTask(cleaned, task);
       });
     };
-
+    
     const onUpdated = (e) => {
       const { task } = e.detail || {};
       if (!task) return;
       setCols((prev) => placeTask(prev, task));
       setSelectedTask((curr) =>
         curr && curr.id_task === task.id_task ? { ...curr, ...task } : curr
-      );
-    };
+    );
+  };
+  
+  const onDeleted = (e) => {
+    const { id_task } = e.detail || {};
+    if (!id_task) return;
+    setCols((prev) => ({
+      notStarted: prev.notStarted.filter((t) => t.id_task !== id_task),
+      inProgress: prev.inProgress.filter((t) => t.id_task !== id_task),
+      completed: prev.completed.filter((t) => t.id_task !== id_task),
+      overdue: prev.overdue.filter((t) => t.id_task !== id_task),
+    }));
+    setSelectedTask((curr) => (curr && curr.id_task === id_task ? null : curr));
+  };
+  
+  window.addEventListener("tasks:created", onCreated);
+  window.addEventListener("tasks:reconcile", onReconcile);
+  window.addEventListener("tasks:updated", onUpdated);
+  window.addEventListener("tasks:deleted", onDeleted);
+  
+  return () => {
+    window.removeEventListener("tasks:created", onCreated);
+    window.removeEventListener("tasks:reconcile", onReconcile);
+    window.removeEventListener("tasks:updated", onUpdated);
+    window.removeEventListener("tasks:deleted", onDeleted);
+  };
+}, []);
 
-    const onDeleted = (e) => {
-      const { id_task } = e.detail || {};
-      if (!id_task) return;
-      setCols((prev) => ({
-        notStarted: prev.notStarted.filter((t) => t.id_task !== id_task),
-        inProgress: prev.inProgress.filter((t) => t.id_task !== id_task),
-        completed: prev.completed.filter((t) => t.id_task !== id_task),
-        overdue: prev.overdue.filter((t) => t.id_task !== id_task),
-      }));
-      setSelectedTask((curr) => (curr && curr.id_task === id_task ? null : curr));
-    };
+/* ========= CLICK OUTSIDE untuk dropdown Filter/Sort ========= */
+useEffect(() => {
+  const handleClickOutside = (e) => {
+    if (
+      filterRef.current &&
+      !filterRef.current.contains(e.target) &&
+      sortRef.current &&
+      !sortRef.current.contains(e.target)
+    ) {
+      setShowFilter(false);
+      setShowSort(false);
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
 
-    window.addEventListener("tasks:created", onCreated);
-    window.addEventListener("tasks:reconcile", onReconcile);
-    window.addEventListener("tasks:updated", onUpdated);
-    window.addEventListener("tasks:deleted", onDeleted);
-
-    return () => {
-      window.removeEventListener("tasks:created", onCreated);
-      window.removeEventListener("tasks:reconcile", onReconcile);
-      window.removeEventListener("tasks:updated", onUpdated);
-      window.removeEventListener("tasks:deleted", onDeleted);
-    };
-  }, []);
-
-  /* ========= CLICK OUTSIDE untuk dropdown Filter/Sort ========= */
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (
-        filterRef.current &&
-        !filterRef.current.contains(e.target) &&
-        sortRef.current &&
-        !sortRef.current.contains(e.target)
-      ) {
-        setShowFilter(false);
-        setShowSort(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  /* ========= Derive tasks yang tampil setelah FILTER + SORT ========= */
-  const visibleCols = useMemo(() => {
-    const sortTasks = (arr) => {
-      if (!sort) return arr;
-      const copy = [...arr];
-      copy.sort((a, b) => {
-        const da = getDeadline(a);
-        const db = getDeadline(b);
-        if (!da && !db) return 0;
-        if (!da) return 1; // yg ga punya deadline taruh belakang
-        if (!db) return -1;
-        return sort === "asc" ? da - db : db - da;
-      });
-      return copy;
-    };
-
-    const keys = ["notStarted", "inProgress", "completed", "overdue"];
-    const result = {};
-    keys.forEach((k) => {
-      const base = cols[k] || [];
-      const filtered = filter === "all" || filter === k ? base : [];
-      result[k] = sortTasks(filtered);
+/* ========= Derive tasks yang tampil setelah FILTER + SORT ========= */
+const visibleCols = useMemo(() => {
+  const sortTasks = (arr) => {
+    if (!sort) return arr;
+    const copy = [...arr];
+    copy.sort((a, b) => {
+      const da = getDeadline(a);
+      const db = getDeadline(b);
+      if (!da && !db) return 0;
+      if (!da) return 1; // yg ga punya deadline taruh belakang
+      if (!db) return -1;
+      return sort === "asc" ? da - db : db - da;
     });
-    return result;
-  }, [cols, filter, sort]);
+    return copy;
+  };
+  
+  const keys = ["notStarted", "inProgress", "completed", "overdue"];
+  const result = {};
+  keys.forEach((k) => {
+    const base = cols[k] || [];
+    const filtered = filter === "all" || filter === k ? base : [];
+    result[k] = sortTasks(filtered);
+  });
+  return result;
+}, [cols, filter, sort]);
 
-  return (
-    <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
+if (isMobile || isTablet) return <Mobile />;
+return (
+  <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
       <Sidebar />
 
       <div

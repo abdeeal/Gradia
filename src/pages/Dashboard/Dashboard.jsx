@@ -1,5 +1,5 @@
 // src/pages/Dashboard/index.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 
 import Sidebar from "@/components/Sidebar";
@@ -11,14 +11,10 @@ import TotalTask from "../Dashboard/components/totaltask";
 import TaskProgress from "../Dashboard/components/taskprogress";
 import TaskSummary from "../Dashboard/components/progresstask";
 
-// lebar minimum wrapper: weather (754) + gap 16 + panel kanan 308
-const MIN_WRAP_W = 754 + 16 + 308;
-
 export default function Dashboard() {
   const isMb = useMediaQuery({ maxWidth: 767 });
   const isTab = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
-
-  if (isMb || isTab) return <Mobile />;
+  const isMobileLayout = isMb || isTab;
 
   const now = useMemo(() => new Date(), []);
   const isNight = now.getHours() >= 18 || now.getHours() < 6;
@@ -26,11 +22,6 @@ export default function Dashboard() {
   const [name, setName] = useState("User");
   const [ready, setReady] = useState(false);
 
-  const leftRef = useRef(null);
-  const wrapRef = useRef(null);
-  const [rightLeft, setRightLeft] = useState(null);
-
-  // load username
   useEffect(() => {
     try {
       const savedName = localStorage.getItem("username");
@@ -53,32 +44,17 @@ export default function Dashboard() {
     setReady(true);
   }, []);
 
-  // sync posisi panel kanan: 16px dari sisi kanan kolom kiri
-  useEffect(() => {
-    const sync = () => {
-      if (!wrapRef.current || !leftRef.current) return;
+  if (isMobileLayout) {
+    return <Mobile />;
+  }
 
-      const wrapRect = wrapRef.current.getBoundingClientRect();
-      const leftRect = leftRef.current.getBoundingClientRect();
-
-      const colRight = leftRect.right - wrapRect.left;
-      const offset = colRight + 16; // jarak 16px
-
-      setRightLeft(offset);
-    };
-
-    sync();
-    window.addEventListener("resize", sync);
-    return () => window.removeEventListener("resize", sync);
-  }, []);
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex bg-black text-white w-full ">
       <Sidebar />
 
-      <main className="flex-1 pt-5 pb-6 overflow-y-auto">
-        {/* overflow-x-auto supaya kalau viewport < MIN_WRAP_W muncul scroll, bukan nabrak */}
-        <div className="px-0 pr-6 max-w-full mx-auto overflow-x-auto">
+      <main className="pt-5 pb-6 h-fit w-full 2xl:pr-8 pr-4">
+        <div className="px-0 pr-6 max-w-full">
           <header className="mb-4">
             <h1 className="text-2xl font-bold">
               Welcome in,{" "}
@@ -91,21 +67,17 @@ export default function Dashboard() {
             </p>
           </header>
 
-          {/* WRAPPER RELATIVE dengan minWidth dikunci */}
-          <div
-            className="relative w-full"
-            ref={wrapRef}
-            style={{ minWidth: MIN_WRAP_W }}
-          >
-            {/* GRID → KIRI (FLEXIBLE) + SLOT KANAN DUMMY */}
-            <div className="grid grid-cols-[minmax(0,1.6fr)_308px] gap-4 items-start">
-              {/* KIRI */}
-              <div ref={leftRef} className="min-w-0 flex flex-col gap-[22px]">
-                <div className="flex flex-col lg:flex-row gap-[10px]">
-                  <div className="w-full lg:w-[259px]">
+          {/* GRID KIRI 80% — KANAN 20% (berlaku sama di 1440, 1960, dst) */}
+          <div className="w-full pt-4">
+            <div className="grid grid-cols-[70%_30%] gap-4 2xl:gap-6">
+              {/* KIRI 80% */}
+              <div className="w-full flex flex-col gap-4 2xl:gap-6 min-w-0">
+                <div className="grid grid-cols-[35%_65%] gap-4 2xl:gap-6">
+                  <div className="w-full">
                     <DueToday />
                   </div>
-                  <div className="flex-1 min-w-0">
+
+                  <div className="w-full min-w-0 pr-4 2xl:pr-6">
                     <CoursesToday variant={isNight ? "night" : "auto"} />
                   </div>
                 </div>
@@ -114,20 +86,14 @@ export default function Dashboard() {
                 <TaskSummary />
               </div>
 
-              {/* SLOT KANAN DUMMY (buat tinggi grid) */}
-              <div className="invisible" />
-            </div>
-
-            {/* PANEL KANAN ABSOLUTE, POSISI DINAMIS 16px DARI KIRI */}
-            <div
-              className="absolute top-0"
-              style={{
-                left: rightLeft != null ? `${rightLeft}px` : undefined,
-              }}
-            >
-              <div className="w-[308px] flex flex-col gap-[10px]">
-                <TaskProgress />
-                <TotalTask />
+              {/* KANAN 20% — TaskProgress (pie chart) & TotalTask lebar sama */}
+              <div className="flex flex-col gap-4 2xl:gap-6 w-full">
+                <div className="w-full">
+                  <TaskProgress />
+                </div>
+                <div className="w-full">
+                  <TotalTask />
+                </div>
               </div>
             </div>
           </div>

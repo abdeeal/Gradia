@@ -130,12 +130,12 @@ const TaskCard = ({
       {/* === Frame 3: Keterangan (Priority & Progress kiri bawah) === */}
       <div className="flex items-center gap-[8px]">
         <span
-          className={`text-[16px] px-[10px] py-[4px] rounded-md font-medium ${prioColor.bg} ${prioColor.text}`}
+          className={`text-[16px] xl:text-[14px] 2xl:text-[16px] px-[10px] py-[4px] rounded-md font-medium ${prioColor.bg} ${prioColor.text}`}
         >
           {priority}
         </span>
         <span
-          className={`text-[16px] px-[10px] py-[4px] rounded-md font-medium ${statColor.bg} ${statColor.text}`}
+          className={`text-[16px] xl:text-[14px] 2xl:text-[16px] px-[10px] py-[4px] rounded-md font-medium ${statColor.bg} ${statColor.text}`}
         >
           {statLabel}
         </span>

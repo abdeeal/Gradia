@@ -41,7 +41,7 @@ const CourseCard = ({ course, onClick }) => {
     <div
       ref={ref}
       onClick={onClick}
-      className="cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl px-[12px] py-4 hover:border-purple-500 transition-all duration-200 relative"
+      className="cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl px-[12px] py-4 hover:border-purple-500 transition-all duration-200 relative xl:text-[14px] 2xl:text-[16px]"
     >
       <div className="pr-[32px]">
         {/* Time + Circle */}

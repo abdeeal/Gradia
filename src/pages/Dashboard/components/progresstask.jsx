@@ -276,7 +276,7 @@ export default function TaskSummary({
         `}</style>
 
         <div
-          className="flex justify-start gap-4 flex-wrap"
+          className="grid grid-cols-3 gap-4"
           role="status"
           aria-live="polite"
           aria-label="Loading..."
@@ -286,15 +286,14 @@ export default function TaskSummary({
             <div
               key={idx}
               style={{
-                width: `${card.width}px`,
-                height: "161px",
+                width: `100%`,
                 fontFamily: "Montserrat, sans-serif",
                 borderColor: "rgba(70,70,70,0.5)",
                 backgroundImage: "linear-gradient(to bottom, #070707, #141414)",
                 position: "relative",
                 overflow: "hidden",
               }}
-              className="rounded-2xl border bg-clip-padding"
+              className="rounded-2xl border bg-clip-padding h-[179px] 2xl:h-[250px]"
             >
               <div className="gradia-shimmer" />
             </div>
@@ -313,24 +312,23 @@ export default function TaskSummary({
   }
 
   return (
-    <div className="flex justify-start gap-4 flex-wrap">
+    <div className="grid grid-cols-3 gap-4">
       {cards.map((card, idx) => (
         <div
           key={idx}
           style={{
-            width: `${card.width}px`,
-            height: "161px",
+            width: `100%`,
             fontFamily: "Montserrat, sans-serif",
             borderColor: "rgba(70,70,70,0.5)",
             backgroundImage: "linear-gradient(to bottom, #070707, #141414)",
           }}
-          className="rounded-2xl border bg-clip-padding"
+          className="rounded-2xl border bg-clip-padding h-[179px] 2xl:h-[250px]"
         >
-          <div className="h-full p-5 flex flex-col items-start text-left">
-            <p className="text-white text-[20px] leading-none font-semibold">
+          <div className="h-full px-5 py-3 flex flex-col justify-between text-left">
+            <p className="text-white text-[20px] 2xl:text-[28px] font-semibold">
               {card.label}
             </p>
-            <span className="mt-4 text-[#FFEB3B] text-[64px] leading-none font-bold">
+            <span className="text-[#FFEB3B] text-[64px] 2xl:text-[96px] font-bold">
               {card.value}
             </span>
           </div>

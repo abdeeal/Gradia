@@ -7,7 +7,6 @@ const MIN_SKEL_MS = 200;
 
 const CARD_CLASS = "relative rounded-2xl text-white shadow border border-white/5";
 const CARD_STYLE = {
-  height: 254,
   padding: 20,
   backgroundImage: "linear-gradient(to bottom right, #34146C, #28073B)",
 };
@@ -154,7 +153,7 @@ export default function TotalTask({
         `}</style>
 
         <div
-          className={CARD_CLASS}
+          className={`${CARD_CLASS} h-[254px] 2xl:h-[380px]`}
           role="status"
           aria-live="polite"
           aria-label="Loading total tasks..."
@@ -169,7 +168,7 @@ export default function TotalTask({
   /* ERROR */
   if (errMsg) {
     return (
-      <div className={CARD_CLASS} style={CARD_STYLE}>
+      <div className={`${CARD_CLASS} h-[254px] 2xl:h-[380px]`} style={CARD_STYLE}>
         <div className="flex items-center justify-between">
           <h3
             style={{
@@ -226,12 +225,12 @@ export default function TotalTask({
 
   /* NORMAL */
   return (
-    <div className={CARD_CLASS} style={CARD_STYLE}>
+    <div className={`${CARD_CLASS} h-[254px] 2xl:h-[380px] flex flex-col justify-between`} style={CARD_STYLE}>
       <div className="flex items-center justify-between">
         <h3
+        className="text-[20px] 2xl:text-[28px]"
           style={{
             fontFamily: "Montserrat, ui-sans-serif",
-            fontSize: 20,
             fontWeight: 600,
           }}
         >
@@ -267,9 +266,9 @@ export default function TotalTask({
 
       <div style={{ marginTop: 32 }}>
         <span
+        className="text-[64px] 2xl:text-[108px]"
           style={{
             fontFamily: "Montserrat, ui-sans-serif",
-            fontSize: 64,
             fontWeight: 700,
             lineHeight: 1,
           }}
@@ -279,10 +278,10 @@ export default function TotalTask({
       </div>
 
       <p
+      className="text-[14px] 2xl:text-[24px] pb-6"
         style={{
           marginTop: 32,
           fontFamily: "Inter, ui-sans-serif",
-          fontSize: 14,
           color: "#FCD34D",
         }}
       >

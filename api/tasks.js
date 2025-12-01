@@ -27,7 +27,7 @@ export default async function handler(req, res) {
       )
     `
       )
-      .eq("course.id_workspace", idWorkspace)
+      .eq("id_workspace", idWorkspace)
       .order("deadline", { ascending: true });
 
     if (error) {

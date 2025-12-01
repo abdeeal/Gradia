@@ -5,7 +5,7 @@ import { getWorkspaceId } from "../../../components/GetWorkspace";
 const MIN_SKELETON_MS = 200;
 
 // ==== LAYOUT CONST ====
-const FRAME_W = 259;
+const FRAME_W = "100%";
 const FRAME_H = 246;
 const PAD_X = 16;
 const PAD_TOP = 16;
@@ -222,10 +222,8 @@ export default function DueToday(props) {
   return (
     <div
       id="id_due"
-      className="rounded-2xl border border-[#464646]/50"
+      className="rounded-2xl border border-[#464646]/50 box-border w-full h-[246px] 2xl:h-[300px]"
       style={{
-        width: FRAME_W,
-        height: FRAME_H,
         backgroundImage: "linear-gradient(180deg, #070707 0%, #141414 100%)",
         paddingLeft: PAD_X,
         paddingRight: PAD_X,
@@ -318,8 +316,8 @@ export default function DueToday(props) {
                   key={idx}
                   className="relative rounded-xl"
                   style={{
-                    width: FRAME_W - PAD_X * 2,
-                    height: 91,
+                    width: "100%",
+                    height: 100,
                     background: "#262626",
                     display: "flex",
                     alignItems: "center",
@@ -425,15 +423,14 @@ export default function DueToday(props) {
               </span>
             </div>
           ) : (
-            <div className="flex flex-col" style={{ gap: 10 }}>
+            <div className="flex flex-col bg-background rounded-[12px] border border-border/50" style={{ gap: 10 }}>
               {todayItems.map((it, idx) => (
                 <div
                   key={idx}
                   className="rounded-xl"
                   style={{
                     width: FRAME_W - PAD_X * 2,
-                    height: 91,
-                    background: "#262626",
+                    height: 96,
                     display: "flex",
                     alignItems: "center",
                     borderRadius: 12,
@@ -463,11 +460,11 @@ export default function DueToday(props) {
                   </div>
 
                   <div
-                    className="flex-1"
+                    className="flex flex-col gap-0.5"
                     style={{ fontFamily: "Inter, sans-serif" }}
                   >
                     <h3
-                      className="font-semibold text-white"
+                      className="font-semibold text-white line-clamp-1"
                       style={{
                         fontSize: 16,
                         lineHeight: "20px",
@@ -478,7 +475,7 @@ export default function DueToday(props) {
                     </h3>
 
                     <p
-                      className="text-gray-300"
+                      className="text-gray-300 mb-1"
                       style={{
                         fontSize: 16,
                         lineHeight: "18px",
@@ -490,7 +487,7 @@ export default function DueToday(props) {
 
                     {it.priority && (
                       <span
-                        className={`inline-flex ${prColor(it.priority)}`}
+                        className={`w-fit ${prColor(it.priority)}`}
                         style={{
                           height: 17,
                           lineHeight: "20px",

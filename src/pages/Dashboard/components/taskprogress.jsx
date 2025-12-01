@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import { PieChart, Pie, Cell } from "recharts";
+import { useMediaQuery } from "react-responsive";
 
 const MIN_SKEL_MS = 200;
 
@@ -20,7 +21,10 @@ const getWsId = () => {
 const keyfy = (v) => {
   if (v === null || v === undefined) return "";
   const s = typeof v === "number" ? String(v) : String(v);
-  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "");
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "");
 };
 
 const getStatus = (t) => {
@@ -80,9 +84,17 @@ const PROG_KEYS = new Set(
 );
 
 const DONE_KEYS = new Set(
-  ["completed", "complete", "done", "finished", "closed", "resolved", "selesai", 2, "2"].map(
-    keyfy
-  )
+  [
+    "completed",
+    "complete",
+    "done",
+    "finished",
+    "closed",
+    "resolved",
+    "selesai",
+    2,
+    "2",
+  ].map(keyfy)
 );
 
 const OVERDUE_KEYS = new Set(
@@ -120,9 +132,10 @@ export default function TaskProgress({
   const wsId = useMemo(() => getWsId(), []);
 
   const queryObj = useMemo(() => {
-    const hasWs =
-      !!(queryParams &&
-        Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace"));
+    const hasWs = !!(
+      queryParams &&
+      Object.prototype.hasOwnProperty.call(queryParams, "idWorkspace")
+    );
 
     const ws = hasWs ? undefined : idWorkspace ?? wsId;
     const base = ws != null ? { idWorkspace: ws } : {};
@@ -138,7 +151,10 @@ export default function TaskProgress({
     return (
       "?" +
       entries
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .map(
+          ([k, v]) =>
+            `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+        )
         .join("&")
     );
   }, [queryObj]);
@@ -189,7 +205,8 @@ export default function TaskProgress({
 
   const srcTasks = useMemo(() => {
     if (useCountsDirect) return [];
-    const base = Array.isArray(tasks) && tasks.length > 0 ? tasks : remoteTasks || [];
+    const base =
+      Array.isArray(tasks) && tasks.length > 0 ? tasks : remoteTasks || [];
     if (!taskIds || taskIds.length === 0) return base;
 
     const allow = new Set(taskIds.map((x) => String(x)));
@@ -245,6 +262,8 @@ export default function TaskProgress({
   const pct = Math.round((chartDone / total) * 100);
   const pctClamped = Math.max(0, Math.min(100, pct));
 
+  const isFHD = useMediaQuery({ minWidth: 1536 });
+
   if (loading) {
     return (
       <>
@@ -271,18 +290,17 @@ export default function TaskProgress({
         `}</style>
 
         <div
-          className="relative rounded-2xl p-4"
+          className="relative rounded-2xl p-4 h-[347px] 2xl:h-[440px]"
           role="status"
           aria-live="polite"
           aria-label="Loading task progress..."
           style={{
-            width: 308,
-            height: 347,
+            width: "100%",
             backgroundImage: "linear-gradient(to right, #000000, #211832)",
             overflow: "hidden",
           }}
         >
-          <div className="gradia-shimmer" />
+          <div className="gradia-shimmer h-[347px] 2xl:h-[440px]" />
         </div>
       </>
     );
@@ -293,7 +311,7 @@ export default function TaskProgress({
       <div
         className="relative rounded-2xl p-4 text-white"
         style={{
-          width: 308,
+          width: "100%",
           height: 347,
           backgroundImage: "linear-gradient(to right, #000000, #211832)",
         }}
@@ -307,120 +325,208 @@ export default function TaskProgress({
 
   return (
     <div
-      className="relative rounded-2xl p-4 text-white"
+      className="relative rounded-2xl p-4 text-white h-[347px] 2xl:h-[440px]"
       style={{
-        width: 308,
-        height: 347,
+        width: "100%",
         backgroundImage: "linear-gradient(to right, #000000, #211832)",
       }}
     >
       <div
-        className="mb-2"
+        className="mb-2 text-[20px] 2xl:text-[28px]"
         style={{
           fontFamily: "Montserrat, ui-sans-serif",
-          fontSize: 20,
           fontWeight: 700,
         }}
       >
         {title}
       </div>
 
-      <div className="relative" style={{ width: "100%", height: 200 }}>
-        <div
-          style={{
-            width: "100%",
-            display: "flex",
-            justifyContent: "center",
-            position: "relative",
-            zIndex: 1,
-            transform: "translateY(20px)",
-          }}
-        >
-          <PieChart width={250} height={140}>
-            <Pie
-              data={data}
-              dataKey="value"
-              startAngle={180}
-              endAngle={0}
-              innerRadius={65}
-              outerRadius={110}
-              cx="50%"
-              cy="100%"
-              paddingAngle={0}
-              cornerRadius={20}
-              stroke="none"
-            >
-              {data.map((d) => (
-                <Cell key={`cell-${d.name}`} fill={d.color} />
-              ))}
-            </Pie>
-          </PieChart>
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%) translateY(50px)",
-            zIndex: 99,
-            textAlign: "center",
-          }}
-        >
+      {isFHD ? (
+        <div className="relative" style={{ width: "100%", height: 300 }}>
           <div
             style={{
+              width: "100%",
               display: "flex",
-              alignItems: "baseline",
               justifyContent: "center",
+              position: "relative",
+              zIndex: 1,
+              transform: "translateY(20px)",
             }}
           >
-            <span
-              style={{
-                fontFamily: "Montserrat, ui-sans-serif",
-                fontSize: 42,
-                fontWeight: 600,
-                lineHeight: 1.5,
-                color: "#FFFFFF",
-              }}
-            >
-              {pctClamped}
-            </span>
-            <span
-              style={{
-                fontFamily: "Montserrat, ui-sans-serif",
-                fontSize: 42,
-                fontWeight: 700,
-                lineHeight: 1,
-                color: "#FFFFFF",
-              }}
-            >
-              %
-            </span>
+            <PieChart width={400} height={180}>
+              <Pie
+                data={data}
+                dataKey="value"
+                startAngle={180}
+                endAngle={0}
+                innerRadius={65}
+                outerRadius={110}
+                cx="50%"
+                cy="100%"
+                paddingAngle={0}
+                cornerRadius={20}
+                stroke="none"
+              >
+                {data.map((d) => (
+                  <Cell key={`cell-${d.name}`} fill={d.color} />
+                ))}
+              </Pie>
+            </PieChart>
           </div>
+
           <div
             style={{
-              fontFamily: "Inter, ui-sans-serif",
-              fontSize: 14,
-              marginTop: 8,
-              color: "#C4B5FD",
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%) translateY(50px)",
+              zIndex: 99,
+              textAlign: "center",
             }}
           >
-            Task Completed
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "center",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "Montserrat, ui-sans-serif",
+                  fontSize: 48,
+                  fontWeight: 600,
+                  lineHeight: 1.5,
+                  color: "#FFFFFF",
+                }}
+              >
+                {pctClamped}
+              </span>
+              <span
+                style={{
+                  fontFamily: "Montserrat, ui-sans-serif",
+                  fontSize: 42,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  color: "#FFFFFF",
+                }}
+              >
+                %
+              </span>
+            </div>
+            <div
+              style={{
+                fontFamily: "Inter, ui-sans-serif",
+                fontSize: 24,
+                marginTop: 8,
+                color: "#C4B5FD",
+              }}
+            >
+              Task Completed
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="relative" style={{ width: "100%", height: 200 }}>
+          <div
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "center",
+              position: "relative",
+              zIndex: 1,
+              transform: "translateY(20px)",
+            }}
+          >
+            <PieChart width={250} height={140}>
+              <Pie
+                data={data}
+                dataKey="value"
+                startAngle={180}
+                endAngle={0}
+                innerRadius={65}
+                outerRadius={110}
+                cx="50%"
+                cy="100%"
+                paddingAngle={0}
+                cornerRadius={20}
+                stroke="none"
+              >
+                {data.map((d) => (
+                  <Cell key={`cell-${d.name}`} fill={d.color} />
+                ))}
+              </Pie>
+            </PieChart>
+          </div>
+
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%) translateY(50px)",
+              zIndex: 99,
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "center",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "Montserrat, ui-sans-serif",
+                  fontSize: 42,
+                  fontWeight: 600,
+                  lineHeight: 1.5,
+                  color: "#FFFFFF",
+                }}
+              >
+                {pctClamped}
+              </span>
+              <span
+                style={{
+                  fontFamily: "Montserrat, ui-sans-serif",
+                  fontSize: 42,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  color: "#FFFFFF",
+                }}
+              >
+                %
+              </span>
+            </div>
+            <div
+              style={{
+                fontFamily: "Inter, ui-sans-serif",
+                fontSize: 14,
+                marginTop: 8,
+                color: "#C4B5FD",
+              }}
+            >
+              Task Completed
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="absolute left-4 right-4 text-sm" style={{ bottom: 20 }}>
-        <div className="flex items-center justify-between" style={{ marginTop: 24 }}>
+        <div
+          className="flex items-center justify-between"
+          style={{ marginTop: 24 }}
+        >
           {data.map((d) => (
             <div key={`legend-${d.name}`} className="flex items-center gap-2">
               <span
-                className="inline-block w-3.5 h-3.5 rounded-full"
+                className="inline-block w-3.5 h-3.5 2xl:w-5 2xl:h-5 rounded-full"
                 style={{ background: d.color }}
               />
               <span
                 style={{ fontFamily: "Inter, ui-sans-serif" }}
-                className="text-gray-200 text-xs"
+                className="text-gray-200 text-xs 2xl:text-[20px]"
               >
                 {d.name}
               </span>
