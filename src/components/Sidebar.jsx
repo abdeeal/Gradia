@@ -60,7 +60,7 @@ const Sidebar = () => {
       }
 
       // Arahkan balik ke halaman login
-      navigate("/login");
+      navigate("/auth/login");
     } catch (err) {
       console.error("Logout error:", err);
       // Kalau fetch-nya aja error, tetap lempar user ke login biar aman
