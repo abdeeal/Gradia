@@ -13,14 +13,14 @@ import { useAlert } from "@/hooks/useAlert";
 import OtpInput from "./components/OtpInput";
 
 const RESET_PASSWORD_NEW_ROUTE = "/auth/reset-password/newpassword"; // ROUTE NEW PASSWORD (desktop)
-const REGISTER_SUCCESS_ROUTE   = "/auth/success/register";
+const REGISTER_SUCCESS_ROUTE = "/auth/success/register";
 
 // === Endpoint tetap (TIDAK mengubah API path) ===
-const VERIFY_ENDPOINT  = "/api/auth/verifyOtp";
-const RESEND_ENDPOINT  = "/api/auth/sendotp";
+const VERIFY_ENDPOINT = "/api/auth/verifyOtp";
+const RESEND_ENDPOINT = "/api/auth/sendOtp";
 
 // Purpose constants (hanya dipakai di FE & juga dikirim sebagai action)
-const PURPOSE_REGISTRATION   = "registration";
+const PURPOSE_REGISTRATION = "registration";
 const PURPOSE_RESET_PASSWORD = "reset-password";
 
 /* =======================
@@ -51,7 +51,9 @@ const CommonUIDesktop = ({
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
 
   const title =
-    mode === "reset-password" ? "Forgot Password?" : "Verify Your Email Address";
+    mode === "reset-password"
+      ? "Forgot Password?"
+      : "Verify Your Email Address";
 
   return (
     <div
@@ -116,7 +118,12 @@ const CommonUIDesktop = ({
           </h1>
           <p
             className="mx-auto font-semibold"
-            style={{ width: "540px", fontSize: "20px", marginTop: "4px", color: "#A3A3A3" }}
+            style={{
+              width: "540px",
+              fontSize: "20px",
+              marginTop: "4px",
+              color: "#A3A3A3",
+            }}
           >
             Enter the 6-digits code sent to your email.
           </p>
@@ -139,7 +146,10 @@ const CommonUIDesktop = ({
               {timerLabel}
             </div>
 
-            <div className="w-full flex justify-center" style={{ marginTop: `8px` }}>
+            <div
+              className="w-full flex justify-center"
+              style={{ marginTop: `8px` }}
+            >
               <button
                 type="button"
                 onClick={onVerify}
@@ -148,12 +158,14 @@ const CommonUIDesktop = ({
                 style={{
                   width: `486px`,
                   height: "55px",
-                  background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
+                  background:
+                    "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
-                  if (!submitting) e.currentTarget.style.filter = "brightness(1.15)";
+                  if (!submitting)
+                    e.currentTarget.style.filter = "brightness(1.15)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.filter = "brightness(1)";
@@ -175,9 +187,7 @@ const CommonUIDesktop = ({
               className="text-center text-[14px]"
               style={{ marginTop: `8px` }}
             >
-              <span style={{ color: "#A3A3A3" }}>
-                Didn’t receive the code?
-              </span>{" "}
+              <span style={{ color: "#A3A3A3" }}>Didn’t receive the code?</span>{" "}
               <button
                 type="button"
                 onClick={onResend}
@@ -189,7 +199,8 @@ const CommonUIDesktop = ({
                 }}
                 className="hover:opacity-90 font-bold disabled:opacity-60"
                 onMouseEnter={(e) => {
-                  if (!resending) e.currentTarget.style.filter = "brightness(1.15)";
+                  if (!resending)
+                    e.currentTarget.style.filter = "brightness(1.15)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.filter = "brightness(1)";
@@ -237,7 +248,7 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
 
   /* ===== Mode/purpose detector (ketat & konsisten) ===== */
   const mode = useMemo(() => {
-    const byProp  = from;
+    const byProp = from;
     const byState = location.state?.type;
     const byQuery = new URLSearchParams(location.search).get("type");
     const raw = String(byProp || byState || byQuery || "")
@@ -245,9 +256,13 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
       .trim();
 
     if (
-      ["registration", "register", "regist", "verification", "verified"].includes(
-        raw
-      )
+      [
+        "registration",
+        "register",
+        "regist",
+        "verification",
+        "verified",
+      ].includes(raw)
     ) {
       return "registration";
     }
@@ -274,8 +289,8 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
 
   const emailToUse = (
     mode === "registration"
-      ? (emailFromSession || emailFromNav || email || user?.email || "")
-      : (emailFromNav || email || user?.email || "")
+      ? emailFromSession || emailFromNav || email || user?.email || ""
+      : emailFromNav || email || user?.email || ""
   )
     .trim()
     .toLowerCase();
@@ -289,14 +304,12 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
   const [secondsLeft, setSecondsLeft] = useState(() => {
     const exp = expiredAt || location.state?.expires_at;
     if (!exp) return 5 * 60;
-    const diff = Math.floor(
-      (new Date(exp).getTime() - Date.now()) / 1000
-    );
+    const diff = Math.floor((new Date(exp).getTime() - Date.now()) / 1000);
     return diff > 0 ? Math.min(diff, 5 * 60) : 5 * 60;
   });
 
   const [submitting, setSubmitting] = useState(false);
-  const [resending, setResending]   = useState(false);
+  const [resending, setResending] = useState(false);
 
   // guard auto-send supaya cuma sekali
   const sentOnceRef = useRef(false);
@@ -325,15 +338,13 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
   /* ===== Auto-send OTP untuk KEDUA MODE ===== */
   const sendOtpOnce = async () => {
     if (sentOnceRef.current) return;
+    sentOnceRef.current = true;
     if (!emailToUse) return;
 
     const purposeToUse =
-      mode === "reset-password"
-        ? PURPOSE_RESET_PASSWORD
-        : PURPOSE_REGISTRATION;
+      mode === "reset-password" ? PURPOSE_RESET_PASSWORD : PURPOSE_REGISTRATION;
 
     try {
-      sentOnceRef.current = true;
       await fetch(RESEND_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -349,9 +360,11 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
   };
 
   useEffect(() => {
-    sendOtpOnce();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, emailToUse]);
+    if (!sentOnceRef.current) {
+      sentOnceRef.current = true;
+      sendOtpOnce();
+    }
+  }, []);
 
   /* ===== Handler perubahan OTP (stabil) ===== */
   const handleOtpChange = useCallback((code) => {
