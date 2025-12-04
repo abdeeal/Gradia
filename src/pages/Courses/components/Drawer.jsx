@@ -206,8 +206,8 @@ export const Drawer = ({
   //cek form
   const [name, setName] = useState(empty ? "" : data?.name || "");
   const [lecturer, setLecturer] = useState(empty ? "" : data?.lecturer || "");
-  const [start, setStart] = useState(empty ? "" : data?.start || "");
-  const [end, setEnd] = useState(empty ? "" : data?.end || "");
+  const [start, setStart] = useState(empty ? "00:00" : data?.start || "00:00");
+  const [end, setEnd] = useState(empty ? "00:00" : data?.end || "00:00");
   const [isFormValid, setIsFormValid] = useState(false);
 
   useEffect(() => {
