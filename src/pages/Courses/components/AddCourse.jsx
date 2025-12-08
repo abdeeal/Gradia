@@ -94,7 +94,7 @@ const AddCourse = ({ onClose, onAdd }) => {
   };
 
   return (
-    <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
+    <div className="h-full overflow-y-auto pt-28 pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
       <button
         onClick={onClose}
         className="absolute left-3 top-4 text-gray-400 cursor-pointer"
@@ -168,7 +168,7 @@ const AddCourse = ({ onClose, onAdd }) => {
           <button
             onClick={save}
             disabled={busy}
-            className={`flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] cursor-pointer transition-all ${
+            className={`flex items-center gap-2 px-5 h-11 rounded-lg bg-linear-to-br from-[#34146C] to-[#28073B] cursor-pointer transition-all ${
               busy ? "opacity-60 pointer-events-none" : ""
             }`}
           >
@@ -301,7 +301,7 @@ const TimeInline = ({ label, start, end, onStart, onEnd }) => (
       <input
         type="time"
         placeholder="HH:MM"
-        className="bg-transparent outline-none font-medium w-[96px]"
+        className="bg-transparent outline-none font-medium w-24"
         value={start || ""}
         onChange={(e) => onStart(e.target.value)}
       />
@@ -309,7 +309,7 @@ const TimeInline = ({ label, start, end, onStart, onEnd }) => (
       <input
         type="time"
         placeholder="HH:MM"
-        className="bg-transparent outline-none font-medium w-[96px]"
+        className="bg-transparent outline-none font-medium w-24"
         value={end || ""}
         onChange={(e) => onEnd(e.target.value)}
       />

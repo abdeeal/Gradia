@@ -41,9 +41,9 @@ const CourseCard = ({ course, onClick }) => {
     <div
       ref={ref}
       onClick={onClick}
-      className="cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl px-[12px] py-4 hover:border-purple-500 transition-all duration-200 relative xl:text-[14px] 2xl:text-[16px]"
+      className="cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl px-3 py-4 hover:border-purple-500 transition-all duration-200 relative xl:text-[14px] 2xl:text-[16px]"
     >
-      <div className="pr-[32px]">
+      <div className="pr-8">
         {/* Time + Circle */}
         <div className="flex items-center text-gray-400 mb-3">
           <span className={`w-2.5 h-2.5 rounded-full mr-2 ${dot}`} />
@@ -56,13 +56,13 @@ const CourseCard = ({ course, onClick }) => {
         </h4>
 
         {/* Room & Lecturer */}
-        <div className="flex flex-col gap-[1px] text-gray-400">
+        <div className="flex flex-col gap-px text-gray-400">
           <p className="flex items-center mb-1 font-semibold">
-            <i className="ri-building-line text-[#643EB2] mr-1" />
+            <i className="ri-building-line text-icon mr-1" />
             {course.room}
           </p>
           <p className="flex items-center line-clamp-1">
-            <i className="ri-graduation-cap-line text-[#643EB2] mr-1" />
+            <i className="ri-graduation-cap-line text-icon mr-1" />
             <span className="line-clamp-1">{course.lecturer}</span>
           </p>
         </div>

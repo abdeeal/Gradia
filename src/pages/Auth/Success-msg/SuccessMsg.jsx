@@ -59,7 +59,7 @@ function RegisterSuccess() {
 
       {/* OVERLAY */}
       <div
-        className="absolute inset-0 z-[5]"
+        className="absolute inset-0 z-5"
         style={{
           background:
             "linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.35) 100%)",
@@ -196,7 +196,7 @@ function ForgotSuccess() {
 
       {/* OVERLAY */}
       <div
-        className="absolute inset-0 z-[5]"
+        className="absolute inset-0 z-5"
         style={{
           background:
             "linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.35) 100%)",

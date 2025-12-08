@@ -397,7 +397,7 @@ function DesktopLoginPage() {
             className="inline-flex items-baseline gap-1 leading-none"
             style={{ fontFamily: "'Genos', sans-serif", fontWeight: 700 }}
           >
-            <span className="text-[128px] tracking-tight text-[#9457FF]">
+            <span className="text-[128px] tracking-tight text-logo">
               GRA
             </span>
             <span className="text-[128px] tracking-tight text-white">
@@ -405,7 +405,7 @@ function DesktopLoginPage() {
             </span>
           </div>
           <p
-            className="ml-2 mt-[-10px] font-[Inter] font-semibold leading-[1.2]"
+            className="ml-2 -mt-2.5 font-[Inter] font-semibold leading-[1.2]"
             style={{ fontSize: 36 }}
           >
             <span
@@ -447,7 +447,7 @@ function DesktopLoginPage() {
         >
           <div>
             {/* HEADER */}
-            <header className="text-center mb-[56px]">
+            <header className="text-center mb-14">
               <h1
                 className="text-[48px] font-extrabold leading-tight mb-2"
                 style={gradientText}
@@ -470,8 +470,8 @@ function DesktopLoginPage() {
             {/* FORM */}
             <form onSubmit={handleLogin}>
               {/* Email */}
-              <div className="mb-[18px] mt-[20px]">
-                <div className="flex items-center gap-2 mb-[4px]">
+              <div className="mb-[18px] mt-5">
+                <div className="flex items-center gap-2 mb-1">
                   <i className="ri-mail-line text-[16px]" />
                   <span className="text-[14px]">Email</span>
                 </div>
@@ -489,8 +489,8 @@ function DesktopLoginPage() {
               </div>
 
               {/* Password */}
-              <div className="mb-[24px]">
-                <div className="flex items-center gap-2 mb-[4px]">
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-1">
                   <i className="ri-lock-2-line text-[16px]" />
                   <span className="text-[14px]">Password</span>
                 </div>
@@ -508,7 +508,7 @@ function DesktopLoginPage() {
               </div>
 
               {/* Forgot Password */}
-              <div className="flex justify-end mb-[10px]">
+              <div className="flex justify-end mb-2.5">
                 <Link
                   to="/auth/reset-password/email"
                   className="text-[14px] hover:text-white"
@@ -518,7 +518,7 @@ function DesktopLoginPage() {
               </div>
 
               {/* Buttons */}
-              <div className="flex items-center gap-4 mb-[32px]">
+              <div className="flex items-center gap-4 mb-8">
                 {/* Google */}
                 <button
                   type="button"
@@ -592,7 +592,7 @@ function DesktopLoginPage() {
 
               {/* Footer */}
               <div className="text-center">
-                <p className="text-[14px] mb-[56px]">
+                <p className="text-[14px] mb-14">
                   Don’t have an account?{" "}
                   <Link
                     to="/auth/register"
