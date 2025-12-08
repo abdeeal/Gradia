@@ -116,7 +116,7 @@ const fmtTime = (ev) => {
 const Tag = ({ label, theme }) =>
   label && theme ? (
     <span
-      className="flex min-w-[105px] h-[24px] items-center justify-center rounded-[4px] text-[16px] font-montserrat"
+      className="flex min-w-[105px] h-6 items-center justify-center rounded-lg text-[16px] font-montserrat"
       style={{
         backgroundColor: theme.bg,
         color: theme.text,
@@ -190,7 +190,7 @@ export default function EventDetailsPanel({ selectedDate, events = [] }) {
         Don{"'"}t miss scheduled events
       </p>
 
-      <div className="space-y-[10px]" ref={cardRef}>
+      <div className="space-y-2.5" ref={cardRef}>
         {events.map((ev) => {
           const priorityLabel = norm(ev.priority, PRIORITY_MAP) || ev.priority;
           const statusLabel = norm(ev.status, STATUS_MAP) || ev.status;
@@ -198,13 +198,13 @@ export default function EventDetailsPanel({ selectedDate, events = [] }) {
           return (
             <div
               key={ev.id}
-              className="relative flex h-[166px] w-[318px] 2xl:w-[280px] flex-col space-y-[15px] rounded-lg border border-[rgba(101,101,101,0.5)] bg-[linear-gradient(180deg,#070707_0%,#141414_100%)] p-[10px]"
+              className="relative flex h-[166px] w-[318px] 2xl:w-[280px] flex-col space-y-[15px] rounded-lg border border-[rgba(101,101,101,0.5)] bg-[linear-gradient(180deg,#070707_0%,#141414_100%)] p-2.5"
             >
               {/* Top Row */}
               <div className="flex items-center justify-between text-[16px] text-gray-400">
                 <span className="flex items-center gap-2">
                   <span
-                    className="h-[12px] w-[12px] rounded-full"
+                    className="h-3 w-3 rounded-full"
                     style={{
                       backgroundColor: dotColor(ev),
                     }}

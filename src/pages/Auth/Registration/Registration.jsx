@@ -179,7 +179,7 @@ function RegisterDesktop() {
             className="inline-flex items-baseline gap-1 leading-none"
             style={{ fontFamily: "'Genos', sans-serif", fontWeight: 700 }}
           >
-            <span className="text-[128px] tracking-tight text-[#9457FF]">
+            <span className="text-[128px] tracking-tight text-logo">
               GRA
             </span>
             <span className="text-[128px] tracking-tight text-white">
@@ -188,7 +188,7 @@ function RegisterDesktop() {
           </div>
 
           <p
-            className="ml-2 mt-[-10px] font-[Inter] font-semibold leading-[1.2]"
+            className="ml-2 -mt-2.5 font-[Inter] font-semibold leading-[1.2]"
             style={{ fontSize: 36 }}
           >
             <span
@@ -228,14 +228,14 @@ function RegisterDesktop() {
           }}
         >
           <div>
-            <header className="text-center mb-[10px]">
+            <header className="text-center -mb-2.5">
               <h1
                 className="text-[48px] font-extrabold leading-tight mb-2"
                 style={gradientText}
               >
                 Let’s Register
               </h1>
-              <p className="text-[18px] leading-snug mb-[40px]">
+              <p className="text-[18px] leading-snug mb-10">
                 Join Gradia and take control of your goals, time, and mindset —
                 all in one app.
               </p>
@@ -244,8 +244,8 @@ function RegisterDesktop() {
             {/* FORM */}
             <div>
               {/* Email */}
-              <div className="mb-[10px]">
-                <div className="flex items-center gap-2 mb-[6px]">
+              <div className="mb-2.5">
+                <div className="flex items-center gap-2 mb-1.5">
                   <i className="ri-mail-line text-[16px]" />
                   <span className="text-[14px]">Email</span>
                 </div>
@@ -262,9 +262,9 @@ function RegisterDesktop() {
               </div>
 
               {/* Username */}
-              <div className="mb-[10px]">
-                <div className="flex items-center gap-2 mb-[6px]">
-                  <i className="ri-account-circle-2-line text-[16px]" />
+              <div className="mb-2.5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <i className="ri-account-circle-2-line text-1.5" />
                   <span className="text-[14px]">Username</span>
                 </div>
                 <div style={gradientBorderWrapper}>
@@ -280,8 +280,8 @@ function RegisterDesktop() {
               </div>
 
               {/* Password */}
-              <div className="mb-[20px]">
-                <div className="flex items-center gap-2 mb-[6px]">
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-1.5">
                   <i className="ri-lock-2-line text-[16px]" />
                   <span className="text-[14px]">Password</span>
                 </div>
@@ -298,11 +298,11 @@ function RegisterDesktop() {
               </div>
 
               {errMsg ? (
-                <p className="text-red-400 text-[12px] mb-[8px]">{errMsg}</p>
+                <p className="text-red-400 text-[12px] mb-2">{errMsg}</p>
               ) : null}
 
               {/* REGISTER BUTTON */}
-              <div className="flex justify-end mb-[20px]">
+              <div className="flex justify-end mb-5">
                 <button
                   type="button"
                   onClick={handleRegister}
@@ -332,7 +332,7 @@ function RegisterDesktop() {
 
               {/* FOOTER */}
               <div className="text-center">
-                <p className="text-[14px] mb-[60px] mt-[40px]">
+                <p className="text-[14px] mb-[60px] mt-10">
                   Already have an account?{" "}
                   <button
                     onClick={() => navigate("/auth/login")}

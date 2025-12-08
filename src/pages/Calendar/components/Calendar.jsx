@@ -148,16 +148,16 @@ const Calendar = ({ searchTerm }) => {
           {/* Header */}
           <div className="flex items-center justify-between mb-5 px-4">
             <div className="flex items-center gap-2">
-              <div className="w-[64px] h-[64px] text-white rounded-md px-1 py-2 text-center border border-border/50 flex flex-col gap-1">
+              <div className="w-16 h-16 text-white rounded-md px-1 py-2 text-center border border-border/50 flex flex-col gap-1">
                 <div className="text-foreground-secondary font-semibold text-[14px]">
                   {shortMonthNames[month]}
                 </div>
-                <div className="font-semibold bg-[#643EB2] rounded-[4px]">
+                <div className="font-semibold bg-icon rounded-lg">
                   {today.getDate()}
                 </div>
               </div>
 
-              <div className="h-[64px] flex flex-col justify-between py-3 md:ml-3">
+              <div className="h-16 flex flex-col justify-between py-3 md:ml-3">
                 <div className="text-[#FFEB3B] font-medium">
                   {monthNames[month]} {year}
                 </div>
@@ -188,7 +188,7 @@ const Calendar = ({ searchTerm }) => {
               return (
                 <div
                   key={`prev-${i}`}
-                  className="h-[64px] w-full flex flex-col px-1 py-1 text-foreground-secondary text-[14px] border border-border/50 bg-[#242424] font-semibold"
+                  className="h-16 w-full flex flex-col px-1 py-1 text-foreground-secondary text-[14px] border border-border/50 bg-[#242424] font-semibold"
                 >
                   {day}
                 </div>
@@ -214,8 +214,8 @@ const Calendar = ({ searchTerm }) => {
                 <div
                   key={day}
                   onClick={() => setSelectedDate(day)}
-                  className={`h-[64px] w-full flex flex-col p-1 cursor-pointer relative border border-border/50 font-semibold text-[14px]
-      ${isToday ? "border-[#FFEB3B] !text-black" : ""} ${
+                  className={`h-16 w-full flex flex-col p-1 cursor-pointer relative border border-border/50 font-semibold text-[14px]
+      ${isToday ? "border-[#FFEB3B] text-black!" : ""} ${
                     isSelected
                       ? "ring-1 ring-border font-semibold z-10"
                       : "text-foreground-secondary hover:bg-zinc-800"
@@ -235,7 +235,7 @@ const Calendar = ({ searchTerm }) => {
                       {dayTasks.slice(0, 3).map((task, idx) => (
                         <div
                           key={idx}
-                          className="w-4 h-[6px] rounded-full border border-border/50"
+                          className="w-4 h-1.5 rounded-full border border-border/50"
                           style={{ backgroundColor: task.color }}
                         />
                       ))}
@@ -253,7 +253,7 @@ const Calendar = ({ searchTerm }) => {
               return (
                 <div
                   key={`next-${i}`}
-                  className="h-[64px] w-full flex flex-col text-[14px] p-1 text-foreground-secondary bg-[#242424] border border-border/50 font-semibold"
+                  className="h-16 w-full flex flex-col text-[14px] p-1 text-foreground-secondary bg-[#242424] border border-border/50 font-semibold"
                 >
                   {day}
                 </div>
@@ -309,7 +309,7 @@ const Calendar = ({ searchTerm }) => {
               />
             ))
           ) : (
-            <div className="bg-gradient-to-t from-[#141414] to-[#070707] rounded-[8px] px-2 py-5 flex flex-col gap-2 font-normal border border-border/50 h-[178px] items-center justify-center text-foreground-secondary md:col-span-2">
+            <div className="bg-linear-to-t from-[#141414] to-[#070707] rounded-xl px-2 py-5 flex flex-col gap-2 font-normal border border-border/50 h-[178px] items-center justify-center text-foreground-secondary md:col-span-2">
               <p>No tasks scheduled for today</p>
             </div>
           )}

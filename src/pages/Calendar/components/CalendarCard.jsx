@@ -490,7 +490,7 @@ export default function MonthCalendar({
       >
         {/* HEADER */}
         <div
-          className="flex items-center gap-[10px] w-full gradia-cal-headbar"
+          className="flex items-center gap-2.5 w-full gradia-cal-headbar"
           style={{
             minHeight: 82,
             padding: "10px 16px",
@@ -519,7 +519,7 @@ export default function MonthCalendar({
                 setPickerMode("date");
               }}
               title="Pick date / month / year"
-              className="mx-auto flex items-center justify-center rounded-[8px] bg-[#643EB2] text-white font-extrabold outline-none border-none"
+              className="mx-auto flex items-center justify-center rounded-xl bg-icon text-white font-extrabold outline-none border-none"
               style={{ width: 60, height: 25 }}
             >
               {value.getDate()}
@@ -556,12 +556,12 @@ export default function MonthCalendar({
             }}
           >
             {/* Tabs */}
-            <div className="mb-2 flex gap-[6px]">
+            <div className="mb-2 flex gap-1.5">
               {["date", "month", "year"].map((m) => (
                 <button
                   key={m}
                   onClick={() => setPickerMode(m)}
-                  className="cursor-pointer rounded-[10px] border px-[10px] py-[6px] text-[12px] font-bold text-gray-200"
+                  className="cursor-pointer rounded-[10px] border px-2.5 py-1.5 text-[12px] font-bold text-gray-200"
                   style={{
                     border: "1px solid rgba(101,101,101,0.5)",
                     background:
@@ -613,7 +613,7 @@ export default function MonthCalendar({
             {/* Mode Month */}
             {pickerMode === "month" && (
               <div
-                className="grid gap-[6px]"
+                className="grid gap-1.5"
                 style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
               >
                 {MONTHS.map((m, i) => (
@@ -647,7 +647,7 @@ export default function MonthCalendar({
             {/* Mode Year */}
             {pickerMode === "year" && (
               <div
-                className="grid max-h-[200px] gap-[6px] overflow-auto"
+                className="grid max-h-[200px] gap-1.5 overflow-auto"
                 style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
               >
                 {Array.from({ length: 21 }, (_, i) => year - 10 + i).map(
@@ -798,7 +798,7 @@ export default function MonthCalendar({
                         <div
                           key={ev.id}
                           title={ev.title}
-                          className="inline-block w-full max-w-[95%] truncate rounded-[4px] text-[11px] font-semibold text-left"
+                          className="inline-block w-full max-w-[95%] truncate rounded-lg text-[11px] font-semibold text-left"
                           style={{
                             marginLeft: 0,
                             height: 22,
@@ -820,7 +820,7 @@ export default function MonthCalendar({
                         <div
                           onClick={() => onOpenDetails?.(date, events)}
                           title="View all"
-                          className="w-full max-w-[95%] cursor-pointer truncate rounded-[4px] text-left text-[11px] font-bold"
+                          className="w-full max-w-[95%] cursor-pointer truncate rounded-lg text-left text-[11px] font-bold"
                           style={{
                             marginLeft: 0,
                             height: 20,
@@ -854,7 +854,7 @@ export default function MonthCalendar({
           <button
             onClick={() => shiftMonth(-1)}
             title="Previous month"
-            className="flex items-center gap-[6px] cursor-pointer rounded-[6px] bg-transparent px-[8px] py-[3px] text-[13px] font-medium text-gray-200"
+            className="flex items-center gap-1.5 cursor-pointer rounded-[6px] bg-transparent px-2 py-[3px] text-[13px] font-medium text-gray-200"
           >
             <i className="ri-arrow-left-s-line" /> Prev
           </button>
@@ -866,7 +866,7 @@ export default function MonthCalendar({
           <button
             onClick={() => shiftMonth(1)}
             title="Next month"
-            className="flex items-center gap-[6px] cursor-pointer rounded-[6px] bg-transparent px-[8px] py-[3px] text-[13px] font-medium text-gray-200"
+            className="flex items-center gap-1.5 cursor-pointer rounded-[6px] bg-transparent px-2 py-[3px] text-[13px] font-medium text-gray-200"
           >
             Next <i className="ri-arrow-right-s-line" />
           </button>

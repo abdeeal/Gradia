@@ -1,11 +1,5 @@
 // src/pages/Loginpage/VerifyOtp.jsx
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMediaQuery } from "react-responsive";
 import Mobile from "./Layout/Mobile";
@@ -51,9 +45,7 @@ const CommonUIDesktop = ({
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
 
   const title =
-    mode === "reset-password"
-      ? "Forgot Password?"
-      : "Verify Your Email Address";
+    mode === "reset-password" ? "Forgot Password?" : "Verify Your Email Address";
 
   return (
     <div
@@ -101,7 +93,7 @@ const CommonUIDesktop = ({
         />
       </div>
       <div
-        className="absolute inset-0 z-[5]"
+        className="absolute inset-0 z-5"
         style={{
           background:
             "linear-gradient(180deg, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.35) 100%)",
@@ -111,7 +103,7 @@ const CommonUIDesktop = ({
       <div className="relative z-10 flex h-full w-full flex-col items-center">
         <div style={{ marginTop: `80px` }} className="text-center">
           <h1
-            className="font-bold text-transparent bg-clip-text bg-gradient-to-b from-[#FAFAFA] to-[#949494]"
+            className="font-bold text-transparent bg-clip-text bg-linear-to-b from-[#FAFAFA] to-[#949494]"
             style={{ fontSize: "48px", lineHeight: 1.3 }}
           >
             {title}
@@ -131,9 +123,9 @@ const CommonUIDesktop = ({
 
         <div
           className="rounded-2xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-md"
-          style={{ width: `818px`, height: `291px`, marginTop: `62px` }}
+          style={{ width: `819px`, height: `320px`, marginTop: `62px` }}
         >
-          <div className="h-full w-full">
+          <div className="h-full w-full mt-12 px-12">
             <div>
               {/* OTPBox: OtpInput dibungkus di komponen terpisah, lebih stabil */}
               <OTPBox length={OTP_LENGTH} onChange={onOtpChange} />
@@ -158,8 +150,7 @@ const CommonUIDesktop = ({
                 style={{
                   width: `486px`,
                   height: "55px",
-                  background:
-                    "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
+                  background: "linear-gradient(90deg, #34146C 0%, #28073B 100%)",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                 }}
@@ -175,7 +166,7 @@ const CommonUIDesktop = ({
                   <i className="ri-loader-4-line animate-spin mr-2" />
                 )}
                 <span
-                  className="text-transparent bg-clip-text bg-gradient-to-b from-[#FAFAFA] to-[#B9B9B9] font-bold"
+                  className="text-transparent bg-clip-text bg-linear-to-b from-[#FAFAFA] to-[#B9B9B9] font-bold"
                   style={{ fontSize: "20px", lineHeight: "1.5" }}
                 >
                   {submitting ? "Verifying..." : "Verify"}
@@ -185,7 +176,7 @@ const CommonUIDesktop = ({
 
             <div
               className="text-center text-[14px]"
-              style={{ marginTop: `8px` }}
+              style={{ marginTop: `24px` }}
             >
               <span style={{ color: "#A3A3A3" }}>Didn’t receive the code?</span>{" "}
               <button
@@ -213,7 +204,7 @@ const CommonUIDesktop = ({
         </div>
 
         <p
-          className="text-center text-[14px] mt-[56px]"
+          className="text-center text-[14px] mt-14"
           style={{ color: "#A3A3A3" }}
         >
           © {new Date().getFullYear()} Gradia. All rights reserved.
@@ -226,7 +217,6 @@ const CommonUIDesktop = ({
 /* =======================
    MAIN COMPONENT
    ======================= */
-
 const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
@@ -246,45 +236,64 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
       height: 380,
     });
 
-  /* ===== Mode/purpose detector (ketat & konsisten) ===== */
+  /* ===== Mode/purpose detector (SUPER ROBUST, tanpa ubah UI) ===== */
   const mode = useMemo(() => {
+    const path = String(location.pathname || "").toLowerCase();
+
+    // 1) Explicit purpose wins (paling aman)
+    const p1 = String(purpose || "").toLowerCase().trim();
+    const p2 = String(location.state?.purpose || "").toLowerCase().trim();
+    const explicitPurpose = p1 || p2;
+
+    if (explicitPurpose === PURPOSE_RESET_PASSWORD) return "reset-password";
+    if (explicitPurpose === PURPOSE_REGISTRATION) return "registration";
+
+    // 2) Type / query / from
     const byProp = from;
     const byState = location.state?.type;
     const byQuery = new URLSearchParams(location.search).get("type");
+
     const raw = String(byProp || byState || byQuery || "")
       .toLowerCase()
       .trim();
 
+    // Reset aliases (tambah variasi yang umum)
     if (
       [
-        "registration",
-        "register",
-        "regist",
-        "verification",
-        "verified",
+        "reset-password",
+        "resetpassword",
+        "reset",
+        "forgot",
+        "forgot-password",
+        "forgotpassword",
+        "new-password",
+        "newpassword",
       ].includes(raw)
-    ) {
-      return "registration";
-    }
-    if (
-      ["reset-password", "reset", "forgot", "forgot-password"].includes(raw)
     ) {
       return "reset-password";
     }
 
-    // fallback dari URL path (mis. /auth/reset-password/verify-otp)
-    const path = (location.pathname || "").toLowerCase();
-    if (path.includes("reset")) return "reset-password";
+    // Registration aliases
+    if (["registration", "register", "regist"].includes(raw)) {
+      return "registration";
+    }
 
-    // default aman → registration
+    // 3) Path hint (kalau rute kamu mengandung "reset")
+    if (
+      path.includes("reset-password") ||
+      path.includes("forgot") ||
+      path.includes("/reset")
+    ) {
+      return "reset-password";
+    }
+
+    // Default aman
     return "registration";
-  }, [from, location.state, location.search, location.pathname]);
+  }, [from, purpose, location.pathname, location.search, location.state]);
 
   /* ===== Email final ===== */
   const emailFromSession =
-    typeof window !== "undefined"
-      ? sessionStorage.getItem("registerEmail")
-      : "";
+    typeof window !== "undefined" ? sessionStorage.getItem("registerEmail") : "";
   const emailFromNav = location.state?.email;
 
   const emailToUse = (
@@ -297,8 +306,6 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
 
   /* ===== OTP state & timer ===== */
   const OTP_LENGTH = 6;
-
-  // OTP string, sama seperti di Mobile
   const [otp, setOtp] = useState("");
 
   const [secondsLeft, setSecondsLeft] = useState(() => {
@@ -329,42 +336,11 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
       showError("Email tidak ditemukan", "Silakan ulangi proses registrasi.");
       navigate("/registration", { replace: true });
     }
-  }, [mode, emailToUse, navigate]);
+  }, [mode, emailToUse, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");
   const timerLabel = `${mm}:${ss}`;
-
-  /* ===== Auto-send OTP untuk KEDUA MODE ===== */
-  const sendOtpOnce = async () => {
-    if (sentOnceRef.current) return;
-    sentOnceRef.current = true;
-    if (!emailToUse) return;
-
-    const purposeToUse =
-      mode === "reset-password" ? PURPOSE_RESET_PASSWORD : PURPOSE_REGISTRATION;
-
-    try {
-      await fetch(RESEND_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: emailToUse,
-          purpose: purposeToUse,
-        }),
-      });
-      setSecondsLeft(5 * 60);
-    } catch (e) {
-      showError("Auto send OTP gagal", String(e?.message || e));
-    }
-  };
-
-  useEffect(() => {
-    if (!sentOnceRef.current) {
-      sentOnceRef.current = true;
-      sendOtpOnce();
-    }
-  }, []);
 
   /* ===== Handler perubahan OTP (stabil) ===== */
   const handleOtpChange = useCallback((code) => {
@@ -388,7 +364,7 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
     try {
       setSubmitting(true);
 
-      //   api/auth/verify expects `action` = "registration" / "reset-password"
+      // api/auth/verify expects `action` = "registration" / "reset-password"
       const action =
         mode === "reset-password"
           ? PURPOSE_RESET_PASSWORD
@@ -426,7 +402,8 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => {
       } else {
         navigate(RESET_PASSWORD_NEW_ROUTE, {
           replace: true,
-          state: { type: "New-Password", email: emailToUse },
+          // type/purpose diset konsisten supaya step berikutnya juga aman
+          state: { type: "reset-password", purpose: "reset-password", email: emailToUse },
         });
       }
     } catch (err) {

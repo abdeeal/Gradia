@@ -70,7 +70,7 @@ const NewPassword = ({ email, otp, success }) => {
       >
         <div className="w-full">
           <div className="flex flex-col items-center mt-4">
-            <p className="font-montserrat font-bold text-[32px] text-center bg-gradient-to-t from-[#949494] to-[#FAFAFA] bg-clip-text text-transparent w-[70%] md:text-[48px] md:w-[50%]">
+            <p className="font-montserrat font-bold text-[32px] text-center bg-linear-to-t from-[#949494] to-[#FAFAFA] bg-clip-text text-transparent w-[70%] md:text-[48px] md:w-[50%]">
               New Password
             </p>
             <p className="text-center text-foreground-secondary mt-3 px-4 md:text-[20px]">

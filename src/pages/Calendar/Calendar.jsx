@@ -48,7 +48,7 @@ const Calendar = () => {
           className="
             grid 
             grid-cols-[70%_30%]
-            gap-[20px] 
+            gap-5 
             items-start
           "
         >
