@@ -29,7 +29,7 @@ function App() {
 
   return (
     <>
-      {showNavbar && <Navbar />}
+      {(isMobile || isTablet) && showNavbar && <Navbar />}
 
       {isMobile || isTablet ? (
         <Container noPaddingRight={isDashboard} noPadding={isLanding}>
