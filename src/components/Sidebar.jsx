@@ -85,7 +85,7 @@ const Sidebar = () => {
 
           {/* === NAVIGATION === */}
           <div className="px-5 flex-1 min-h-0">
-            <nav className="font-inter space-y-[12px] overflow-y-auto pr-1 h-full">
+            <nav className="font-inter space-y-[12px]  pr-1 h-full">
               {navItems.map((item, index) => {
                 if (item.divider)
                   return (
