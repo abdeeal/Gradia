@@ -9,18 +9,20 @@ export default async function handler(req, res) {
   try {
     const now = new Date();
 
-    // Waktu WIB hanya untuk jam & tanggal
+    // Waktu WIB untuk mendapatkan jam & tanggal
     const wibString = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
     const wib = new Date(wibString);
 
-    const today = wib.toISOString().split("T")[0];
+    // Hitung tanggal kemarin di WIB
+    const yesterday = new Date(wib);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayDate = yesterday.toISOString().split("T")[0];
+
     const hour = wib.getHours();
     const minute = wib.getMinutes();
 
-    console.log(`🕒 Checking auto absent at ${hour}:${minute} WIB on ${today}`);
-
-
-    console.log(`🚀 Running auto absent for date: ${today} (23:59 WIB)`);
+    console.log(`🕒 Checking auto absent at ${hour}:${minute} WIB`);
+    console.log(`🚀 Running auto absent for YESTERDAY: ${yesterdayDate}`);
 
     // Ambil semua course
     const { data: courses, error: courseError } = await supabase
@@ -33,17 +35,21 @@ export default async function handler(req, res) {
       "Sunday", "Monday", "Tuesday", "Wednesday",
       "Thursday", "Friday", "Saturday"
     ];
-    const todayName = dayNames[wib.getDay()];
+    const yesterdayName = dayNames[yesterday.getDay()];
+
+    console.log(`📅 Looking for courses on: ${yesterdayName}`);
 
     let totalAbsentAdded = 0;
 
     for (const course of courses) {
-      if (course.day !== todayName) continue;
+      // Filter course yang sesuai dengan hari kemarin
+      if (course.day !== yesterdayName) continue;
 
-      // Rentang WIB dalam UTC
-      const startUTC = new Date(`${today}T00:00:00+07:00`).toISOString();
-      const endUTC = new Date(`${today}T23:59:59.999+07:00`).toISOString();
+      // Rentang waktu kemarin dalam UTC (00:00 - 23:59:59.999 WIB)
+      const startUTC = new Date(`${yesterdayDate}T00:00:00+07:00`).toISOString();
+      const endUTC = new Date(`${yesterdayDate}T23:59:59.999+07:00`).toISOString();
 
+      // Cek apakah sudah ada presence untuk course ini di tanggal kemarin
       const { data: existing, error: presenceError } = await supabase
         .from("presence")
         .select("id_presence")
@@ -53,7 +59,10 @@ export default async function handler(req, res) {
 
       if (presenceError) throw presenceError;
 
+      // Jika belum ada presence, buat absent
       if (!existing || existing.length === 0) {
+        // Set waktu presence ke kemarin jam 23:59 WIB
+        const absentTime = new Date(`${yesterdayDate}T23:59:00+07:00`).toISOString();
         const nowUTC = now.toISOString();
 
         const { error: insertError } = await supabase.from("presence").insert([
@@ -62,13 +71,14 @@ export default async function handler(req, res) {
             id_workspace: course.id_workspace,
             status: "absent",
             note: "Auto marked absent by system",
-            presences_at: nowUTC,   // simpan dalam UTC
-            created_at: nowUTC,
+            presences_at: absentTime,  // set ke kemarin 23:59 WIB
+            created_at: nowUTC,        // waktu sistem membuat record
           },
         ]);
 
         if (insertError) throw insertError;
         totalAbsentAdded++;
+        console.log(`  ✓ Added absent for course ${course.id_courses}`);
       }
     }
 
@@ -77,7 +87,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       message: "✅ Auto-mark absent complete",
       total_absent_added: totalAbsentAdded,
-      date: today,
+      checked_date: yesterdayDate,
+      checked_day: yesterdayName,
     });
   } catch (error) {
     console.error("❌ Error in autoMarkAbsent:", error.message);

@@ -5,11 +5,11 @@
   "crons": [
     {
       "path": "/api/autoMarkAbsent",
-      "schedule": "59 16 * * *"
+      "schedule": "1 0 * * *"
     },
     {
       "path": "/api/autoMarkOverdue",
-      "schedule": "59 16 * * *"
+      "schedule": "1 0 * * *"
     }
   ]
 }
