@@ -239,7 +239,14 @@ const Tasks = () => {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
+
+      // ✅ fetch ulang dulu (tanpa reload halaman)
       await refreshList();
+
+      // ✅ notif baru setelah refreshList selesai
+      window.dispatchEvent(
+        new CustomEvent("tasks:created", { detail: { source: "refreshList" } })
+      );
     } catch (e) {
       console.error("POST /api/tasks failed:", e);
       throw e; // biar AddTask bisa nunjukin error alert
@@ -254,9 +261,18 @@ const Tasks = () => {
         body: JSON.stringify(updated),
       });
       if (!res.ok) throw new Error(await res.text());
+
+      // ✅ fetch ulang dulu (tanpa reload halaman)
       const fresh = await refreshList();
+
+      // keep behavior lama: selectedTask ikut update dari data terbaru
       const latest = fresh.find((t) => t.id_task === updated.id_task);
       if (latest) setSelectedTask(latest);
+
+      // ✅ notif baru setelah refreshList selesai
+      window.dispatchEvent(
+        new CustomEvent("tasks:updated", { detail: { source: "refreshList" } })
+      );
     } catch (e) {
       console.error("PUT /api/tasks failed:", e);
       throw e; // biar TaskDetail bisa nunjukin error alert
@@ -299,121 +315,93 @@ const Tasks = () => {
 
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
-  
-  /* ========= LISTEN to optimistic events ========= */
+
+  /* ========= LISTEN events (NO optimistic create/edit) ========= */
   useEffect(() => {
-    const placeTask = (prevCols, task) => {
-      const key = normStatus(task.status || "");
-      const next = { ...prevCols };
-      // pastikan tidak ada duplikat di semua kolom
-      Object.keys(next).forEach((k) => {
-        next[k] = next[k].filter((t) => t.id_task !== task.id_task);
-      });
-      if (!next[key]) next[key] = [];
-      next[key] = [task, ...next[key]];
-      return next;
+    // Tidak listen tasks:created & tasks:reconcile agar tidak ada "temp task"
+    // Edit juga tidak patch setCols manual; cukup refreshList.
+
+    const onUpdated = async () => {
+      try {
+        const fresh = await refreshList();
+        setSelectedTask((curr) => {
+          if (!curr) return curr;
+          const latest = fresh.find((t) => t.id_task === curr.id_task);
+          return latest ?? curr;
+        });
+      } catch (e) {
+        console.error("refreshList after tasks:updated failed:", e);
+      }
     };
-    
-    const onCreated = (e) => {
-      const { task } = e.detail || {};
-      if (!task) return;
-      setCols((prev) => placeTask(prev, task));
-    };
-    
-    const onReconcile = (e) => {
-      const { temp_id, task } = e.detail || {};
-      if (!temp_id || !task) return;
-      setCols((prev) => {
-        const cleaned = Object.fromEntries(
-          Object.entries(prev).map(([k, arr]) => [
-            k,
-            arr.filter((t) => t.id_task !== temp_id),
-          ])
-        );
-        return placeTask(cleaned, task);
-      });
-    };
-    
-    const onUpdated = (e) => {
-      const { task } = e.detail || {};
-      if (!task) return;
-      setCols((prev) => placeTask(prev, task));
+
+    const onDeleted = async (e) => {
+      const { id_task } = e.detail || {};
+      try {
+        await refreshList();
+      } catch (err) {
+        console.error("refreshList after tasks:deleted failed:", err);
+      }
       setSelectedTask((curr) =>
-        curr && curr.id_task === task.id_task ? { ...curr, ...task } : curr
-    );
-  };
-  
-  const onDeleted = (e) => {
-    const { id_task } = e.detail || {};
-    if (!id_task) return;
-    setCols((prev) => ({
-      notStarted: prev.notStarted.filter((t) => t.id_task !== id_task),
-      inProgress: prev.inProgress.filter((t) => t.id_task !== id_task),
-      completed: prev.completed.filter((t) => t.id_task !== id_task),
-      overdue: prev.overdue.filter((t) => t.id_task !== id_task),
-    }));
-    setSelectedTask((curr) => (curr && curr.id_task === id_task ? null : curr));
-  };
-  
-  window.addEventListener("tasks:created", onCreated);
-  window.addEventListener("tasks:reconcile", onReconcile);
-  window.addEventListener("tasks:updated", onUpdated);
-  window.addEventListener("tasks:deleted", onDeleted);
-  
-  return () => {
-    window.removeEventListener("tasks:created", onCreated);
-    window.removeEventListener("tasks:reconcile", onReconcile);
-    window.removeEventListener("tasks:updated", onUpdated);
-    window.removeEventListener("tasks:deleted", onDeleted);
-  };
-}, []);
+        curr && curr.id_task === id_task ? null : curr
+      );
+    };
 
-/* ========= CLICK OUTSIDE untuk dropdown Filter/Sort ========= */
-useEffect(() => {
-  const handleClickOutside = (e) => {
-    if (
-      filterRef.current &&
-      !filterRef.current.contains(e.target) &&
-      sortRef.current &&
-      !sortRef.current.contains(e.target)
-    ) {
-      setShowFilter(false);
-      setShowSort(false);
-    }
-  };
-  document.addEventListener("mousedown", handleClickOutside);
-  return () => document.removeEventListener("mousedown", handleClickOutside);
-}, []);
+    window.addEventListener("tasks:updated", onUpdated);
+    window.addEventListener("tasks:deleted", onDeleted);
 
-/* ========= Derive tasks yang tampil setelah FILTER + SORT ========= */
-const visibleCols = useMemo(() => {
-  const sortTasks = (arr) => {
-    if (!sort) return arr;
-    const copy = [...arr];
-    copy.sort((a, b) => {
-      const da = getDeadline(a);
-      const db = getDeadline(b);
-      if (!da && !db) return 0;
-      if (!da) return 1; // yg ga punya deadline taruh belakang
-      if (!db) return -1;
-      return sort === "asc" ? da - db : db - da;
+    return () => {
+      window.removeEventListener("tasks:updated", onUpdated);
+      window.removeEventListener("tasks:deleted", onDeleted);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ========= CLICK OUTSIDE untuk dropdown Filter/Sort ========= */
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        filterRef.current &&
+        !filterRef.current.contains(e.target) &&
+        sortRef.current &&
+        !sortRef.current.contains(e.target)
+      ) {
+        setShowFilter(false);
+        setShowSort(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  /* ========= Derive tasks yang tampil setelah FILTER + SORT ========= */
+  const visibleCols = useMemo(() => {
+    const sortTasks = (arr) => {
+      if (!sort) return arr;
+      const copy = [...arr];
+      copy.sort((a, b) => {
+        const da = getDeadline(a);
+        const db = getDeadline(b);
+        if (!da && !db) return 0;
+        if (!da) return 1; // yg ga punya deadline taruh belakang
+        if (!db) return -1;
+        return sort === "asc" ? da - db : db - da;
+      });
+      return copy;
+    };
+
+    const keys = ["notStarted", "inProgress", "completed", "overdue"];
+    const result = {};
+    keys.forEach((k) => {
+      const base = cols[k] || [];
+      const filtered = filter === "all" || filter === k ? base : [];
+      result[k] = sortTasks(filtered);
     });
-    return copy;
-  };
-  
-  const keys = ["notStarted", "inProgress", "completed", "overdue"];
-  const result = {};
-  keys.forEach((k) => {
-    const base = cols[k] || [];
-    const filtered = filter === "all" || filter === k ? base : [];
-    result[k] = sortTasks(filtered);
-  });
-  return result;
-}, [cols, filter, sort]);
+    return result;
+  }, [cols, filter, sort]);
 
-if (isMobile || isTablet) return <Mobile />;
-return (
-  <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
+  if (isMobile || isTablet) return <Mobile />;
+  return (
+    <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
       <Sidebar />
 
       <div
@@ -633,9 +621,7 @@ const FilterDropdown = ({ value, onChange }) => {
               <i className={`${opt.icon} text-[16px]`} />
               {opt.label}
             </span>
-            {value === opt.key && (
-              <i className="ri-check-line text-[16px]" />
-            )}
+            {value === opt.key && <i className="ri-check-line text-[16px]" />}
           </button>
 
           {idx < opts.length - 1 && (
@@ -698,9 +684,7 @@ const SortDropdown = ({ value, onChange }) => {
               <i className={`${opt.icon} text-[16px]`} />
               {opt.label}
             </span>
-            {value === opt.key && (
-              <i className="ri-check-line text-[16px]" />
-            )}
+            {value === opt.key && <i className="ri-check-line text-[16px]" />}
           </button>
 
           {idx < opts.length - 1 && (
