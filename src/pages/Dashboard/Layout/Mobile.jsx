@@ -250,9 +250,9 @@ const Mobile = () => {
         >
           <div className="flex flex-col gap-3 max-h-[167px] h-fit overflow-y-auto">
             {stats.dueToday.length > 0 ? (
-              stats.dueToday.map((task) => (
+              stats.dueToday.map((task, idx) => (
                 <div
-                  key={task.id}
+                  key={idx}
                   className="flex gap-3 rounded-[12px] p-3 bg-background-secondary items-center"
                 >
                   <i className="ri-article-line text-logo text-[28px]"></i>
@@ -328,7 +328,7 @@ const Mobile = () => {
                     cx="50%"
                     cy="100%"
                     paddingAngle={0}
-                    cornerRadius={20}
+                    cornerRadius={10}
                     stroke="none"
                   >
                     {dataPie.map((_, d) => (

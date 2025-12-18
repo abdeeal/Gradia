@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Background from "../../Login/components/Background";
 import Logo from "@/components/Logo";
 import Input from "../../Login/components/Input";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
 import VerifyOtp from "../../Verify-otp/VerifyOtp";
+import PasswordRule from "../components/PasswordRule";
 
 const Mobile = () => {
   const [email, setEmail] = useState("");
@@ -18,11 +19,38 @@ const Mobile = () => {
   const [purpose, setPurpose] = useState("");
   const navigate = useNavigate();
 
+  const [passwordFocusedOnce, setPasswordFocusedOnce] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [passwordValidationDismissed, setPasswordValidationDismissed] =
+    useState(false);
+
+  const passwordRules = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    number: /\d/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+  };
+
+  const isPasswordValid = Object.values(passwordRules).every(Boolean);
+  const showPasswordValidation =
+    !passwordValidationDismissed && (passwordFocusedOnce || passwordFocused);
+
+  useEffect(() => {
+    if (!isPasswordValid) {
+      setPasswordValidationDismissed(false);
+    }
+  }, [isPasswordValid]);
+
   const handleRegister = async () => {
     setErrorMsg("");
 
     if (!email || !username || !password) {
       setErrorMsg("Please fill all fields.");
+      return;
+    }
+
+    if (!isPasswordValid) {
+      setErrorMsg("Password does not meet the required criteria.");
       return;
     }
 
@@ -41,7 +69,7 @@ const Mobile = () => {
         throw new Error(data.error || "Registration failed");
       }
 
-      setPurpose(data.purpose)
+      setPurpose(data.purpose);
       setRegisteredEmail(email);
       setExpiredAt(data.expires_at);
       setShowVerify(true);
@@ -111,7 +139,40 @@ const Mobile = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onFocus={() => {
+                setPasswordFocused(true);
+                setPasswordFocusedOnce(true);
+              }}
+              onBlur={() => {
+                setPasswordFocused(false);
+
+                if (isPasswordValid) {
+                  setPasswordValidationDismissed(true);
+                }
+              }}
+              autoComplete="new-password"
             />
+
+            {showPasswordValidation && (
+              <div className="flex flex-col gap-2 text-[14px] mt-2">
+                <PasswordRule
+                  valid={passwordRules.length}
+                  label="At least 8 characters"
+                />
+                <PasswordRule
+                  valid={passwordRules.uppercase}
+                  label="At least one capital letter"
+                />
+                <PasswordRule
+                  valid={passwordRules.number}
+                  label="At least one number"
+                />
+                <PasswordRule
+                  valid={passwordRules.special}
+                  label="At least one special character"
+                />
+              </div>
+            )}
 
             {/*Error message */}
             <p

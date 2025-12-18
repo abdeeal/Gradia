@@ -315,7 +315,7 @@ export const Courses = () => {
 
   return (
     // gap-6 = 24px antara Sidebar dan konten (sesuai revisi)
-    <div className="relative flex min-h-screen w-full overflow-hidden bg-background font-inter text-foreground gap-[0px]">
+    <div className="relative flex h-full w-full overflow-hidden bg-background font-inter text-foreground gap-[0px]">
       <ShimmerStyles />
       <Sidebar />
 

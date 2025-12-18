@@ -36,11 +36,16 @@ const splitTime = (c) => {
   return c;
 };
 
-const normStatus = (s) => String(s || "").trim().toLowerCase();
+const normStatus = (s) =>
+  String(s || "")
+    .trim()
+    .toLowerCase();
 
 const parseHM = (v) => {
   if (!v) return null;
-  const [h, m] = String(v).split(":").map((x) => parseInt(x, 10));
+  const [h, m] = String(v)
+    .split(":")
+    .map((x) => parseInt(x, 10));
   const d = new Date();
   d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
   return d;
@@ -71,6 +76,16 @@ const getTimeLabel = (s, e) => {
   const E = toHM(e);
   return S && E ? `${S} - ${E}` : S || E || "—";
 };
+
+const isSameDay = (a, b) => {
+  if (!a || !b) return false;
+  return (
+    new Date(a).toLocaleDateString("id-ID") ===
+    new Date(b).toLocaleDateString("id-ID")
+  );
+};
+
+const getPresenceDate = (r) => r?.presences_at ?? null;
 
 /* ===== Small UI helpers ===== */
 const HideScroll = () => (
@@ -133,7 +148,7 @@ const HideScroll = () => (
 
       .presence-left,
       .presence-box {
-        max-width: 1300px !important;
+        max-width: 100%;
       }
 
       .presence-box,
@@ -165,7 +180,7 @@ const Box = ({ children, frame = false }) => {
 
   return (
     <div
-      className="presence-box rounded-lg max-w-[864px] w-full transition-all duration-300"
+      className="presence-box rounded-lg w-full transition-all duration-300"
       style={style}
     >
       {children}
@@ -227,7 +242,6 @@ const PresenceCard = ({
         const res = await fetch(apiUrl, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        console.log("PresenceCard courses raw data =", data);
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.data)
@@ -242,7 +256,6 @@ const PresenceCard = ({
     };
 
     fetchCourses();
-    console.log("PresenceCard apiUrl =", apiUrl);
 
     return () => {
       alive = false;
@@ -255,8 +268,7 @@ const PresenceCard = ({
   const courses = useMemo(() => raw.map(splitTime), [raw]);
 
   // 🔑 loading: prioritas dari parent, kalau nggak ada pakai internal
-  const isLoading =
-    typeof isLoadingProp === "boolean" ? isLoadingProp : load;
+  const isLoading = typeof isLoadingProp === "boolean" ? isLoadingProp : load;
 
   const { totalP, totalA } = useMemo(() => {
     if (totalsTodayOverride) {
@@ -281,22 +293,22 @@ const PresenceCard = ({
   const list = useMemo(() => {
     const byCourse = new Map();
 
+    const today = new Date();
+
     rows.forEach((r) => {
-      const key = String(r.courseId ?? r.id_course ?? r.course_id ?? "");
-      if (key && !byCourse.has(key)) byCourse.set(key, r);
+      const key = String(r.courseId); // 🔑 FIELD YANG BENAR
+      if (key && !byCourse.has(key)) {
+        byCourse.set(key, r);
+      }
     });
 
     return courses.map((c) => {
-      const id = String(c.id ?? c.course_id ?? "");
-      return { ...c, presence: id ? byCourse.get(id) || null : null };
+      const id = String(c.id);
+      return { ...c, presence: byCourse.get(id) || null };
     });
   }, [courses, rows]);
 
   const noToday = !isLoading && list.length === 0;
-
-  useEffect(() => {
-    console.log("cs state changed:", cs);
-  }, [cs]);
 
   return (
     <div className="font-[Montserrat]">
@@ -340,13 +352,13 @@ const PresenceCard = ({
                         <h3 className="text-[16px] 2xl:text-[18px] font-semibold leading-snug line-clamp-2 break-words">
                           Dummy Course Title
                         </h3>
-                        <p className="text-[16px] 2xl:text-[18px] mt-1">
-                          ROOM
-                        </p>
+                        <p className="text-[16px] 2xl:text-[18px] mt-1">ROOM</p>
                       </div>
 
-                      <button className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer
-                                         2xl:px-3.5 2xl:py-2 2xl:text-[18px] 2xl:gap-1.5">
+                      <button
+                        className="bg-gradient-to-l from-[#28073B] to-[#34146C] px-3 py-1.5 rounded-md text-[16px] flex items-center gap-1 self-start mt-2 cursor-pointer
+                                         2xl:px-3.5 2xl:py-2 2xl:text-[18px] 2xl:gap-1.5"
+                      >
                         Log Presence{" "}
                         <i className="ri-logout-circle-r-line ml-1" />
                       </button>
@@ -397,7 +409,11 @@ const PresenceCard = ({
                         ? "bg-[#22C55E]"
                         : "bg-gray-500";
 
-                    const presenced = !!c?.presence;
+                    const presenced =
+                      !!c.presence &&
+                      ["presence", "present"].includes(
+                        normStatus(c.presence.status ?? "present")
+                      );
 
                     return (
                       <div

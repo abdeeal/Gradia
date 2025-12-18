@@ -53,7 +53,7 @@ export default function Dashboard() {
     <div className="flex bg-black text-white w-full ">
       <Sidebar />
 
-      <main className="pt-5 pb-6 h-fit w-full 2xl:pr-8 pr-4">
+      <main className="pt-5 h-fit w-full 2xl:pr-8 pr-4">
         <div className="px-0 pr-6 max-w-full">
           <header className="mb-4">
             <h1 className="text-2xl font-bold">

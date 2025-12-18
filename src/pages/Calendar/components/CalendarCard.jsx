@@ -55,17 +55,17 @@ const CalendarResponsiveStyles = () => (
 
       /* ROOT CALENDAR */
       .gradia-cal-root {
-        width: 1030px !important; /* dari 944 → lebih panjang */
+        width: 100%; 
       }
 
       /* HEADER BAR */
       .gradia-cal-headbar {
-        min-height: 112px !important; /* dari 98px → lebih tinggi */
+        min-height: 112px /* dari 98px → lebih tinggi */
       }
 
       /* GRID */
       .gradia-cal-grid {
-        width: 100% !important; 
+        width: 100% 
         grid-template-rows: 
           48px /* header days dari 41 → lebih tinggi */
           repeat(5, 160px) !important; /* dari 134px → lebih tinggi */
@@ -73,7 +73,7 @@ const CalendarResponsiveStyles = () => (
 
       /* BOTTOM */
       .gradia-cal-bottom {
-        width: 1030px !important;
+        width: 100%;
         height: 48px !important; /* dari 41 → lebih tinggi */
       }
     }
@@ -845,8 +845,6 @@ export default function MonthCalendar({
         <div
           className="flex items-center justify-between bg-[#0F0F0F] gradia-cal-bottom pt-4"
           style={{
-            width: 753,
-            height: 34,
             borderTop: "1px solid rgba(101,101,101,0.5)",
             padding: "0 10px",
           }}

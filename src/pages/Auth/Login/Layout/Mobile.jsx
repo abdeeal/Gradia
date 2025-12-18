@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
 import google from "@/assets/google.svg";
 import VerifyOtp from "../../Verify-otp/VerifyOtp";
+import Loader from "@/components/Loader";
 
 const Mobile = () => {
   const [text, setText] = useState("");
@@ -16,6 +17,7 @@ const Mobile = () => {
   const [emailToVerify, setEmailToVerify] = useState("");
   const [expiredAt, setExpiredAt] = useState("");
   const [userData, setUserData] = useState(null);
+  const [googleLogin, setGoogleLogin] = useState(false);
 
   const navigate = useNavigate();
 
@@ -33,11 +35,10 @@ const Mobile = () => {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, password, action:"login" }),
+        body: JSON.stringify({ text, password, action: "login" }),
       });
 
       const data = await res.json();
-
 
       if (!res.ok) {
         throw new Error(data.error || "Login failed");
@@ -49,7 +50,6 @@ const Mobile = () => {
         setShowVerify(true);
         return;
       }
-
 
       // jika user sudah verified → login sukses
       localStorage.setItem("user", JSON.stringify(data.user));
@@ -63,41 +63,53 @@ const Mobile = () => {
   };
 
   const handleGoogleLogin = async () => {
+    setGoogleLogin(true);
     try {
       const res = await fetch("/api/auth/google/server");
       const data = await res.json();
+      setGoogleLogin(false);
       if (data.url) window.location.href = data.url;
     } catch (err) {
-      console.error("Google login error:", err);
+      setGoogleLogin(false);
       setErrorMsg("Google login failed. Please try again.");
     }
   };
 
   useEffect(() => {
     const hash = window.location.hash;
-    if (hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.substring(1));
-      const access_token = params.get("access_token");
-      const refresh_token = params.get("refresh_token");
 
-      fetch("/api/auth/google/callback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token, refresh_token }),
+    if (!hash.includes("access_token")) return;
+
+    setGoogleLogin(true);
+
+    const params = new URLSearchParams(hash.substring(1));
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+
+    fetch("/api/auth/google/callback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access_token, refresh_token }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.email) {
+          localStorage.setItem("user", JSON.stringify(data));
+
+          // optional delay biar loader terlihat
+          setTimeout(() => {
+            window.location.replace("/workspaces");
+          }, 300);
+        }
       })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.email) {
-            localStorage.setItem("user", JSON.stringify(data));
-            window.location.href ="/workspaces";
-          }
-        })
-        .catch(console.error)
-        .finally(() => {
-          // hapus hash supaya URL bersih
-          window.history.replaceState({}, document.title, "/auth/login");
-        });
-    }
+      .catch((err) => {
+        console.error("Google callback error:", err);
+        setErrorMsg("Google login failed");
+      })
+      .finally(() => {
+        setGoogleLogin(false);
+        window.history.replaceState({}, document.title, "/auth/login");
+      });
   }, []);
 
   if (showVerify) {
@@ -114,6 +126,7 @@ const Mobile = () => {
 
   return (
     <div className="text-foreground min-h-dvh relative">
+      {googleLogin && <Loader />}
       <Background />
 
       <div className="flex flex-col w-full min-h-dvh items-center z-10 relative pb-6 md:pb-32">

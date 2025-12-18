@@ -469,7 +469,7 @@ function Presence() {
   
   if (isMobile || isTablet) return <Mobile />;
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-full bg-background overflow-x-hidden">
       <Sidebar />
 
       <main className="flex-1 font-[Inter]">

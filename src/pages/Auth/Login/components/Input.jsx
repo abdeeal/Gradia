@@ -1,6 +1,6 @@
 import React from "react";
 
-const Input = ({ title, icon, placeholder, type = "text", value, onChange }) => {
+const Input = ({ title, icon, placeholder, type = "text", value, onChange, ...props }) => {
   return (
     <div className="flex flex-col gap-2">
       <p>{title}</p>
@@ -12,6 +12,7 @@ const Input = ({ title, icon, placeholder, type = "text", value, onChange }) => 
         className="w-full border border-border px-2 py-4 rounded-[12px]"
         placeholder={placeholder}
         required
+        {...props}
       />
     </div>
   );

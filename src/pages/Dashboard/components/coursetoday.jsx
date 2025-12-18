@@ -237,9 +237,6 @@ export default function CoursesToday({ apiBase = "/api/courses" }) {
     if (idWorkspace) fetchCourses();
   }, [idWorkspace]);
 
-  useEffect(() => {
-    console.log(courses);
-  }, [courses]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);

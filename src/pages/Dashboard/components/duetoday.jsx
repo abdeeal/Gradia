@@ -314,9 +314,8 @@ export default function DueToday(props) {
               {Array.from({ length: SKELETON_COUNT }).map((_, idx) => (
                 <div
                   key={idx}
-                  className="relative rounded-xl"
+                  className="relative rounded-xl w-full"
                   style={{
-                    width: "100%",
                     height: 100,
                     background: "#262626",
                     display: "flex",
@@ -404,7 +403,7 @@ export default function DueToday(props) {
             <div
               className="rounded-xl flex items-center justify-center"
               style={{
-                width: FRAME_W - PAD_X * 2,
+                width: "100%",
                 height: 162,
                 background: "#181818",
                 borderRadius: 12,
@@ -429,7 +428,7 @@ export default function DueToday(props) {
                   key={idx}
                   className="rounded-xl"
                   style={{
-                    width: FRAME_W - PAD_X * 2,
+                    width: "100%",
                     height: 96,
                     display: "flex",
                     alignItems: "center",

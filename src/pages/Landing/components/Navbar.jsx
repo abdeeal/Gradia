@@ -144,13 +144,12 @@ const Navbar = () => {
   const [isLogin, setIsLogin] = useState(false);
 
   useEffect(() => {
-    const user = localStorage.getItem("user")
-    if(user != null) {
-        setIsLogin(true)
+    const user = localStorage.getItem("user");
+    if (user != null) {
+      setIsLogin(true);
     }
-  }, [])
-  
- 
+  }, []);
+
   return (
     <div
       ref={navbarRef}
@@ -215,34 +214,37 @@ const Navbar = () => {
             ))}
           </div>
           <div className="flex flex-col pb-4 font-inter font-semibold text-[32px] px-4 pt-6 gap-5">
-            {!isLogin ? navAuth.map((item, idx) => (
-              <div
-                key={idx}
-                className={`flex gap-4 items-center nav-text ${
-                  location.pathname === item.href
-                    ? "text-foreground"
-                    : "text-foreground/20"
-                }`}
-              >
-                <div className="w-2 h-2 bg-current rounded-full" />
-                <Link onClick={() => setDrawer(false)} to={item.href}>
-                  {item.name}
-                </Link>
-              </div>
-            )) : navUser.map((item, idx) => (
-              <div
-                key={idx}
-                className={`flex gap-4 items-center nav-text ${
-                  location.pathname === item.href
-                    ? "text-foreground"
-                    : "text-foreground/20"
-                }`}
-              >
-                <div className="w-2 h-2 bg-current rounded-full" />
-                <Link onClick={() => setDrawer(false)} to={item.href}>
-                  {item.name}
-                </Link>
-              </div>))}
+            {!isLogin
+              ? navAuth.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex gap-4 items-center nav-text ${
+                      location.pathname === item.href
+                        ? "text-foreground"
+                        : "text-foreground/20"
+                    }`}
+                  >
+                    <div className="w-2 h-2 bg-current rounded-full" />
+                    <Link onClick={() => setDrawer(false)} to={item.href}>
+                      {item.name}
+                    </Link>
+                  </div>
+                ))
+              : navUser.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex gap-4 items-center nav-text ${
+                      location.pathname === item.href
+                        ? "text-foreground"
+                        : "text-foreground/20"
+                    }`}
+                  >
+                    <div className="w-2 h-2 bg-current rounded-full" />
+                    <Link onClick={() => setDrawer(false)} to={item.href}>
+                      {item.name}
+                    </Link>
+                  </div>
+                ))}
           </div>
         </div>
 
@@ -259,19 +261,30 @@ const Navbar = () => {
           ))}
         </div>
         <div className="xl:flex hidden gap-3">
-          <Link
-            to={"/auth/login"}
-            className="py-2 px-8 rounded-[8px] border border-white nav-text login-btn"
-          >
-            Login
-          </Link>
-          <Link to={"/auth/register"}>
-            <Button
-              icon="noIcon"
-              title="Register"
-              className={"py-2 px-6 nav-text"}
-            />
-          </Link>
+          {isLogin ? (
+            <Link
+              to={"/workspaces"}
+              className="py-2 px-8 rounded-[8px] border border-white nav-text login-btn"
+            >
+              Workspaces
+            </Link>
+          ) : (
+            <>
+              <Link
+                to={"/auth/login"}
+                className="py-2 px-8 rounded-[8px] border border-white nav-text login-btn"
+              >
+                Login
+              </Link>
+              <Link to={"/auth/register"}>
+                <Button
+                  icon="noIcon"
+                  title="Register"
+                  className={"py-2 px-6 nav-text"}
+                />
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </div>

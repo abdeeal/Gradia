@@ -1,9 +1,9 @@
-
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import { useMediaQuery } from "react-responsive";
 import { useNavigate, useLocation } from "react-router-dom";
 import Mobile from "./Layout/Mobile";
+import PasswordRule from "../Registration/components/PasswordRule";
 
 const PURPOSE_RESET_PASSWORD = "reset-password";
 const VERIFY_OTP_ROUTE = "/auth/verify-otp";
@@ -27,6 +27,28 @@ export default function ResetPassword({ initialStep = "email" }) {
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [pwFocused, setPwFocused] = useState(false);
+  const [pwFocusedOnce, setPwFocusedOnce] = useState(false);
+  const [pwValidationDismissed, setPwValidationDismissed] = useState(false);
+
+  const passwordRules = {
+    length: newPw.length >= 8,
+    uppercase: /[A-Z]/.test(newPw),
+    number: /\d/.test(newPw),
+    special: /[^A-Za-z0-9]/.test(newPw),
+  };
+
+  const isPasswordValid = Object.values(passwordRules).every(Boolean);
+
+  useEffect(() => {
+    if (!isPasswordValid) {
+      setPwValidationDismissed(false);
+    }
+  }, [isPasswordValid]);
+  
+  const showPasswordValidation =
+    !pwValidationDismissed && (pwFocusedOnce || pwFocused);
 
   const bg = () => (
     <>
@@ -147,11 +169,11 @@ export default function ResetPassword({ initialStep = "email" }) {
     setErr("");
     setInfo("");
 
-    if (!newPw.trim()) return setErr("Password tidak boleh kosong.");
-    if (newPw.length < 8)
-      return setErr("Password harus minimal 8 karakter.");
-    if (newPw !== confirmPw)
-      return setErr("Konfirmasi password tidak sama.");
+    if (!isPasswordValid) {
+      return setErr("Password does not meet all requirements.");
+    }
+
+    if (newPw !== confirmPw) return setErr("Konfirmasi password tidak sama.");
 
     const emailForReset = loc.state?.email || email;
     if (!emailForReset) {
@@ -208,7 +230,7 @@ export default function ResetPassword({ initialStep = "email" }) {
       {bg()}
       <div className="relative z-10 flex h-full w-full flex-col items-center">
         {/* title */}
-        <div style={{ marginTop: "110px" }} className="text-center">
+        <div className="text-center mt-[30px] 2xl:mt-[150px]">
           <h1
             className="font-bold text-transparent bg-clip-text bg-linear-to-b from-[#FAFAFA] to-[#949494]"
             style={{ fontSize: "48px", lineHeight: 1.3 }}
@@ -329,6 +351,17 @@ export default function ResetPassword({ initialStep = "email" }) {
                   type="password"
                   value={newPw}
                   onChange={(e) => setNewPw(e.target.value)}
+                  onFocus={() => {
+                    setPwFocused(true);
+                    setPwFocusedOnce(true);
+                  }}
+                  onBlur={() => {
+                    setPwFocused(false);
+                    if (isPasswordValid) {
+                      setPwValidationDismissed(true);
+                    }
+                  }}
+                  autoComplete="new-password"
                   required
                   placeholder="••••••••"
                   className="w-full h-11 rounded-md bg-transparent px-3 outline-none text-[15px]"
@@ -337,6 +370,26 @@ export default function ResetPassword({ initialStep = "email" }) {
                     color: "#EAEAEA",
                   }}
                 />
+                {showPasswordValidation && (
+                  <div className="flex flex-col gap-2 text-sm mt-2">
+                    <PasswordRule
+                      valid={passwordRules.length}
+                      label="At least 8 characters"
+                    />
+                    <PasswordRule
+                      valid={passwordRules.uppercase}
+                      label="At least one capital letter"
+                    />
+                    <PasswordRule
+                      valid={passwordRules.number}
+                      label="At least one number"
+                    />
+                    <PasswordRule
+                      valid={passwordRules.special}
+                      label="At least one special character"
+                    />
+                  </div>
+                )}
               </div>
 
               <div>

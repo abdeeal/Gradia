@@ -36,6 +36,7 @@ export function DateTime({ defaultValue, value, onChange }) {
       onChange(updated.toISOString());
     }
   }, [date, time, onChange]);
+  const currentYear = new Date().getFullYear();
 
   return (
     <div className="flex gap-4 items-center">
@@ -55,6 +56,8 @@ export function DateTime({ defaultValue, value, onChange }) {
               mode="single"
               selected={date}
               captionLayout="dropdown"
+              fromYear={currentYear}
+              toYear={currentYear + 3}
               onSelect={(newDate) => {
                 setDate(newDate);
                 setOpen(false);

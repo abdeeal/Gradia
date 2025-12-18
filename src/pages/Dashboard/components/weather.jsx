@@ -213,13 +213,7 @@ function WeatherCard({ dateText, now }) {
         </div>
 
         <div
-          className="flex items-center tabular-nums text-[32px] 2xl:text-[64px]"
-          style={{
-            fontFamily: "Montserrat, ui-sans-serif",
-
-            fontWeight: 600,
-            lineHeight: 1,
-          }}
+          className="flex items-center tabular-nums text-[32px] 2xl:text-[64px] font-montserrat font-semibold"
         >
           {timeHM}
         </div>

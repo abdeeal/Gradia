@@ -182,7 +182,7 @@ export default function EventDetailsPanel({ selectedDate, events = [] }) {
   };
 
   return (
-    <aside className="flex w-full 2xl:pl-6 flex-col self-start pt-4 font-montserrat">
+    <aside className="flex w-full 2xl:pl-2 pr-4 flex-col self-start pt-4 font-montserrat">
       <h2 className="mb-0 text-[16px] font-semibold">
         Event for {selectedDate.getDate()} {MONTHS[selectedDate.getMonth()]}
       </h2>
@@ -198,7 +198,7 @@ export default function EventDetailsPanel({ selectedDate, events = [] }) {
           return (
             <div
               key={ev.id}
-              className="relative flex h-[166px] w-[318px] 2xl:w-[280px] flex-col space-y-[15px] rounded-lg border border-[rgba(101,101,101,0.5)] bg-[linear-gradient(180deg,#070707_0%,#141414_100%)] p-2.5"
+              className="relative flex h-[166px] w-full flex-col space-y-[15px] rounded-lg border border-[rgba(101,101,101,0.5)] bg-[linear-gradient(180deg,#070707_0%,#141414_100%)] p-2.5"
             >
               {/* Top Row */}
               <div className="flex items-center justify-between text-[16px] text-gray-400">

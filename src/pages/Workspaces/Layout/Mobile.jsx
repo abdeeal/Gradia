@@ -274,8 +274,8 @@ const Mobile = () => {
                         <p className="font-semibold ml-1">{workspace.name}</p>
                       </div>
                       <Button
-                        onClick={() => {enterWorkspace(workspace.id_workspace)
-                          console.log(workspace.id_workspace)
+                        onClick={() => {
+                          enterWorkspace(workspace.id_workspace);
                         }}
                         title="noText"
                         icon="ri-login-circle-line"

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import Category from "../components/Category";
 import Card from "../components/Card";
 import Drawer from "../components/Drawer";
+import { useAlert } from "@/hooks/useAlert";
 
 const Mobile = () => {
   const [openCategories, setOpenCategories] = useState([]);
@@ -11,7 +12,9 @@ const Mobile = () => {
   const [task, setTask] = useState(null);
   const [emptyDrawer, setEmptyDrawer] = useState(false);
   const [loading, setLoading] = useState(true);
-  const idWorkspace = sessionStorage.getItem("id_workspace")
+  const idWorkspace = sessionStorage.getItem("id_workspace");
+
+  const { showAlert } = useAlert();
 
   const toggleCategory = (title) => {
     setOpenCategories((prev) =>
@@ -19,23 +22,26 @@ const Mobile = () => {
     );
   };
 
-  const fetchTasks = useCallback(async (isRefresh = false) => {
-    if (idWorkspace) {
-      try {
-      if (!isRefresh) setLoading(true);
-      const res = await fetch(`/api/tasks?idWorkspace=${idWorkspace}`);
-      const data = await res.json();
-      setTasks(data);
-    } catch (err) {
-      console.error("Error fetching tasks:", err);
-    } finally {
-      if (!isRefresh) setLoading(false);
-    }
-    }
-  }, [idWorkspace]);
+  const fetchTasks = useCallback(
+    async (isRefresh = false) => {
+      if (idWorkspace) {
+        try {
+          if (!isRefresh) setLoading(true);
+          const res = await fetch(`/api/tasks?idWorkspace=${idWorkspace}`);
+          const data = await res.json();
+          setTasks(data);
+        } catch (err) {
+          console.error("Error fetching tasks:", err);
+        } finally {
+          if (!isRefresh) setLoading(false);
+        }
+      }
+    },
+    [idWorkspace]
+  );
 
   useEffect(() => {
-    if(idWorkspace) fetchTasks();
+    if (idWorkspace) fetchTasks();
   }, [fetchTasks, idWorkspace]);
 
   const refreshTasks = () => fetchTasks(true);
@@ -64,6 +70,20 @@ const Mobile = () => {
     };
     fetchCourses();
   }, []);
+
+  const handleAddTask = () => {
+    if (!courses || courses.length === 0) {
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Error",
+        desc: "Please add a course first before creating a task.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEmptyDrawer(true);
+  };
 
   return (
     <div className="flex flex-col gap-8">
@@ -141,7 +161,12 @@ const Mobile = () => {
         <div className="flex justify-between items-center pb-4 border-b border-border/50">
           <p className="font-montserrat text-[20px] font-semibold">Overview</p>
           <div className="flex gap-3">
-            <Button title="Add tasks" onClick={() => setEmptyDrawer(true)} />
+            <Button
+              disabled={loading}
+              className={`${loading ? "opacity-50" : ""}`}
+              title="Add tasks"
+              onClick={handleAddTask}
+            />
           </div>
         </div>
 

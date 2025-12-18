@@ -1,9 +1,10 @@
 // src/pages/Loginpage/Login.jsx
 import React, { useState, useEffect } from "react";
 import { useMediaQuery } from "react-responsive";
-import Mobile from "./Layout/Mobile"; 
+import Mobile from "./Layout/Mobile";
 import { useNavigate, Link } from "react-router-dom";
-import { useAlert } from "@/hooks/useAlert"; 
+import { useAlert } from "@/hooks/useAlert";
+import Loader from "@/components/Loader";
 
 const Login = () => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -89,7 +90,7 @@ function DesktopLoginPage() {
         },
         body: JSON.stringify({
           action: "login",
-          text: email,     // ⬅️ backend expect "text" (bisa email / username)
+          text: email, // ⬅️ backend expect "text" (bisa email / username)
           password: password,
         }),
       });
@@ -115,7 +116,10 @@ function DesktopLoginPage() {
       if (data.otp_required) {
         // simpan data user sementara kalau perlu dipakai di halaman OTP
         if (data.user) {
-          localStorage.setItem("pending_verification_user", JSON.stringify(data.user));
+          localStorage.setItem(
+            "pending_verification_user",
+            JSON.stringify(data.user)
+          );
         }
 
         showAlert({
@@ -186,6 +190,7 @@ function DesktopLoginPage() {
     }
   };
 
+
   // === Google Login: sama endpoint dengan Mobile ===
   const handleGoogleLogin = async () => {
     try {
@@ -225,8 +230,7 @@ function DesktopLoginPage() {
       }
     } catch (err) {
       console.error("Google login error (desktop):", err);
-      const message =
-        err?.message || "Google login failed. Please try again.";
+      const message = err?.message || "Google login failed. Please try again.";
       setErrorMsg(message);
       // ✅ alert error catch
       showAlert({
@@ -245,6 +249,8 @@ function DesktopLoginPage() {
   useEffect(() => {
     const hash = window.location.hash;
     if (!hash.includes("access_token")) return;
+
+    setGoogleLoading(true)
 
     const params = new URLSearchParams(hash.substring(1));
     const access_token = params.get("access_token");
@@ -309,8 +315,7 @@ function DesktopLoginPage() {
 
           navigate("/workspaces");
         } else {
-          const message =
-            "Google login failed: invalid response from server.";
+          const message = "Google login failed: invalid response from server.";
           setErrorMsg(message);
           // ✅ alert invalid response
           showAlert({
@@ -347,6 +352,7 @@ function DesktopLoginPage() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black text-white">
+      {googleLoading && <Loader />}
       {/* === BACKGROUND === */}
       <div className="absolute inset-0 pointer-events-none select-none">
         <img
@@ -397,12 +403,8 @@ function DesktopLoginPage() {
             className="inline-flex items-baseline gap-1 leading-none"
             style={{ fontFamily: "'Genos', sans-serif", fontWeight: 700 }}
           >
-            <span className="text-[128px] tracking-tight text-logo">
-              GRA
-            </span>
-            <span className="text-[128px] tracking-tight text-white">
-              DIA
-            </span>
+            <span className="text-[128px] tracking-tight text-logo">GRA</span>
+            <span className="text-[128px] tracking-tight text-white">DIA</span>
           </div>
           <p
             className="ml-2 -mt-2.5 font-[Inter] font-semibold leading-[1.2]"
@@ -411,8 +413,7 @@ function DesktopLoginPage() {
             <span
               style={{
                 display: "inline-block",
-                background:
-                  "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
+                background: "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 WebkitTextFillColor: "transparent",
@@ -445,7 +446,7 @@ function DesktopLoginPage() {
             justifyContent: "space-between",
           }}
         >
-          <div>
+          <div className="h-dvh flex flex-col justify-between">
             {/* HEADER */}
             <header className="text-center mb-14">
               <h1
@@ -455,17 +456,10 @@ function DesktopLoginPage() {
                 Welcome Back
               </h1>
               <p className="text-[18px] leading-snug">
-                Gradia helps you organize, login and turn your self-
-                management into real results.
+                Gradia helps you organize, login and turn your self- management
+                into real results.
               </p>
             </header>
-
-            {/* Error message */}
-            {errorMsg && (
-              <p className="mb-4 text-center text-sm text-red-400">
-                {errorMsg}
-              </p>
-            )}
 
             {/* FORM */}
             <form onSubmit={handleLogin}>
@@ -507,8 +501,15 @@ function DesktopLoginPage() {
                 </div>
               </div>
 
+              {/* Error message */}
+              {errorMsg && (
+                <p className="mb-4 text-center text-sm text-red-400">
+                  {errorMsg}
+                </p>
+              )}
+
               {/* Forgot Password */}
-              <div className="flex justify-end mb-2.5">
+              <div className="flex justify-end my-8 mt-12">
                 <Link
                   to="/auth/reset-password/email"
                   className="text-[14px] hover:text-white"
@@ -533,7 +534,8 @@ function DesktopLoginPage() {
                   }}
                   onClick={googleLoading ? undefined : handleGoogleLogin}
                   onMouseEnter={(e) => {
-                    if (!googleLoading) e.currentTarget.style.filter = "brightness(1.15)";
+                    if (!googleLoading)
+                      e.currentTarget.style.filter = "brightness(1.15)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.filter = "brightness(1)";
@@ -602,11 +604,12 @@ function DesktopLoginPage() {
                     Register here
                   </Link>
                 </p>
-                <p className="text-[14px] leading-none">
-                  © {new Date().getFullYear()} Gradia. All rights reserved.
-                </p>
               </div>
             </form>
+
+            <p className="text-[12px] leading-none w-full text-center py-16">
+              © {new Date().getFullYear()} Gradia. All rights reserved.
+            </p>
           </div>
         </aside>
       </div>

@@ -8,6 +8,7 @@ import TaskDetail from "./components/TaskDetail.jsx";
 import AddTask from "./components/AddTask.jsx";
 import Mobile from "./layouts/Mobile.jsx";
 import { useMediaQuery } from "react-responsive";
+import { useAlert } from "@/hooks/useAlert.jsx";
 
 /* ===== Loading Box constants (dulu shimmer, UI tetap sama) ===== */
 const LOADING_BOX_H = 140;
@@ -112,6 +113,9 @@ const Tasks = () => {
   const taskWrapRef = useRef(null);
 
   const id_workspace = getWsId();
+  const idWorkspace = sessionStorage.getItem("id_workspace");
+
+  const [coursesLoaded, setCoursesLoaded] = useState(false);
 
   const [cols, setCols] = useState({
     notStarted: [],
@@ -122,6 +126,8 @@ const Tasks = () => {
 
   // daftar courses (id_course + title) untuk dropdown & display
   const [courses, setCourses] = useState([]);
+
+  const [data, setData] = useState([]);
 
   // ===== Loading state =====
   const [loading, setLoading] = useState(true);
@@ -144,22 +150,32 @@ const Tasks = () => {
         // 1) Courses
         try {
           const resCourses = await fetch(
-            `/api/courses?idWorkspace=${id_workspace}`
+            `/api/courses?idWorkspace=${idWorkspace}`
           );
+
           if (resCourses.ok) {
             const data = await resCourses.json();
-            const mapped = (Array.isArray(data) ? data : [])
+            const rawCourses = Array.isArray(data)
+              ? data
+              : Array.isArray(data?.data)
+              ? data.data
+              : [];
+
+            const mapped = rawCourses
               .map((c) => ({
                 id_course: c.id_course ?? c.id ?? c.course_id,
                 title: c.title ?? c.name ?? c.course_name,
               }))
               .filter((c) => c.id_course && c.title);
+
             setCourses(mapped);
           } else {
             setCourses([]);
           }
         } catch {
           setCourses([]);
+        } finally {
+          setCoursesLoaded(true);
         }
 
         // 2) Tasks
@@ -188,9 +204,38 @@ const Tasks = () => {
     load();
   }, [id_workspace]);
 
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const res = await fetch(`/api/courses?idWorkspace=${idWorkspace}`);
+        const datas = await res.json();
+        setData(datas);
+      } catch (err) {
+        console.error("Error fetching courses:", err);
+      }
+    };
+    fetchCourses();
+  }, []);
+
+  const { showAlert } = useAlert();
   /* ===== Drawer handlers ===== */
   const handleCardClick = (task) => setSelectedTask(task);
-  const handleAddClick = () => setShowAddPanel(true);
+  const handleAddClick = () => {
+    if (!coursesLoaded) return;
+
+    if (data.length === 0) {
+      showAlert({
+        icon: "ri-error-warning-fill",
+        title: "Error",
+        desc: "Please add a course first before creating a task.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setShowAddPanel(true);
+  };
+
   const closeAllDrawer = () => {
     setSelectedTask(null);
     setShowAddPanel(false);
@@ -401,7 +446,7 @@ const Tasks = () => {
 
   if (isMobile || isTablet) return <Mobile />;
   return (
-    <div className="flex bg-background min-h-screen text-foreground font-[Montserrat] relative">
+    <div className="flex bg-background h-full text-foreground font-[Montserrat] relative">
       <Sidebar />
 
       <div
@@ -495,10 +540,12 @@ const Tasks = () => {
 
             <button
               onClick={handleAddClick}
-              className="flex items-center gap-1.5 px-[12px] py-[6px] rounded-md text-[16px] text-white transition-all cursor-pointer"
+              disabled={loading}
+              className={`flex items-center gap-1.5 px-[12px] py-[6px] rounded-md text-[16px] text-white transition-all cursor-pointer ${
+                loading ? "opacity-50" : ""
+              }`}
               style={{
-                background:
-                  "linear-gradient(135deg, #34146C 0%, #28073B 100%)",
+                background: "linear-gradient(135deg, #34146C 0%, #28073B 100%)",
               }}
             >
               <i className="ri-add-line text-[16px]" /> Add Task

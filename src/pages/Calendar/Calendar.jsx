@@ -38,7 +38,7 @@ const Calendar = () => {
   // desktop layout
   return (
     // 🔥 min-h-screen biar sidebar selalu sepanjang viewport
-    <div className="flex min-h-screen">
+    <div className="flex h-full ">
       {/* sidebar di kiri tanpa gap */}
       <Sidebar className="mr-0" />
 

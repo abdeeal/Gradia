@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Background from "../../Login/components/Background";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/Button";
 import Input from "../../Login/components/Input";
 import SuccessMsg from "../../Success-msg/SuccessMsg";
+import PasswordRule from "../../Registration/components/PasswordRule";
 
 const NewPassword = ({ email, otp, success }) => {
   const [pass, setPass] = useState("");
@@ -13,12 +14,40 @@ const NewPassword = ({ email, otp, success }) => {
   const [successMsg, setSuccessMsg] = useState("");
   const [status, setStatus] = useState("");
 
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [passwordFocusedOnce, setPasswordFocusedOnce] = useState(false);
+  const [passwordValidationDismissed, setPasswordValidationDismissed] =
+    useState(false);
+
+  const passwordRules = {
+    length: pass.length >= 8,
+    uppercase: /[A-Z]/.test(pass),
+    number: /\d/.test(pass),
+    special: /[^A-Za-z0-9]/.test(pass),
+  };
+
+  const isPasswordValid = Object.values(passwordRules).every(Boolean);
+
+  useEffect(() => {
+    if (!isPasswordValid) {
+      setPasswordValidationDismissed(false);
+    }
+  }, [isPasswordValid]);
+
+  const showPasswordValidation =
+    !passwordValidationDismissed && (passwordFocusedOnce || passwordFocused);
+
   const handleChange = async () => {
     setErrorMsg("");
     setSuccessMsg("");
 
     if (!pass || !cPass) {
       setErrorMsg("Please fill in both fields.");
+      return;
+    }
+
+    if (!isPasswordValid) {
+      setErrorMsg("Password does not meet the requirements.");
       return;
     }
 
@@ -55,7 +84,7 @@ const NewPassword = ({ email, otp, success }) => {
     }
   };
 
-  if(status === "success") {
+  if (status === "success") {
     return <SuccessMsg type={success} />;
   }
 
@@ -91,7 +120,40 @@ const NewPassword = ({ email, otp, success }) => {
               value={pass}
               type="password"
               onChange={(e) => setPass(e.target.value)}
+              onFocus={() => {
+                setPasswordFocused(true);
+                setPasswordFocusedOnce(true);
+              }}
+              onBlur={() => {
+                setPasswordFocused(false);
+                if (isPasswordValid) {
+                  setPasswordValidationDismissed(true);
+                }
+              }}
+              autoComplete="new-passwordya"
             />
+
+            {showPasswordValidation && (
+              <div className="flex flex-col gap-2 text-[14px]">
+                <PasswordRule
+                  valid={passwordRules.length}
+                  label="At least 8 characters"
+                />
+                <PasswordRule
+                  valid={passwordRules.uppercase}
+                  label="At least one capital letter"
+                />
+                <PasswordRule
+                  valid={passwordRules.number}
+                  label="At least one number"
+                />
+                <PasswordRule
+                  valid={passwordRules.special}
+                  label="At least one special character"
+                />
+              </div>
+            )}
+
             <Input
               placeholder="********"
               title="Confirm password"
@@ -111,7 +173,7 @@ const NewPassword = ({ email, otp, success }) => {
 
           <div className="flex flex-col gap-4 md:gap-8">
             <Button
-               icon={loading ? "ri-loader-4-line animate-spin" : "noIcon"}
+              icon={loading ? "ri-loader-4-line animate-spin" : "noIcon"}
               title={loading ? "Changing Password..." : "Change Password"}
               className="w-full text-center justify-center py-4"
               onClick={handleChange}

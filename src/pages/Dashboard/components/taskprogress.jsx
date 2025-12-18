@@ -309,9 +309,8 @@ export default function TaskProgress({
   if (err) {
     return (
       <div
-        className="relative rounded-2xl p-4 text-white"
+        className="relative rounded-2xl p-4 text-white w-full"
         style={{
-          width: "100%",
           height: 347,
           backgroundImage: "linear-gradient(to right, #000000, #211832)",
         }}
@@ -364,7 +363,7 @@ export default function TaskProgress({
                 cx="50%"
                 cy="100%"
                 paddingAngle={0}
-                cornerRadius={20}
+                cornerRadius={10}
                 stroke="none"
               >
                 {data.map((d) => (

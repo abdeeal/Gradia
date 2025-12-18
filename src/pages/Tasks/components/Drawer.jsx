@@ -246,6 +246,12 @@ const Drawer = ({
     }
   };
 
+  const todayISO = React.useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 59, 0, 0);
+    return d.toISOString();
+  }, []);
+
   return (
     <div
       id="overlay-drawer"
@@ -289,7 +295,7 @@ const Drawer = ({
 
             <GridDrawer icon={"ri-calendar-2-line"} title={"Deadline"}>
               <DateTime
-                defaultValue="2025-10-31T00:00:00Z"
+                defaultValue={todayISO}
                 value={deadline}
                 onChange={setDeadline}
               />

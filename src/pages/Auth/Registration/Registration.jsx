@@ -1,9 +1,10 @@
 // src/pages/Register/index.jsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 import { useNavigate } from "react-router-dom";
 import Mobile from "./Layout/Mobile";
 import VerifyOtp from "../Verify-otp/VerifyOtp"; // ⬅️ tambahan: sama seperti di Mobile
+import PasswordRule from "./components/PasswordRule";
 
 const Registration = () => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -23,6 +24,29 @@ function RegisterDesktop() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState("");
+
+  const [passwordFocused, setPasswordFocused] = useState(false);
+  const [passwordFocusedOnce, setPasswordFocusedOnce] = useState(false);
+  const [passwordValidationDismissed, setPasswordValidationDismissed] =
+    useState(false);
+
+  const passwordRules = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    number: /\d/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+  };
+
+  const isPasswordValid = Object.values(passwordRules).every(Boolean);
+
+  useEffect(() => {
+    if (!isPasswordValid) {
+      setPasswordValidationDismissed(false);
+    }
+  }, [isPasswordValid]);
+
+  const showPasswordValidation =
+    !passwordValidationDismissed && (passwordFocusedOnce || passwordFocused);
 
   // 🔁 tambahan state supaya flow-nya sama dengan Mobile
   const [showVerify, setShowVerify] = useState(false);
@@ -74,6 +98,11 @@ function RegisterDesktop() {
 
   const handleRegister = async () => {
     setErrMsg("");
+
+    if (!isPasswordValid) {
+      setErrMsg("Password does not meet the requirements.");
+      return;
+    }
 
     // ✅ sama seperti Mobile: cek semua field
     if (!email || !username || !password) {
@@ -179,12 +208,8 @@ function RegisterDesktop() {
             className="inline-flex items-baseline gap-1 leading-none"
             style={{ fontFamily: "'Genos', sans-serif", fontWeight: 700 }}
           >
-            <span className="text-[128px] tracking-tight text-logo">
-              GRA
-            </span>
-            <span className="text-[128px] tracking-tight text-white">
-              DIA
-            </span>
+            <span className="text-[128px] tracking-tight text-logo">GRA</span>
+            <span className="text-[128px] tracking-tight text-white">DIA</span>
           </div>
 
           <p
@@ -194,8 +219,7 @@ function RegisterDesktop() {
             <span
               style={{
                 display: "inline-block",
-                background:
-                  "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
+                background: "linear-gradient(180deg, #FAFAFA 0%, #8B8B8B 100%)",
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 color: "transparent",
@@ -222,7 +246,7 @@ function RegisterDesktop() {
             color: "#A3A3A3",
             paddingLeft: PAD_X,
             paddingRight: PAD_X,
-            paddingTop: TOP_HEADER,
+            paddingTop: 48,
             paddingBottom: 10,
             justifyContent: "space-between",
           }}
@@ -293,8 +317,39 @@ function RegisterDesktop() {
                     style={inputStyle}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    onFocus={() => {
+                      setPasswordFocused(true);
+                      setPasswordFocusedOnce(true);
+                    }}
+                    onBlur={() => {
+                      setPasswordFocused(false);
+                      if (isPasswordValid) {
+                        setPasswordValidationDismissed(true);
+                      }
+                    }}
+                    autoComplete="new-password"
                   />
                 </div>
+                {showPasswordValidation && (
+                  <div className="flex flex-col gap-2 text-[14px] mt-2">
+                    <PasswordRule
+                      valid={passwordRules.length}
+                      label="At least 8 characters"
+                    />
+                    <PasswordRule
+                      valid={passwordRules.uppercase}
+                      label="At least one capital letter"
+                    />
+                    <PasswordRule
+                      valid={passwordRules.number}
+                      label="At least one number"
+                    />
+                    <PasswordRule
+                      valid={passwordRules.special}
+                      label="At least one special character"
+                    />
+                  </div>
+                )}
               </div>
 
               {errMsg ? (
@@ -307,7 +362,7 @@ function RegisterDesktop() {
                   type="button"
                   onClick={handleRegister}
                   disabled={loading}
-                  className="w-1/2 px-4 py-3 text-[16px] font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 text-[16px] font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{
                     background:
                       "linear-gradient(90deg, #4C1D95 0%, #2D0A49 100%)",
@@ -347,9 +402,9 @@ function RegisterDesktop() {
                     Login
                   </button>
                 </p>
-                <p className="text-[12px] leading-none">
+                {/* <p className="text-[12px] leading-none">
                   © {new Date().getFullYear()} Gradia. All rights reserved.
-                </p>
+                </p> */}
               </div>
             </div>
           </div>
