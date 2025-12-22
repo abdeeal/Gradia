@@ -4,7 +4,7 @@ import ReviewCard from "./ReviewCard";
 const Review = () => {
   return (
     <section id="review" className="w-full min-h-[50dvh] flex flex-col items-center justify-center max-md:mt-10">
-      <p className="text-[48px] font-semibold max-xl:text-center max-xl:mt-16 text-center leading-16">
+      <p className="text-[48px] font-semibold max-xl:text-center max-xl:mt-16 text-center leading-16 max-md:text-[36px] max-md:px-2 max-md:leading-12">
         Trusted by Student <br className="max-md:hidden" />
         Loved Across Campuses
       </p>

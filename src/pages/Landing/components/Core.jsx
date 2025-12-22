@@ -2,8 +2,8 @@ import React from "react";
 
 const Core = () => {
   return (
-    <section id="features" className="w-full xl:h-dvh h-fit pt-16 xl:pt-0 flex flex-col items-center justify-center bg-white text-black pb-12 xl:px-16 2xl:px-40 font-montserrat">
-      <p className="font-semibold text-[48px] pb-6 font-montserrat">Core Features</p>
+    <section id="features" className="w-full xl:h-dvh h-fit pt-16 xl:pt-0 flex flex-col items-center justify-center bg-white text-black pb-12 xl:px-16 2xl:px-40 font-montserrat max-md:px-8">
+      <p className="font-semibold text-[48px] pb-6 font-montserrat max-md:text-[36px]">Core Features</p>
       <p className="-mt-2 text-center text-gray-600 px-6 xl:px-0 2xl:text-[20px]">Built to Support Every Aspect of Your Academic Journey.</p>
       <div className="w-full xl:grid grid-cols-4 flex flex-col xl:flex-none gap-10 md:gap-[60px] xl:gap-10 xl:gap-0 items-center xl:items-start  px-6 pt-16">
         <div className="flex flex-col w-full md:w-[60%] xl:w-full text-center">

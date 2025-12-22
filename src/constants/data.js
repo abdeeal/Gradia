@@ -17,6 +17,7 @@ export const navItemsSide = [
 export const navLanding = [
   { name: "Why us", href: "/#whyus" },
   { name: "Features", href: "/#features" },
+  { name: "Reviews", href: "/#review"}
 ];
 
 export const navAuth = [

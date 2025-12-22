@@ -57,7 +57,7 @@ const WhyGradia = () => {
       <div className="w-[85%] relative flex justify-center items-center">
         <div className="grid xl:grid-cols-2 grid-cols-1">
           <div className="flex flex-col h-full justify-center gap-2">
-            <p className="text-[48px] font-semibold max-xl:text-center max-xl:mt-16">
+            <p className="text-[48px] font-semibold max-xl:text-center max-xl:mt-16 max-md:text-[36px]">
               Why Choose Gradia?
             </p>
             <span className="text-foreground-secondary max-xl:text-center max-xl:pt-4">

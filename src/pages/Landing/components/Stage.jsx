@@ -9,21 +9,19 @@ const Stage = () => {
     const container = containerRef.current;
     if (!container) return;
 
-    const DURATION = 3000; // 3 detik
-    const PARTICLE_SIZE = isMobile ? 25 : 35; // ukuran awal
-    const SPAWN_INTERVAL = 1000; // spawn setiap 1 detik
-    const PARTICLE_COLOR = '#9457FF';
-    const STOP_DISTANCE = 0.75; // berhenti di 60% perjalanan (lebih jauh dari center)
+    const DURATION = 3000; 
+    const PARTICLE_SIZE = isMobile ? 25 : 35; 
+    const SPAWN_INTERVAL = 1000; 
+    const PARTICLE_COLOR = '#824de0';
+    const STOP_DISTANCE = 0.75; 
 
-    // Fungsi untuk mendapatkan posisi 4 titik di sepanjang edge (top/bottom)
     function getEdgePositions(edge) {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const points = [];
       
-      // 4 titik: pojok kiri, 1/3, 2/3, pojok kanan
       for (let i = 0; i < 4; i++) {
-        const t = i / 3; // 0, 0.33, 0.66, 1
+        const t = i / 3; 
         const x = w * t;
         const y = edge === 'top' ? 0 : h;
         points.push({ x, y });
