@@ -12,7 +12,7 @@ const ReviewCard = ({person, img, univ, text, height}) => {
           </span>
         </div>
       </div>
-      <div className="flex justify-center items-center text-xs text-foreground-secondary text-center px-8 py-1.5 flex-1">
+      <div className="flex justify-center items-center text-xs text-foreground-secondary text-center px-8 py-1.5 flex-1 2xl:text-[16px]">
         {text}
       </div>
     </div>

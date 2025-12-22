@@ -122,7 +122,7 @@ const Stage = () => {
   return (
     <div 
       ref={containerRef}
-      className="relative w-full h-screen bg-gray-50 flex items-center justify-center overflow-hidden"
+      className="relative w-full h-screen bg-white flex items-center justify-center overflow-hidden"
     >
       <div className="text-center z-10 relative text-[48px] font-semibold text-black font-montserrat max-md:text-[32px]">
         <h1>Ready to be <br className="max-md:hidden"/>more <span className='text-logo'>Productive?</span></h1>

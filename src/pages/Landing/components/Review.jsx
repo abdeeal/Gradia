@@ -4,16 +4,16 @@ import ReviewCard from "./ReviewCard";
 const Review = () => {
   return (
     <section id="review" className="w-full min-h-[50dvh] flex flex-col items-center justify-center max-md:mt-10">
-      <p className="text-[48px] font-semibold max-xl:text-center max-xl:mt-16 text-center leading-16 max-md:text-[36px] max-md:px-2 max-md:leading-12">
+      <p className="text-[48px] font-semibold max-xl:text-center max-xl:mt-16 text-center leading-16 max-md:text-[36px] max-md:px-2 max-md:leading-14">
         Trusted by Student <br className="max-md:hidden" />
         Loved Across Campuses
       </p>
-      <span className="text-foreground-secondary max-xl:text-center max-xl:pt-4 mt-2 max-md:w-[80%]">
-        Feedback from active GRADIA users who rely on the platform every day.
+      <span className="text-foreground-secondary max-xl:text-center max-xl:pt-4 mt-2 max-md:w-[80%] 2xl:text-[20px]">
+        Feedback from active Gradia users who rely on the platform every day.
       </span>
 
       <div className="xl:w-[85%] grid grid-cols-3 max-xl:grid-cols-1 md:w-[50%] w-[80%] justify-center gap-10 max-xl:gap-6 py-20">
-        <div className="flex flex-col gap-6 h-[359px]">
+        <div className="flex flex-col gap-6 h-[359px] 2xl:h-[400px]">
           <ReviewCard
             img={"/images/profile1.png"}
             person={"Alya Putri"}
@@ -35,7 +35,7 @@ const Review = () => {
           />
         </div>
 
-        <div className="h-[359px]">
+        <div className="h-[359px] 2xl:h-[400px]">
           <ReviewCard
             img={"/images/profile3.png"}
             person={"Adrian Lim"}
@@ -47,7 +47,7 @@ const Review = () => {
           />
         </div>
 
-        <div className="flex flex-col gap-6 h-[359px]">
+        <div className="flex flex-col gap-6 h-[359px] 2xl:h-[400px]">
           <ReviewCard
             img={"/images/profile4.png"}
             person={"Nadia Safira"}

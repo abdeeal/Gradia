@@ -7,7 +7,7 @@ const WhyUs = () => {
       className="w-full xl:h-[95dvh] 2xl:h-[65dvh] min-h-fit md:grid xl:grid-cols-[40%_60%] md:grid-cols-[50%_50%] flex flex-col md:flex-none bg-white text-black relative max-md:px-8"
     >
       <div className="flex flex-col h-full w-full xl:justify-center mt-16 xl:mt-0 items-start xl:pl-24 2xl:pl-48 px-6 md:px-">
-        <p className="font-semibold text-[36px] md:text-[48px] xl:text-[48px] 2xl:text-[64px] pb-6 text-center max-md:w-full max-md:leading-12">
+        <p className="font-semibold text-[36px] md:text-[48px] xl:text-[48px] 2xl:text-[64px] pb-6 text-center max-md:w-full max-md:leading-14">
           Why Students <br />
           Need Gradia?
         </p>

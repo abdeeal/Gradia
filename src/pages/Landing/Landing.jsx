@@ -7,6 +7,7 @@ import Footer from "./components/Footer";
 import WhyGradia from "./components/WhyGradia";
 import Review from "./components/Review";
 import Stage from "./components/Stage";
+import AboutUs from "./components/AboutUs";
 
 const Landing = () => {
   return (
@@ -17,6 +18,7 @@ const Landing = () => {
       <Core />
       <WhyGradia />
       <Review />
+      <AboutUs />
       <Stage />
       <Footer />
     </div>
