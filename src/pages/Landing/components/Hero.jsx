@@ -21,11 +21,11 @@ const Hero = () => {
       </div>
       <div className="w-full flex flex-col md:h-[50%] h-[60%] justify-between items-center px-6 md:px-24 xl:px-0">
         <div className="flex flex-col items-center xl:gap-6 gap-10">
-          <p className="font-montserrat md:text-[48px] text-[28px] text-center font-semibold ">
+          <p className="font-montserrat md:text-[48px] text-[28px] text-center font-semibold 2xl:text-[64px]">
             Manage Your Courses, Tasks, and <br className="xl:flex hidden" />{" "}
             Campus Life — All in One Place
           </p>
-          <span className="font-inter text-foreground-secondary md:text-[20px] text-center text-[16px] ">
+          <span className="font-inter text-foreground-secondary md:text-[20px] text-center text-[16px] 2xl:text-[24px]">
             Gradia helps students stay organized, productive, and balanced with
             a <br className="xl:flex hidden" />
             powerful dashboard tailored for your academic journey.
@@ -36,7 +36,7 @@ const Hero = () => {
           <Button
             icon="noIcon"
             title="Try Now"
-            className={"text-[16px] font-semibold px-16 py-4"}
+            className={"text-[16px] font-semibold px-16 py-4 2xl:text-[24px] 2xl:py-6 2xl:px-20"}
           />
         </Link>
       </div>
