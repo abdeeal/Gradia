@@ -1,40 +1,66 @@
+// Mengimpor library bcrypt untuk melakukan hashing dan verifikasi password
 import bcrypt from "bcrypt";
+
+// Mengimpor fungsi createClient dari Supabase
 import { createClient } from "@supabase/supabase-js";
+
+// Mengimpor nodemailer untuk mengirim email OTP
 import nodemailer from "nodemailer";
 
+// Membuat instance client Supabase menggunakan URL dan Anon Key dari environment
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY
+  process.env.VITE_SUPABASE_URL,       // URL project Supabase
+  process.env.VITE_SUPABASE_ANON_KEY   // Public anon key Supabase
 );
 
+// Email pengirim OTP
 const EMAIL_USER = "gradianoreplay@gmail.com";
+
+// App password Gmail untuk SMTP
 const EMAIL_PASS = "wngp bsdw zexw qjub";
 
+// Fungsi handler utama API
 export default async function handler(req, res) {
+
+  // Validasi method HTTP harus POST
   if (req.method !== "POST") {
     res.writeHead(405, { "Content-Type": "application/json" });
     return res.end(JSON.stringify({ error: "Method not allowed" }));
   }
 
+  // Variabel untuk menampung body request
   let body = "";
+
+  // Mengambil data body secara streaming
   req.on("data", (chunk) => (body += chunk.toString()));
+
+  // Ketika body selesai diterima
   req.on("end", async () => {
     try {
+      // Parsing body JSON
       const data = JSON.parse(body);
+
+      // Mengambil parameter action
       const { action } = data;
 
+      // Validasi action wajib ada
       if (!action) {
         res.writeHead(400, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ error: "Action is required." }));
       }
 
+      // Switch berdasarkan jenis action
       switch (action) {
+
         // =====================================================
         // ======================= LOGIN ========================
         // =====================================================
         case "login": {
+
+          // Mengambil input login (username/email & password)
           const { text, password } = data;
 
+          // Validasi input wajib diisi
           if (!text || !password) {
             res.writeHead(400, { "Content-Type": "application/json" });
             return res.end(
@@ -42,15 +68,20 @@ export default async function handler(req, res) {
             );
           }
 
+          // Mencari user berdasarkan email ATAU username
           const { data: users, error: userError } = await supabase
             .from("users")
             .select("*")
             .or(`email.eq.${text},username.eq.${text}`)
             .limit(1);
 
+          // Jika error query
           if (userError) throw userError;
 
+          // Ambil user pertama
           const user = users?.[0];
+
+          // Jika user tidak ditemukan
           if (!user) {
             res.writeHead(404, { "Content-Type": "application/json" });
             return res.end(
@@ -58,17 +89,25 @@ export default async function handler(req, res) {
             );
           }
 
+          // Verifikasi password menggunakan bcrypt
           const match = await bcrypt.compare(password, user.password);
+
+          // Jika password salah
           if (!match) {
             res.writeHead(401, { "Content-Type": "application/json" });
             return res.end(JSON.stringify({ error: "Incorrect password." }));
           }
 
-          // belum verifikasi → kirim OTP
+          // Jika akun belum diverifikasi
           if (!user.is_verified) {
+
+            // Membuat kode OTP 6 digit
             const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+            // Waktu kedaluwarsa OTP (5 menit)
             const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
+            // Menyimpan OTP ke tabel otp
             const { error: otpError } = await supabase.from("otp").insert([
               {
                 id_user: user.id_user,
@@ -79,8 +118,10 @@ export default async function handler(req, res) {
               },
             ]);
 
+            // Jika gagal insert OTP
             if (otpError) throw otpError;
 
+            // Konfigurasi SMTP Gmail
             const transporter = nodemailer.createTransport({
               host: "smtp.gmail.com",
               port: 465,
@@ -89,6 +130,7 @@ export default async function handler(req, res) {
               tls: { rejectUnauthorized: false },
             });
 
+            // Template email OTP
             const mailOptions = {
               from: `"Gradia App" <${EMAIL_USER}>`,
               to: user.email,
@@ -107,8 +149,10 @@ export default async function handler(req, res) {
               `,
             };
 
+            // Mengirim email OTP
             await transporter.sendMail(mailOptions);
 
+            // Response bahwa OTP diperlukan
             res.writeHead(200, { "Content-Type": "application/json" });
             return res.end(
               JSON.stringify({
@@ -125,7 +169,7 @@ export default async function handler(req, res) {
             );
           }
 
-          // sukses login
+          // Jika login sukses & sudah terverifikasi
           res.writeHead(200, { "Content-Type": "application/json" });
           return res.end(
             JSON.stringify({
@@ -144,8 +188,11 @@ export default async function handler(req, res) {
         // ===================== REGISTER =======================
         // =====================================================
         case "register": {
+
+          // Mengambil data registrasi
           const { username, email, password } = data;
 
+          // Validasi field wajib
           if (!username || !email || !password) {
             res.writeHead(400, { "Content-Type": "application/json" });
             return res.end(
@@ -155,8 +202,10 @@ export default async function handler(req, res) {
             );
           }
 
+          // Normalisasi email ke huruf kecil
           const emailLower = email.trim().toLowerCase();
 
+          // Cek apakah email sudah terdaftar
           const { data: existingUser, error: checkError } = await supabase
             .from("users")
             .select("*")
@@ -165,7 +214,10 @@ export default async function handler(req, res) {
 
           if (checkError) throw checkError;
 
+          // Jika user sudah ada
           if (existingUser) {
+
+            // Jika sudah diverifikasi
             if (existingUser.is_verified) {
               res.writeHead(400, { "Content-Type": "application/json" });
               return res.end(
@@ -176,6 +228,7 @@ export default async function handler(req, res) {
               );
             }
 
+            // Kirim ulang OTP verifikasi
             const { expiresAt } = await sendOtpInternal(
               emailLower,
               existingUser,
@@ -193,8 +246,10 @@ export default async function handler(req, res) {
             );
           }
 
+          // Hash password sebelum disimpan
           const hashedPassword = await bcrypt.hash(password, 10);
 
+          // Menyimpan user baru ke database
           const { data: newUser, error: insertError } = await supabase
             .from("users")
             .insert([
@@ -210,6 +265,7 @@ export default async function handler(req, res) {
 
           if (insertError) throw insertError;
 
+          // Kirim OTP registrasi
           const { expiresAt } = await sendOtpInternal(
             emailLower,
             newUser,
@@ -232,6 +288,8 @@ export default async function handler(req, res) {
         // ====================== LOGOUT ========================
         // =====================================================
         case "logout": {
+
+          // Logout session Supabase
           const { error } = await supabase.auth.signOut();
           if (error) throw error;
 
@@ -239,12 +297,17 @@ export default async function handler(req, res) {
           return res.end(JSON.stringify({ success: true }));
         }
 
+        // Jika action tidak dikenali
         default:
           res.writeHead(400, { "Content-Type": "application/json" });
           return res.end(JSON.stringify({ error: "Invalid action." }));
       }
     } catch (err) {
+
+      // Log error ke server
       console.error("AUTH ERROR:", err);
+
+      // Response error ke client
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: err.message }));
     }
@@ -254,10 +317,17 @@ export default async function handler(req, res) {
 // =====================================================
 // ================= INTERNAL HELPER ===================
 // =====================================================
+
+// Fungsi internal untuk mengirim OTP
 async function sendOtpInternal(email, user, purpose) {
+
+  // Generate OTP 6 digit
   const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Set waktu kedaluwarsa OTP
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
+  // Simpan OTP ke database
   const { error: otpError } = await supabase.from("otp").insert([
     {
       id_user: user.id_user || user.id,
@@ -270,6 +340,7 @@ async function sendOtpInternal(email, user, purpose) {
 
   if (otpError) throw otpError;
 
+  // Konfigurasi transporter email
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
@@ -277,6 +348,7 @@ async function sendOtpInternal(email, user, purpose) {
     auth: { user: EMAIL_USER, pass: EMAIL_PASS },
   });
 
+  // Kirim email OTP
   await transporter.sendMail({
     from: `"Gradia App" <${EMAIL_USER}>`,
     to: email,
@@ -294,5 +366,6 @@ async function sendOtpInternal(email, user, purpose) {
     `,
   });
 
+  // Mengembalikan waktu expired OTP
   return { expiresAt };
 }

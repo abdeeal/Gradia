@@ -1,3 +1,5 @@
+import React from "react";
+
 export const getWorkspaceId = () => {
   try {
     if (typeof window === "undefined") return 1;

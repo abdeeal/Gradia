@@ -1,4 +1,6 @@
-export const Search = ({ className, value, onChange, placeholder = "Search" }) => {
+import React from "react";
+
+export const Search = ({ className, value, onChange, placeholder = "Search", datatestid="" }) => {
   return (
     <div
       className={`${className} group focus-within:border-white flex gap-3 px-[10px] py-[4px] items-center border border-border rounded-[8px] hover:bg-white/10`}
@@ -10,6 +12,7 @@ export const Search = ({ className, value, onChange, placeholder = "Search" }) =
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="focus:outline-none focus:ring-0 border-none bg-transparent w-full"
+        data-testid={datatestid}
       />
     </div>
   );

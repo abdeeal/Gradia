@@ -1,3 +1,5 @@
+import React from "react";
+
 export const DayTab = ({ day, count }) => {
   return (
     <div className="bg-background-secondary pr-3 sticky left-0">

@@ -169,6 +169,7 @@ const Mobile = () => {
           onChange={setSearch}
           placeholder="Search course"
           className={"max-md:hidden"}
+          datatestid="SearchTab"
         />
       </div>
 
@@ -257,6 +258,7 @@ const Mobile = () => {
         onChange={setSearch}
         placeholder="Search course"
         className={"md:hidden w-full"}
+        datatestid="SearchMobile"
       />
 
       <HeaderWithSizeMenu
