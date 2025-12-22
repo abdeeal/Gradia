@@ -1,12 +1,17 @@
-// src/pages/Tasks/components/TaskCard.jsx
 import React from "react";
 import PropTypes from "prop-types";
 
 /* ===== Helpers ===== */
 
-// format "DD Mon YYYY" (pakai locale en-GB)
+/**
+ * fmtDate
+ * Fungsi untuk memformat tanggal menjadi format:
+ * "DD Mon YYYY" (contoh: 23 Dec 2025)
+ * Digunakan untuk menampilkan deadline di UI TaskCard
+ */
 const fmtDate = (value) => {
   const d = new Date(value);
+  // kalau value bukan tanggal valid, kembalikan value as-is
   if (Number.isNaN(d.getTime())) return value || "";
   return d.toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -15,7 +20,14 @@ const fmtDate = (value) => {
   });
 };
 
-// normalisasi teks status biar konsisten
+/**
+ * normStat
+ * Fungsi untuk menormalkan teks status task
+ * Tujuannya supaya status dari API / input user konsisten
+ * Contoh:
+ * - "inprogress" -> "In progress"
+ * - default -> "Not started"
+ */
 const normStat = (value) => {
   const s = String(value || "").trim().toLowerCase();
 
@@ -24,10 +36,18 @@ const normStat = (value) => {
   if (s === "completed") return "Completed";
   if (s === "overdue") return "Overdue";
 
+  // fallback default status
   return value || "Not started";
 };
 
-// mapping warna badge (priority & status)
+/**
+ * badgeCls
+ * Fungsi mapping warna badge berdasarkan type
+ * Dipakai untuk:
+ * - Priority badge
+ * - Status badge
+ * Return berupa object { bg, text }
+ */
 const badgeCls = (type) => {
   switch (type) {
     case "High":
@@ -46,7 +66,11 @@ const badgeCls = (type) => {
   }
 };
 
-// warna bulatan kecil di kiri waktu
+/**
+ * dotCls
+ * Fungsi menentukan warna bulatan kecil
+ * di sebelah kiri waktu (indikator status visual)
+ */
 const dotCls = (statusLabel) => {
   switch (statusLabel) {
     case "In progress":
@@ -60,19 +84,36 @@ const dotCls = (statusLabel) => {
   }
 };
 
+/**
+ * TaskCard
+ * Komponen UI kartu task
+ * Digunakan untuk menampilkan ringkasan task di list:
+ * - waktu / deadline
+ * - judul
+ * - related course
+ * - deskripsi
+ * - priority & status
+ */
 const TaskCard = ({
   title,
-  relatedCourse, // course tambahan antara judul & deskripsi
-  description, // deskripsi tugas
+  relatedCourse, // nama course yang ditampilkan di bawah judul
+  description,   // deskripsi singkat task
   priority,
   status,
   deadline,
   time,
-  onClick,
+  onClick,       // handler saat card diklik
 }) => {
+  // normalisasi status supaya konsisten
   const statLabel = normStat(status);
+
+  // ambil warna badge priority
   const prioColor = badgeCls(priority);
+
+  // ambil warna badge status
   const statColor = badgeCls(statLabel);
+
+  // ambil warna dot indikator waktu
   const circleColor = dotCls(statLabel);
 
   return (
@@ -80,7 +121,8 @@ const TaskCard = ({
       onClick={onClick}
       className="w-full cursor-pointer bg-[#000000] border border-[#464646]/50 rounded-xl p-4 px-2.5 hover:border-purple-500 transition-all duration-200 font-[Montserrat] min-h-[187px] flex flex-col"
     >
-      {/* === Frame 1: Waktu === */}
+      {/* === Frame 1: Waktu / Deadline === */}
+      {/* Menampilkan tanggal & jam dengan indikator warna status */}
       <div className="relative pl-5 text-gray-200 mb-5">
         <span
           className={`w-[10px] h-[10px] rounded-full absolute left-0 top-1/2 -translate-y-1/2 ${circleColor}`}
@@ -98,19 +140,21 @@ const TaskCard = ({
         </div>
       </div>
 
-      {/* === Frame 2: Body (judul, related course, deskripsi) === */}
+      {/* === Frame 2: Body === */}
+      {/* Berisi judul, related course, dan deskripsi */}
       <div className="pl-0 pr-[8px] mb-6 w-[90%]">
         <h3 className="text-[#FAFAFA] text-[16px] font-semibold mb-[8px]">
           {title}
         </h3>
 
-        {/* Related Course di antara judul & deskripsi */}
+        {/* Related Course ditampilkan di bawah judul */}
         {relatedCourse && (
           <div className="text-[#A3A3A3] text-[16px] font-semibold leading-tight mb-[4px] line-clamp-1">
             {relatedCourse}
           </div>
         )}
 
+        {/* Deskripsi task (dibatasi 1 baris) */}
         {description && (
           <p
             className="text-[#A3A3A3] text-[16px] font-normal"
@@ -127,7 +171,8 @@ const TaskCard = ({
         )}
       </div>
 
-      {/* === Frame 3: Keterangan (Priority & Progress kiri bawah) === */}
+      {/* === Frame 3: Badge Priority & Status === */}
+      {/* Ditampilkan di bagian kiri bawah card */}
       <div className="flex items-center gap-[8px]">
         <span
           className={`text-[16px] xl:text-[14px] 2xl:text-[16px] px-[10px] py-[4px] rounded-md font-medium ${prioColor.bg} ${prioColor.text}`}

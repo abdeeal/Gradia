@@ -5,14 +5,42 @@ import { SelectItem, SelectLabel } from "@/components/ui/select";
 import { useAlert } from "@/hooks/useAlert";
 import DeletePopup from "@/components/Delete";
 
+// Urutan hari yang tampil di dropdown (biar konsisten dan rapi)
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
+/**
+ * Komponen utama: CourseDetail
+ * - Drawer/detail untuk melihat & mengedit course yang dipilih
+ * - Data course dari props → disalin ke state `form` (biar bisa diedit)
+ * - Bisa Save (update) & Delete (hapus) lewat callback parent
+ */
 const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
+  // Hook alert untuk menampilkan notifikasi sukses/gagal
   const { showAlert } = useAlert();
+
+  /**
+   * State `form` menampung data course yang akan diedit (controlled form).
+   * Diisi pertama kali dari `course` via useEffect.
+   */
   const [form, setForm] = useState({});
+
+  /**
+   * State untuk menampilkan popup konfirmasi delete.
+   * true = popup muncul, false = popup hilang
+   */
   const [showConfirm, setShowConfirm] = useState(false);
+
+  /**
+   * State `loading` untuk mengunci tombol saat proses save/delete berjalan.
+   * Mencegah user klik berkali-kali.
+   */
   const [loading, setLoading] = useState(false);
 
+  /**
+   * useEffect: sinkronisasi props `course` ke state `form`
+   * - Saat course berubah, kita parsing `course.time` menjadi startTime & endTime
+   * - Lalu simpan ke form agar field time bisa diedit terpisah
+   */
   useEffect(() => {
     if (!course) return;
     const [s, e] = (course.time || "").split(" - ");
@@ -23,8 +51,13 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
     });
   }, [course]);
 
+  // Kalau belum ada course yang dipilih, jangan render apapun
   if (!course) return null;
 
+  /**
+   * Helper untuk update field tertentu di state `form`
+   * Contoh: setField("title", "Matematika Diskrit")
+   */
   const setField = (key, val) =>
     setForm((prev) => ({
       ...prev,
@@ -34,6 +67,17 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
   /* =========================
      SAVE — tutup drawer otomatis jika sukses
      ========================= */
+
+  /**
+   * handleSave
+   * - Susun object `updated` dari state `form`
+   * - Pastikan sks number
+   * - Gabungkan startTime & endTime kembali jadi `time`
+   * - Hapus field sementara startTime/endTime (biar payload sesuai API)
+   * - Panggil `onSave(updated)` (biasanya request ke backend di parent)
+   * - Kalau sukses: alert sukses + tutup drawer
+   * - Kalau gagal: alert error
+   */
   const handleSave = async () => {
     const updated = {
       ...form,
@@ -80,8 +124,23 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
   /* =========================
      DELETE — buka popup, eksekusi, tutup drawer kalau sukses
      ========================= */
+
+  /**
+   * handleDelete
+   * - Hanya bertugas membuka popup konfirmasi delete
+   */
   const handleDelete = () => setShowConfirm(true);
 
+  /**
+   * doDelete
+   * - Ambil id course dari beberapa kemungkinan nama field (biar kompatibel)
+   * - Set loading
+   * - Dispatch event global "courses:deleted" (opsional, untuk listener lain)
+   * - Panggil onDelete(courseId) (request delete di parent)
+   * - Jika sukses: alert sukses + tutup drawer
+   * - Jika gagal: alert error
+   * - Terakhir: tutup popup konfirmasi + matikan loading
+   */
   const doDelete = async () => {
     const courseId =
       course?.id_courses ??
@@ -130,9 +189,18 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
     }
   };
 
+  /**
+   * Render UI drawer
+   * - Tombol close
+   * - Title besar (textarea)
+   * - Field-field detail course (alias, lecturer, phone, day, time, room, sks, link)
+   * - Tombol delete & save
+   * - Popup konfirmasi delete (jika showConfirm true)
+   */
   return (
     <>
       <div className="h-full overflow-y-auto pt-28 pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl">
+        {/* Tombol untuk menutup drawer */}
         <button
           onClick={onClose}
           className="absolute left-3 top-4 text-gray-400 cursor-pointer"
@@ -141,6 +209,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
           <i className="ri-arrow-right-double-line text-2xl" />
         </button>
 
+        {/* Bagian title course */}
         <div className="ml-12 mr-12">
           <Title
             value={form.title}
@@ -149,6 +218,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
           />
         </div>
 
+        {/* Bagian input field */}
         <div className="ml-12 mr-12 max-w-[473px] flex flex-col">
           <div className="font-inter text-[14px] space-y-6">
             <InlineField
@@ -169,6 +239,11 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
               value={form.phone}
               onChange={(v) => setField("phone", v)}
               rightAdornment={
+                /**
+                 * rightAdornment:
+                 * - Jika phone ada, tampilkan icon WhatsApp
+                 * - Link dibuat ke wa.me, nomor dibersihkan (hanya angka)
+                 */
                 form.phone ? (
                   <a
                     href={`https://wa.me/${(form.phone || "").replace(
@@ -215,6 +290,11 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
               value={form.link}
               onChange={(v) => setField("link", v)}
               rightAdornment={
+                /**
+                 * rightAdornment:
+                 * - Jika link diawali "https://", tampilkan icon open/share
+                 * - Klik icon akan membuka link di tab baru
+                 */
                 form.link?.startsWith("https://") ? (
                   <a
                     href={form.link}
@@ -229,6 +309,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
             />
           </div>
 
+          {/* Tombol aksi: Delete & Save */}
           <div className="mt-6 flex justify-end items-center gap-3 pt-8 font-inter">
             <button
               onClick={handleDelete}
@@ -253,6 +334,7 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
         </div>
       </div>
 
+      {/* Popup konfirmasi delete: hanya muncul kalau showConfirm true */}
       {showConfirm && (
         <DeletePopup
           title="Delete Course"
@@ -267,6 +349,11 @@ const CourseDetail = ({ course, onClose, onSave, onDelete }) => {
 
 /* ===== Sub components ===== */
 
+/**
+ * Title
+ * - Textarea besar untuk judul course
+ * - Controlled: value dari props, update via onChange
+ */
 const Title = ({ value, onChange, className = "" }) => (
   <div className={`font-inter ${className}`}>
     <textarea
@@ -278,6 +365,11 @@ const Title = ({ value, onChange, className = "" }) => (
   </div>
 );
 
+/**
+ * InlineField
+ * - Komponen field satu baris: icon + label + input
+ * - Bisa menerima rightAdornment (misal tombol/link kecil di kanan)
+ */
 const InlineField = ({ icon, label, value, onChange, rightAdornment }) => (
   <div className="flex items-center gap-3 group">
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
@@ -293,6 +385,12 @@ const InlineField = ({ icon, label, value, onChange, rightAdornment }) => (
   </div>
 );
 
+/**
+ * DayField
+ * - Dropdown untuk memilih hari
+ * - Opsi diambil dari `dayOrder`
+ * - Controlled: value dari props, update via onChange
+ */
 const DayField = ({ icon, label, value, onChange }) => (
   <div className="flex items-center gap-3 group">
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
@@ -314,6 +412,12 @@ const DayField = ({ icon, label, value, onChange }) => (
   </div>
 );
 
+/**
+ * NumberInline
+ * - Dropdown angka untuk SKS
+ * - Mengubah value yang dipilih jadi Number (bukan string)
+ * - valueClassFn: styling berbeda untuk angka tertentu
+ */
 const NumberInline = ({ icon, label, value, onChange }) => (
   <div className="flex items-center gap-3 group w-fit">
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
@@ -341,6 +445,12 @@ const NumberInline = ({ icon, label, value, onChange }) => (
   </div>
 );
 
+/**
+ * TimeInline
+ * - Input waktu mulai & selesai (type="time")
+ * - Controlled: start & end dari props
+ * - Update via onChangeStart dan onChangeEnd
+ */
 const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => (
   <div className="flex items-center gap-3 group">
     <i className="ri-time-line text-gray-400 text-[16px]" />
@@ -366,7 +476,11 @@ const TimeInline = ({ label, start, end, onChangeStart, onChangeEnd }) => (
 );
 
 /* ===== PropTypes ===== */
-
+// PropTypes CourseDetail:
+// - course: object course yang akan diedit/hapus
+// - onClose: callback untuk menutup drawer
+// - onSave: callback untuk update course (biasanya API call di parent)
+// - onDelete: callback untuk delete course (biasanya API call di parent)
 CourseDetail.propTypes = {
   course: PropTypes.shape({
     id_courses: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
@@ -388,12 +502,14 @@ CourseDetail.propTypes = {
   onDelete: PropTypes.func,
 };
 
+// PropTypes Title: komponen judul (textarea besar)
 Title.propTypes = {
   value: PropTypes.string,
   onChange: PropTypes.func.isRequired,
   className: PropTypes.string,
 };
 
+// PropTypes InlineField: komponen input 1 baris + opsional rightAdornment
 InlineField.propTypes = {
   icon: PropTypes.string,
   label: PropTypes.string.isRequired,
@@ -402,6 +518,7 @@ InlineField.propTypes = {
   rightAdornment: PropTypes.node,
 };
 
+// PropTypes DayField: dropdown day
 DayField.propTypes = {
   icon: PropTypes.string,
   label: PropTypes.string.isRequired,
@@ -409,6 +526,7 @@ DayField.propTypes = {
   onChange: PropTypes.func.isRequired,
 };
 
+// PropTypes NumberInline: dropdown sks
 NumberInline.propTypes = {
   icon: PropTypes.string,
   label: PropTypes.string.isRequired,
@@ -416,6 +534,7 @@ NumberInline.propTypes = {
   onChange: PropTypes.func.isRequired,
 };
 
+// PropTypes TimeInline: input waktu mulai & selesai
 TimeInline.propTypes = {
   label: PropTypes.string.isRequired,
   start: PropTypes.string,

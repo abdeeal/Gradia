@@ -4,7 +4,6 @@ import "remixicon/fonts/remixicon.css";
 import { getWorkspaceId } from "../../../components/GetWorkspace";
 import CourseCard from "@/pages/Courses/components/Card";
 
-/* ========================= Helpers: Time & Text ========================= */
 
 function parseHM(hm) {
   if (!hm) return null;
@@ -83,8 +82,6 @@ function cutWords(text, maxChars = 42) {
   return s.slice(0, maxChars).trimEnd() + " …";
 }
 
-/* ========================= Constants & Styles ========================= */
-
 const MIN_SKEL_MS = 200;
 const SKEL_COUNT = 4;
 
@@ -134,8 +131,6 @@ const SHIMMER_CSS = `
     }
   }
 `;
-
-/* ========================= Presentational Components ========================= */
 
 function SkeletonCard() {
   return (

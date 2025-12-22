@@ -1,4 +1,3 @@
-// src/pages/Tasks/components/AddTask.jsx
 import React, { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import gsap from "gsap";
@@ -8,13 +7,18 @@ import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
 
 /* ---------- Const ---------- */
+// base class badge biar style badge konsisten (priority/status)
 const BADGE_BASE =
   "inline-flex items-center justify-center h-[30px] rounded-[4px] text-[16px] font-[Montserrat] leading-none w-fit px-2";
 
+// list pilihan untuk dropdown priority
 const PRIORITY_LIST = ["High", "Medium", "Low"];
+
+// list pilihan untuk dropdown status
 const STATUS_LIST = ["Not started", "In progress", "Completed", "Overdue"];
 
 /* ---------- Helpers ---------- */
+// helper buat mapping className badge priority berdasarkan value
 const prioCls = (val) => {
   if (val === "High") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
   if (val === "Medium") return `${BADGE_BASE} bg-[#EAB308]/20 text-[#FDE047]`;
@@ -22,6 +26,7 @@ const prioCls = (val) => {
   return BADGE_BASE;
 };
 
+// helper normalisasi value status (biar input dari API/user tetap konsisten)
 const normStatus = (s) => {
   const m = String(s || "").trim().toLowerCase();
   if (m === "in progress" || m === "inprogress") return "In progress";
@@ -31,6 +36,7 @@ const normStatus = (s) => {
   return s || "";
 };
 
+// helper buat mapping className badge status berdasarkan value (setelah dinormalisasi)
 const statusCls = (val) => {
   const v = normStatus(val);
   if (v === "In progress") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
@@ -40,6 +46,7 @@ const statusCls = (val) => {
   return BADGE_BASE;
 };
 
+// helper untuk menyamakan struktur data course dari berbagai kemungkinan bentuk response
 const mapCourses = (list = []) =>
   list
     .map((c) => ({
@@ -55,6 +62,7 @@ const mapCourses = (list = []) =>
     }))
     .filter((c) => c.id_courses && c.name);
 
+// helper untuk menghilangkan duplikat array berdasarkan key tertentu
 const uniq = (arr, keyFn) => {
   const m = new Map();
   for (const x of arr) m.set(keyFn(x), x);
@@ -62,6 +70,7 @@ const uniq = (arr, keyFn) => {
 };
 
 /* ✅ Workspace getter: localStorage dulu, lalu sessionStorage */
+// helper ambil id_workspace dari storage (fallback aman ke 1)
 const getWsId = () => {
   try {
     if (typeof window === "undefined") return 1;
@@ -79,6 +88,7 @@ const getWsId = () => {
 };
 
 /* ---------- Small Components ---------- */
+// komponen input judul task (textarea besar)
 const Title = ({ value, onChange, className }) => (
   <div className={`font-inter ${className}`}>
     <textarea
@@ -102,6 +112,7 @@ Title.defaultProps = {
   className: "",
 };
 
+// komponen baris field (icon + label + slot children)
 const Row = ({ icon, label, children }) => (
   <div className="flex items-center gap-3 group h-[30px]">
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
@@ -122,6 +133,7 @@ Row.defaultProps = {
   icon: null,
 };
 
+// komponen input base reusable (bisa input biasa / textarea / dll via prop `as`)
 const InputBase = ({ as: Comp = "input", className = "", ...rest }) => {
   const Component = Comp || "input"; // jaga-jaga kalau as = undefined/null
 
@@ -133,12 +145,12 @@ const InputBase = ({ as: Comp = "input", className = "", ...rest }) => {
   );
 };
 
-
 InputBase.propTypes = {
   as: PropTypes.oneOfType([PropTypes.string, PropTypes.elementType]),
   className: PropTypes.string,
 };
 
+// komponen select yang value-nya ditampilkan sebagai badge (priority/status)
 const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => {
   const hasVal = !!value;
 
@@ -184,11 +196,13 @@ BadgeSelect.defaultProps = {
 };
 
 /* ---------- Main Component ---------- */
+// drawer form untuk tambah task baru + post ke API + optimistic update via CustomEvent
 const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => {
   const { showAlert } = useAlert();
   const drawerRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // state form untuk field-task yang akan dikirim ke server
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -201,9 +215,12 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
     link: "",
   });
 
+  // state daftar course untuk dropdown (bisa dari props, API courses, atau dari tasks)
   const [courses, setCourses] = useState(
     coursesProp && coursesProp.length ? mapCourses(coursesProp) : []
   );
+
+  // state loading untuk disable dropdown course ketika data belum siap
   const [isLoadingCourses, setIsLoadingCourses] = useState(
     !(coursesProp && coursesProp.length)
   );
@@ -213,6 +230,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
     if (!drawerRef.current) return;
     const el = drawerRef.current;
 
+    // animasi masuk drawer dari kanan -> posisi normal
     gsap.fromTo(
       el,
       { x: "100%" },
@@ -221,6 +239,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
 
     return () => {
       if (!el) return;
+      // animasi keluar drawer ke kanan saat component unmount
       gsap.to(el, {
         x: "100%",
         duration: 0.4,
@@ -235,10 +254,13 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
     const wsId = getWsId();
 
     (async () => {
+      // set state loading sebelum fetch gabungan data course
       setIsLoadingCourses(true);
 
+      // ambil course dari props (kalau ada)
       const fromProp = mapCourses(coursesProp || []);
 
+      // ambil course dari endpoint /api/courses
       let fromApiCourses = [];
       try {
         const r = await fetch(
@@ -254,6 +276,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
         /* ignore */
       }
 
+      // fallback: derive course dari list tasks (kalau tasks menyimpan info course)
       let fromTasks = [];
       try {
         const r = await fetch(
@@ -286,8 +309,10 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
         /* ignore */
       }
 
+      // kalau component sudah unmount, jangan setState
       if (abort) return;
 
+      // merge semua sumber course + remove duplicate + sort by name
       const merged = uniq(
         [...fromProp, ...fromApiCourses, ...fromTasks],
         (c) => String(c.id_courses)
@@ -298,18 +323,21 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
     })();
 
     return () => {
-      abort = true;
+      abort = true; // flag untuk mencegah setState setelah unmount
     };
   }, [coursesProp]);
 
   /* ---------- Handlers ---------- */
+  // helper set field form (biar update state lebih rapi)
   const setField = (key, val) =>
     setForm((prev) => ({
       ...prev,
       [key]: val,
     }));
 
+  // handler simpan task: validasi title, build payload, optimistic event, post API, reconcile/rollback
   const handleSave = async () => {
+    // validasi title wajib
     if (!form.title.trim()) {
       showAlert({
         icon: "ri-error-warning-fill",
@@ -323,6 +351,8 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
     }
 
     const wsId = getWsId();
+
+    // payload final untuk API (normalisasi status, convert score, combine date+time jadi ISO)
     const payload = {
       title: form.title,
       description: form.description || null,
@@ -340,13 +370,17 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
       id_workspace: wsId,
     };
 
+    // id sementara untuk optimistic UI
     const tempId = `temp-${Date.now()}`;
+
+    // data optimistic untuk langsung ditampilkan di UI sebelum response server datang
     const optimisticTask = {
       id_task: tempId,
       ...payload,
       description: form.description || "",
     };
 
+    // broadcast event: task dibuat secara optimistic
     window.dispatchEvent(
       new CustomEvent("tasks:created", {
         detail: { task: optimisticTask, optimistic: true },
@@ -355,11 +389,14 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
 
     try {
       setIsLoading(true);
+
+      // request post ke server (dibikin promise supaya bisa di-reconcile/rollback via chain)
       const axiosPromise = axios.post(
         `/api/tasks?idWorkspace=${encodeURIComponent(wsId)}`,
         payload
       );
 
+      // tampilkan alert sukses (optimistic)
       showAlert({
         icon: "ri-checkbox-circle-fill",
         title: "Success",
@@ -369,15 +406,19 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
         height: 380,
       });
 
+      // tutup drawer + refresh list setelah render frame berikutnya
       requestAnimationFrame(() => {
         if (typeof refreshTasks === "function") refreshTasks();
         if (typeof setDrawer === "function") setDrawer(false);
         else onClose?.();
       });
 
+      // reconcile hasil optimistic dengan data real dari server
       axiosPromise
         .then((res) => {
           const createdTask = res?.data?.task ?? res?.data ?? null;
+
+          // kalau server mengembalikan id_task yang valid, reconcile tempId -> id real
           if (createdTask?.id_task) {
             window.dispatchEvent(
               new CustomEvent("tasks:reconcile", {
@@ -385,6 +426,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
               })
             );
           } else {
+            // fallback: update optimistic dengan data apapun yang dikembalikan server
             window.dispatchEvent(
               new CustomEvent("tasks:updated", {
                 detail: {
@@ -396,6 +438,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
           }
         })
         .catch((err) => {
+          // kalau gagal, rollback optimistic task (hapus temp)
           console.log(err?.response?.data || err?.message);
           window.dispatchEvent(
             new CustomEvent("tasks:deleted", {
@@ -413,6 +456,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
         })
         .finally(() => setIsLoading(false));
     } catch (err) {
+      // safety catch untuk error tak terduga (rollback + alert)
       console.log(err?.response?.data || err?.message);
       window.dispatchEvent(
         new CustomEvent("tasks:deleted", {
@@ -431,6 +475,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
     }
   };
 
+  // helper buat placeholder select course (nama course terpilih)
   const selectedCourseName =
     courses.find((c) => String(c.id_courses) === String(form.id_course))
       ?.name || "";
@@ -440,7 +485,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
     <div
       ref={drawerRef}
       className="drawer-panel w-[628px] bg-[#111] h-full shadow-2xl relative"
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()} // biar klik di drawer ga nutup overlay parent
     >
       <style>{`
         input[type="time"]::-webkit-calendar-picker-indicator{ display:none; }
@@ -461,9 +506,9 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
 
       <div className="h-full overflow-y-auto pt-[112px] pr-6 pb-6 pl-[31px] text-foreground relative border border-[#464646]/50 rounded-2xl cursor-pointer">
         <button
-          onClick={onClose}
+          onClick={onClose} // tombol untuk nutup drawer
           className="absolute left-3 top-4 text-gray-400 hover:text-white"
-          disabled={isLoading}
+          disabled={isLoading} // disable saat proses save
         >
           <i className="ri-arrow-right-double-line text-2xl" />
         </button>
@@ -471,7 +516,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
         <div className="ml-12 mr-12">
           <Title
             value={form.title}
-            onChange={(v) => setField("title", v)}
+            onChange={(v) => setField("title", v)} // update form.title
             className="max-w-[473px] mb-12"
           />
         </div>
@@ -481,7 +526,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
             <Row icon="ri-sticky-note-line" label="Description">
               <InputBase
                 value={form.description}
-                onChange={(e) => setField("description", e.target.value)}
+                onChange={(e) => setField("description", e.target.value)} // update form.description
                 placeholder="Add a short description"
               />
             </Row>
@@ -493,7 +538,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
                     as="input"
                     type="date"
                     value={form.deadline}
-                    onChange={(e) => setField("deadline", e.target.value)}
+                    onChange={(e) => setField("deadline", e.target.value)} // update form.deadline
                     placeholder="dd/mm/yyyy"
                   />
                 </div>
@@ -502,7 +547,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
                     as="input"
                     type="time"
                     value={form.time}
-                    onChange={(e) => setField("time", e.target.value)}
+                    onChange={(e) => setField("time", e.target.value)} // update form.time
                     placeholder="--:--"
                   />
                 </div>
@@ -518,7 +563,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
                       : undefined
                   }
                   onValueChange={(val) =>
-                    setField("id_course", val ? String(val) : null)
+                    setField("id_course", val ? String(val) : null) // update form.id_course
                   }
                   placeholder={selectedCourseName || "Select Course"}
                   className="course-select !w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
@@ -527,7 +572,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
                   strategy="fixed"
                   sideOffset={6}
                   alignOffset={8}
-                  disabled={isLoadingCourses}
+                  disabled={isLoadingCourses} // disable saat daftar course masih loading
                 >
                   <SelectLabel className="text-[14px] font-inter text-gray-400 px-2 py-1">
                     Related Course
@@ -551,7 +596,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
             <Row icon="ri-fire-line" label="Priority">
               <BadgeSelect
                 value={form.priority}
-                onChange={(val) => setField("priority", val)}
+                onChange={(val) => setField("priority", val)} // update form.priority
                 options={PRIORITY_LIST}
                 valueClassFn={prioCls}
                 label="Priority"
@@ -561,7 +606,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
             <Row icon="ri-loader-line" label="Status">
               <BadgeSelect
                 value={form.status}
-                onChange={(val) => setField("status", normStatus(val))}
+                onChange={(val) => setField("status", normStatus(val))} // update form.status (dinormalisasi)
                 options={STATUS_LIST}
                 valueClassFn={statusCls}
                 label="Status"
@@ -573,7 +618,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
                 as="input"
                 type="number"
                 value={form.score}
-                onChange={(e) => setField("score", e.target.value)}
+                onChange={(e) => setField("score", e.target.value)} // update form.score
                 placeholder="e.g. 95"
               />
             </Row>
@@ -581,7 +626,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
             <Row icon="ri-share-box-line" label="Link">
               <InputBase
                 value={form.link}
-                onChange={(e) => setField("link", e.target.value)}
+                onChange={(e) => setField("link", e.target.value)} // update form.link
                 placeholder="https://..."
               />
             </Row>
@@ -589,9 +634,9 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
 
           <div className="mt-12 flex justify-end items-center gap-3 font-inter">
             <button
-              onClick={handleSave}
+              onClick={handleSave} // trigger simpan task
               className="flex items-center gap-2 px-5 h-[44px] rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] transition-all disabled:opacity-60 cursor-pointer"
-              disabled={isLoading}
+              disabled={isLoading} // disable saat proses save
             >
               <i className="ri-add-line text-foreground text-[18px]" />
               <span className="text-[15px] font-medium">Add Task</span>

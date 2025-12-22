@@ -14,6 +14,12 @@ import AddCourse from "./components/AddCourse.jsx";
 import { Tab } from "./layouts/Tab.jsx";
 
 /* ===== Shimmer CSS (copy style dari PresenceCard) ===== */
+/**
+ * ShimmerStyles
+ * - Komponen kecil yang menyisipkan CSS shimmer ke halaman
+ * - Dipakai untuk skeleton loading (animasi garis kilap)
+ * - Render-nya hanya <style> berisi class dan keyframes
+ */
 const ShimmerStyles = () => (
   <style>{`
     .gradia-shimmer {
@@ -44,6 +50,14 @@ const ShimmerStyles = () => (
 
 /* ===== Helper: ambil id_workspace dari storage ===== */
 /* 🔥 PRIORITAS LOCAL STORAGE → BARU SESSION → FALLBACK 1 */
+/**
+ * getWorkspaceId
+ * - Mengambil id_workspace dari browser storage
+ *   1) coba localStorage dulu
+ *   2) kalau tidak ada, coba sessionStorage
+ *   3) kalau tetap tidak ada / invalid, fallback ke 1
+ * - Aman untuk SSR: cek typeof window
+ */
 const getWorkspaceId = () => {
   try {
     if (typeof window === "undefined") return 1;
@@ -61,6 +75,12 @@ const getWorkspaceId = () => {
 };
 
 /* ===== Helpers: mapping API <-> UI ===== */
+/**
+ * toUiCourse
+ * - Mapping data dari bentuk API (backend) → bentuk UI (frontend)
+ * - Backend pakai field seperti: id_courses, name, start, end, sks
+ * - Frontend butuh: id, title, time (format "HH:MM - HH:MM"), dsb
+ */
 const toUiCourse = (api) => ({
   id: api.id_courses,
   title: api.name,
@@ -75,6 +95,12 @@ const toUiCourse = (api) => ({
   id_workspace: api.id_workspace ?? null,
 });
 
+/**
+ * toApiCourse
+ * - Mapping data dari bentuk UI (frontend) → bentuk API (backend)
+ * - Mengambil `start` dan `end` dari ui.time atau dari startTime/endTime
+ * - Selalu menambahkan id_workspace (diambil dari getWorkspaceId)
+ */
 const toApiCourse = (ui) => {
   const [start = "", end = ""] = (
     ui.time || `${ui.startTime || ""} - ${ui.endTime || ""}`
@@ -102,28 +128,99 @@ const toApiCourse = (ui) => {
 };
 
 /* ===== Order of days (always render) ===== */
+/**
+ * dayOrder
+ * - Urutan kolom/hari yang selalu ditampilkan
+ * - Dipakai agar tampilan grid konsisten meskipun list course kosong
+ */
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 // shimmer config
+/**
+ * SKELETON_PER_DAY
+ * - Jumlah skeleton card yang tampil per kolom hari saat loading
+ */
 const SKELETON_PER_DAY = 1;
 
+/**
+ * Courses (Page)
+ * - Halaman utama untuk menampilkan daftar courses per hari (grid 5 kolom)
+ * - Fitur: fetch data dari API, search, grouping per day
+ * - Drawer kanan: detail course (edit/delete) & add course
+ * - Responsive: kalau mobile/tablet → render <Tab />
+ */
 export const Courses = () => {
+  /**
+   * State courses: list course bentuk UI (flat array)
+   * - Hasil mapping dari API menggunakan toUiCourse
+   */
   const [courses, setCourses] = useState([]); // flat array (UI shape)
+
+  /**
+   * State loading: true saat fetch/aksi sedang berjalan (terutama initial fetch)
+   * - Dipakai untuk menampilkan shimmer skeleton
+   */
   const [loading, setLoading] = useState(true);
+
+  /**
+   * State selectedCourse: course yang sedang dibuka di drawer detail
+   * - null berarti drawer detail tidak aktif
+   */
   const [selectedCourse, setSelectedCourse] = useState(null); // UI course
+
+  /**
+   * State showAdd: true jika drawer AddCourse sedang dibuka
+   * - false jika tidak
+   */
   const [showAdd, setShowAdd] = useState(false);
+
+  /**
+   * State searchTerm: text input untuk filter course
+   */
   const [searchTerm, setSearchTerm] = useState("");
 
+  /**
+   * drawerRef: referensi DOM drawer panel
+   * - dipakai untuk animasi GSAP (slide in/out)
+   */
   const drawerRef = useRef(null);
+
+  /**
+   * headerRef: referensi DOM header (saat ini belum dipakai animasi,
+   * tapi siap kalau ingin ditambahkan animasi/interaction)
+   */
   const headerRef = useRef(null);
 
+  /**
+   * Responsive check:
+   * - isMobile: maxWidth 767
+   * - isTablet: 768–1024
+   * Kalau true, diarahkan ke layout Tab
+   */
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
 
   // 🔥 workspaceId diambil sekali dari helper
+  /**
+   * workspace
+   * - id_workspace yang dipakai untuk filter data course
+   * - useMemo agar nilainya stabil (tidak berubah tiap render)
+   */
   const workspace = useMemo(() => getWorkspaceId(), []);
 
   /* ===== Fetch from API ===== */
+  /**
+   * useEffect: fetch list courses dari backend
+   * Sambungan API:
+   * - GET /api/courses?idWorkspace={workspace}
+   * Tujuan:
+   * - Backend mengembalikan courses sesuai workspace
+   * - Data di-mapping ke bentuk UI (toUiCourse)
+   * - Ada filter tambahan di frontend untuk jaga-jaga
+   *
+   * mounted flag:
+   * - untuk mencegah setState kalau komponen sudah unmount
+   */
   useEffect(() => {
     let mounted = true;
     setLoading(true);
@@ -153,6 +250,11 @@ export const Courses = () => {
   }, [workspace]);
 
   /* ===== Kunci scroll body saat drawer aktif ===== */
+  /**
+   * useEffect: mengunci scroll body ketika drawer terbuka
+   * - Kalau selectedCourse atau showAdd aktif → overflow: hidden
+   * - Kalau drawer ditutup → overflow kembali seperti semula
+   */
   useEffect(() => {
     const lock = selectedCourse || showAdd;
     const prev = document.body.style.overflow;
@@ -162,6 +264,12 @@ export const Courses = () => {
     };
   }, [selectedCourse, showAdd]);
 
+  /**
+   * useLayoutEffect: animasi drawer masuk/keluar
+   * - Saat selectedCourse/showAdd aktif → drawer slide in dari kanan
+   * - Saat keduanya false → drawer slide out ke kanan
+   * - useLayoutEffect dipakai agar animasi sinkron sebelum paint (lebih halus)
+   */
   useLayoutEffect(() => {
     const el = drawerRef.current;
     if (!el) return;
@@ -178,6 +286,12 @@ export const Courses = () => {
   }, [selectedCourse, showAdd]);
 
   /* ===== Search & Grouping ===== */
+  /**
+   * filteredCourses
+   * - Memfilter courses berdasarkan searchTerm
+   * - Dicari di: title, alias, lecturer (case-insensitive)
+   * - useMemo supaya tidak hitung ulang kalau courses/searchTerm tidak berubah
+   */
   const filteredCourses = useMemo(() => {
     if (!searchTerm.trim()) return courses;
     const term = searchTerm.toLowerCase();
@@ -189,6 +303,11 @@ export const Courses = () => {
     );
   }, [courses, searchTerm]);
 
+  /**
+   * groupedCourses
+   * - Mengelompokkan courses hasil filter berdasarkan hari (c.day)
+   * - Output: object { [day]: Course[] }
+   */
   const groupedCourses = useMemo(() => {
     const grouped = {};
     filteredCourses.forEach((c) => {
@@ -199,13 +318,30 @@ export const Courses = () => {
     return grouped;
   }, [filteredCourses]);
 
-  // Pastikan semua hari ada (meski kosong) agar count selalu tampil
+  /**
+   * groupedWithAllDays
+   * - Memastikan semua hari di `dayOrder` selalu punya key,
+   *   meskipun tidak ada course (biar kolom tetap muncul & count tampil 0)
+   */
   const groupedWithAllDays = useMemo(() => {
     const base = dayOrder.reduce((acc, d) => ({ ...acc, [d]: [] }), {});
     return { ...base, ...groupedCourses };
   }, [groupedCourses]);
 
   /* ===== ADD: AddCourse -> POST -> update state ===== */
+  /**
+   * handleAddCourse
+   * Sambungan API:
+   * - POST /api/courses
+   * Body: payload hasil toApiCourse(newCourseUi)
+   *
+   * Alur:
+   * - Convert UI → API payload (termasuk id_workspace)
+   * - Fetch POST
+   * - Ambil response json (kadang {message, data:[...]} / kadang langsung object)
+   * - Convert lagi ke UI shape (toUiCourse)
+   * - Masukkan ke state (di depan array) + tutup drawer add
+   */
   const handleAddCourse = async (newCourseUi) => {
     try {
       const payload = toApiCourse(newCourseUi);
@@ -230,6 +366,20 @@ export const Courses = () => {
   };
 
   /* ===== UPDATE: CourseDetail -> PUT -> sync UI ===== */
+  /**
+   * handleUpdateCourse
+   * Sambungan API:
+   * - PUT /api/courses
+   * Body: payload hasil toApiCourse(merged) + memastikan id_courses terisi
+   *
+   * Alur:
+   * - Gabungkan partialUi dari form dengan selectedCourse (biar field aman)
+   * - Normalisasi id (support beberapa nama field id)
+   * - Optimistic update: langsung update state UI dulu
+   * - Kirim PUT ke backend
+   * - Kalau sukses: update selectedCourse agar sinkron
+   * - Kalau gagal: throw error supaya CourseDetail bisa tampilkan alert
+   */
   const handleUpdateCourse = async (partialUi) => {
     // Gabung dengan selectedCourse supaya id & field lain terjaga
     const merged = { ...selectedCourse, ...partialUi };
@@ -280,6 +430,15 @@ export const Courses = () => {
   };
 
   /* ===== DELETE: sinkron UI setelah API delete ===== */
+  /**
+   * handleDeleteCourse
+   * Sambungan API:
+   * - DELETE /api/courses?id={id}
+   *
+   * Alur:
+   * - Kirim request delete ke backend
+   * - Kalau sukses: hapus dari state courses + tutup drawer (selectedCourse null)
+   */
   const handleDeleteCourse = async (id) => {
     try {
       const res = await fetch(`/api/courses?id=${id}`, {
@@ -294,6 +453,12 @@ export const Courses = () => {
   };
 
   /* ===== Close dengan animasi keluar lalu unmount ===== */
+  /**
+   * handleCloseDrawer
+   * - Menutup drawer dengan animasi slide out
+   * - Setelah animasi selesai, barulah reset state:
+   *   selectedCourse = null dan showAdd = false
+   */
   const handleCloseDrawer = () => {
     if (drawerRef.current) {
       gsap.to(drawerRef.current, {
@@ -311,8 +476,20 @@ export const Courses = () => {
     }
   };
 
+  /**
+   * Responsive fallback:
+   * - Kalau device mobile/tablet → gunakan layout Tab (bukan grid 5 kolom)
+   */
   if (isMobile || isTablet) return <Tab />;
 
+  /**
+   * Render halaman desktop:
+   * - Sidebar kiri
+   * - Header + search input
+   * - Overview + tombol Add Course
+   * - Grid 5 kolom per hari
+   * - Overlay + drawer kanan untuk detail/add course
+   */
   return (
     // gap-6 = 24px antara Sidebar dan konten (sesuai revisi)
     <div className="relative flex h-full w-full overflow-hidden bg-background font-inter text-foreground gap-[0px]">
@@ -335,6 +512,7 @@ export const Courses = () => {
             </p>
           </div>
 
+          {/* Search input: update searchTerm */}
           <div className="flex w-64 items-center rounded-lg border border-[#464646] bg-[#000000] px-3 py-2">
             <i className="ri-search-line mr-2 text-gray-400" />
             <input
@@ -350,6 +528,8 @@ export const Courses = () => {
         {/* Overview */}
         <div className="relative z-30 mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Overview</h2>
+
+          {/* Tombol membuka drawer AddCourse */}
           <button
             onClick={() => setShowAdd(true)}
             className="flex cursor-pointer items-center gap-2 rounded-lg bg-gradient-to-br from-[#34146C] to-[#28073B] px-4 py-2 text-sm shadow-[0_0_10px_rgba(147,51,234,0.3)] transition hover:shadow-[0_0_18px_rgba(147,51,234,0.5)]"
@@ -419,6 +599,7 @@ export const Courses = () => {
                         </div>
                       ))
                     ) : list.length > 0 ? (
+                      // Render list course untuk hari tersebut
                       list.map((course) => (
                         <div
                           key={course.id}
@@ -444,15 +625,22 @@ export const Courses = () => {
 
       {/* OVERLAY & DRAWER */}
       {(selectedCourse || showAdd) && (
+        /**
+         * Overlay:
+         * - Menggelapkan background saat drawer terbuka
+         * - Klik di area overlay akan menutup drawer (handleCloseDrawer)
+         */
         <div
           className="fixed inset-0 z-[60] flex items-start justify-end bg-black/50"
           onClick={handleCloseDrawer}
         >
+          {/* Drawer panel: stopPropagation agar klik di dalam drawer tidak menutup */}
           <div
             ref={drawerRef}
             className="drawer-panel relative h-full w-[628px] bg-[#111] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Drawer Detail */}
             {selectedCourse && (
               <CourseDetail
                 course={selectedCourse}
@@ -462,6 +650,7 @@ export const Courses = () => {
               />
             )}
 
+            {/* Drawer Add */}
             {showAdd && (
               <AddCourse onClose={handleCloseDrawer} onAdd={handleAddCourse} />
             )}

@@ -6,25 +6,41 @@ import { useMediaQuery } from "react-responsive";
 import { useNavigate } from "react-router-dom";
 import DeletePopup from "@/components/Delete";
 
-/* ========== API CONFIG ========== */
+/* =========================================================
+   API CONFIG
+   - API_URL: endpoint utama CRUD workspace
+   - API_USER_ME: endpoint untuk ambil user aktif (id_user)
+========================================================= */
 const API_URL = "/api/workspaces";
 const API_USER_ME = "/api/index";
 
-/* ========== Helper: fetch JSON aman ========== */
+/* =========================================================
+   fetchJson()
+   Fungsi helper untuk fetch() yang lebih aman:
+   - Selalu mengembalikan { res, data }
+   - Bisa handle response JSON / text biasa
+   - Bisa handle status 204 (no content)
+   - Bisa handle body kosong
+   - Kalau header bilang JSON tapi parse gagal → throw error
+========================================================= */
 async function fetchJson(input, init) {
   const res = await fetch(input, init);
   const type = res.headers.get("content-type") || "";
   const isJSON = type.includes("application/json");
 
+  // 204 biasanya tidak ada body (misal delete sukses)
   if (res.status === 204) return { res, data: null };
 
+  // ambil body mentah
   const text = await res.text();
   if (!text) return { res, data: null };
 
+  // jika JSON, parse
   if (isJSON) {
     try {
       return { res, data: JSON.parse(text) };
     } catch {
+      // kasih error yang informatif supaya gampang debug server
       throw new Error(
         `Invalid JSON from server (status ${res.status}). Body: "${text.slice(
           0,
@@ -33,10 +49,24 @@ async function fetchJson(input, init) {
       );
     }
   }
+
+  // jika bukan JSON, balikin string mentah
   return { res, data: text };
 }
 
-/* ========== Fallback dari localStorage (id_user INT8) ========== */
+/* =========================================================
+   getUidLocal()
+   Fallback untuk ambil id_user dari localStorage.
+   Dipakai jika:
+   - /api/index error
+   - /api/index tidak mengembalikan id_user
+   Urutan cek:
+   1) localStorage.id_user (langsung)
+   2) localStorage.user (JSON) → ambil u.id_user
+   Return:
+   - number jika ketemu
+   - null jika tidak ada / error parse / storage error
+========================================================= */
 const getUidLocal = () => {
   try {
     const id = localStorage.getItem("id_user");
@@ -51,12 +81,26 @@ const getUidLocal = () => {
     }
     return null;
   } catch {
-    // ignore localStorage error
+    // jika localStorage tidak bisa diakses / JSON invalid → abaikan
     return null;
   }
 };
 
-/* ========== Ambil id_user dari /api/index (INT8) ========== */
+/* =========================================================
+   getUidApi()
+   Mengambil id_user dari endpoint /api/index
+   Tujuan:
+   - Dapetin user aktif yang sedang login dari server
+   Kenapa banyak branch?
+   - Karena bentuk response API kadang beda-beda:
+     - { id_user: ... }
+     - { data: { id_user: ... } }
+     - [ { id_user: ... } ]
+   Return:
+   - number id_user
+   - null jika tidak ditemukan / NaN
+   Throw error jika status response tidak ok (res.ok false)
+========================================================= */
 async function getUidApi() {
   const { res, data } = await fetchJson(API_USER_ME, { method: "GET" });
   if (!res.ok) {
@@ -82,10 +126,25 @@ async function getUidApi() {
   return Number.isNaN(num) ? null : num;
 }
 
-/* ========== Helper workspace id ========== */
+/* =========================================================
+   getWsId()
+   Helper untuk ambil id_workspace dengan aman.
+   Karena bentuk workspace bisa:
+   - ws.__raw.id_workspace
+   - ws.id_workspace
+   - ws.id
+   - atau bahkan sudah berupa angka id (langsung)
+========================================================= */
 const getWsId = (wsOrId) =>
   wsOrId?.__raw?.id_workspace ?? wsOrId.id_workspace ?? wsOrId.id ?? wsOrId;
 
+/* =========================================================
+   Workspaces (Wrapper)
+   Tujuan:
+   - Deteksi device size (mobile/tablet/desktop)
+   - Mobile/tablet → render komponen Mobile (UI beda)
+   - Desktop → render WsPage (UI drawer kanan)
+========================================================= */
 export default function Workspaces() {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
@@ -94,21 +153,45 @@ export default function Workspaces() {
   return <WsPage />;
 }
 
-/* ========== Desktop Page ========== */
+/* =========================================================
+   WsPage (Desktop Page)
+   Halaman utama Desktop:
+   - Background asset gambar SVG (dekorasi)
+   - Kiri: Logo/Brand "GRADIA"
+   - Kanan: Drawer list workspace + create row
+   - Dropdown per row (Edit/Delete)
+   - Inline edit (input) untuk rename workspace
+   - Delete pakai popup konfirmasi
+========================================================= */
 function WsPage() {
+  /* -------------------------------------------------------
+     vw(), vh()
+     Helper untuk convert px desain figma ke vw/vh
+     supaya responsif mengikuti ukuran layar.
+  -------------------------------------------------------- */
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`;
   const vh = (px) => `calc(${(px / 768) * 100}vh)`;
 
+  /* -------------------------------------------------------
+     Konstanta layout drawer dan spacing
+  -------------------------------------------------------- */
   const DRAWER_W = 694;
   const PAD_X = 77;
   const TOP_HEADER = 100;
+
+  /* Gradient border untuk drawer kanan */
   const BORDER_GRADIENT =
     "linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.1) 100%)";
 
+  /* dipakai untuk padding bawah list supaya tidak “nabrak” footer area */
   const FOOTER_OFFSET = 81;
   const FOOTER_H = 24;
   const BOTTOM_SPACER = FOOTER_OFFSET + FOOTER_H + 12;
 
+  /* -------------------------------------------------------
+     textGrad
+     Dipakai untuk text judul "Welcome..." agar punya gradient
+  -------------------------------------------------------- */
   const textGrad = {
     background: "linear-gradient(180deg,#FAFAFA 0%, #949494 100%)",
     WebkitBackgroundClip: "text",
@@ -116,30 +199,40 @@ function WsPage() {
     color: "transparent",
   };
 
-  const { showAlert } = useAlert();
-  const nav = useNavigate();
+  const { showAlert } = useAlert(); // custom hook alert/toast
+  const nav = useNavigate(); // navigation react-router
 
-  /* ====== STATE ====== */
-  const [uid, setUid] = useState(null);
-  const [list, setList] = useState([]);
-  const [loading, setLoading] = useState(false);
+  /* =====================================================
+     STATE UTAMA
+  ====================================================== */
+  const [uid, setUid] = useState(null); // id_user aktif
+  const [list, setList] = useState([]); // list workspace yang ditampilkan
+  const [loading, setLoading] = useState(false); // loading state list
 
-  const [menuId, setMenuId] = useState(null);
-  const [confirm, setConfirm] = useState(false);
-  const [selWs, setSelWs] = useState(null);
+  const [menuId, setMenuId] = useState(null); // id row yang dropdown-nya kebuka
+  const [confirm, setConfirm] = useState(false); // apakah popup delete tampil
+  const [selWs, setSelWs] = useState(null); // workspace yang dipilih untuk delete
 
-  const [editId, setEditId] = useState(null);
-  const [draft, setDraft] = useState("");
+  const [editId, setEditId] = useState(null); // id row yang sedang diedit
+  const [draft, setDraft] = useState(""); // isi input rename workspace
 
-  const [createMode, setCreateMode] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [createMode, setCreateMode] = useState(false); // mode create row aktif
+  const [newName, setNewName] = useState(""); // input create workspace
 
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false); // loading saat create
 
-  const pageRef = useRef(null);
-  const createRef = useRef(null);
+  const pageRef = useRef(null); // ref container utama untuk deteksi click outside
+  const createRef = useRef(null); // ref baris create untuk click outside
 
-  /* ====== bootstrap: ambil id_user dari API, fallback localStorage ====== */
+  /* =====================================================
+     BOOTSTRAP USER ID
+     Alur:
+     - Saat komponen mount:
+       1) coba ambil id_user dari API (/api/index)
+       2) jika gagal / null → fallback localStorage
+     Kenapa pakai cancelled?
+     - Untuk mencegah setState setelah unmount (memory leak warning)
+  ====================================================== */
   useEffect(() => {
     let cancelled = false;
 
@@ -165,7 +258,18 @@ function WsPage() {
     };
   }, []);
 
-  /* ====== Fetch list workspace setelah id_user diketahui ====== */
+  /* =====================================================
+     FETCH LIST WORKSPACE
+     Trigger:
+     - Saat uid berubah (uid sudah ketemu)
+     Alur:
+     1) setLoading(true)
+     2) tentukan effective uid (uid state atau fallback local)
+     3) GET /api/workspaces?id_user=...
+     4) normalisasi data response (bisa array / data.data / data.workspaces)
+     5) filter berdasarkan id_user (biar aman)
+     6) mapping → {id, name, __raw}
+  ====================================================== */
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -221,11 +325,18 @@ function WsPage() {
     load();
   }, [uid]);
 
-  /* ====== Close dropdown + cancel create on outside click ====== */
+  /* =====================================================
+     CLICK OUTSIDE HANDLER
+     Tujuan:
+     - Kalau klik di luar pageRef → tutup dropdown + cancel create
+     - Kalau createMode aktif tapi klik di luar createRef → cancel create
+     - Kalau dropdown kebuka tapi klik bukan di dropdown/trigger → tutup dropdown
+  ====================================================== */
   useEffect(() => {
     const handleClick = (e) => {
       if (!pageRef.current) return;
 
+      // Klik di luar area page → reset semuanya
       if (!pageRef.current.contains(e.target)) {
         setMenuId(null);
         if (createMode) {
@@ -235,6 +346,7 @@ function WsPage() {
         return;
       }
 
+      // Jika createMode aktif, klik di luar form create → cancel
       if (
         createMode &&
         createRef.current &&
@@ -244,6 +356,7 @@ function WsPage() {
         setNewName("");
       }
 
+      // Jika dropdown terbuka, klik bukan di dropdown/trigger → tutup dropdown
       if (menuId !== null) {
         const inside = e.target.closest(".workspace-dropdown");
         const trigger = e.target.closest(".workspace-more-trigger");
@@ -255,7 +368,14 @@ function WsPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [createMode, menuId]);
 
-  // ✅ Enter: ke dashboard milik workspace (pakai id_workspace)
+  /* =====================================================
+     handleEnter(ws)
+     Tujuan:
+     - Saat user klik row/Enter → masuk ke dashboard workspace tsb
+     - Simpan id_workspace ke localStorage & sessionStorage
+     - Simpan current_workspace untuk referensi nama workspace
+     - Navigasi ke /dashboard
+  ====================================================== */
   const handleEnter = (ws) => {
     const id_workspace = getWsId(ws);
     try {
@@ -282,18 +402,38 @@ function WsPage() {
     nav("/dashboard");
   };
 
-  /* ====== Handlers ====== */
+  /* =====================================================
+     startEdit(ws)
+     Tujuan:
+     - Aktifkan mode edit untuk row tertentu
+     - Isi draft dengan nama workspace lama
+     - Tutup dropdown menu
+  ====================================================== */
   const startEdit = (ws) => {
     setEditId(ws.id);
     setDraft(ws.name);
     setMenuId(null);
   };
 
+  /* =====================================================
+     cancelEdit()
+     Tujuan:
+     - Keluar dari mode edit
+     - Kosongkan draft
+  ====================================================== */
   const cancelEdit = () => {
     setEditId(null);
     setDraft("");
   };
 
+  /* =====================================================
+     saveEdit(id)
+     Tujuan:
+     - Validasi draft tidak kosong
+     - Kirim PUT ke API untuk update name
+     - Update list di UI jika sukses
+     - Tampilkan alert success/error
+  ====================================================== */
   const saveEdit = async (id) => {
     const next = draft.trim();
     if (!next) {
@@ -360,13 +500,30 @@ function WsPage() {
     }
   };
 
+  /* =====================================================
+     askDelete(ws)
+     Tujuan:
+     - Set workspace terpilih untuk dihapus
+     - Buka popup konfirmasi delete
+     - Tutup dropdown
+  ====================================================== */
   const askDelete = (ws) => {
     setSelWs(ws);
     setConfirm(true);
     setMenuId(null);
   };
 
-  // delete optimistic — popup tutup, row hilang
+  /* =====================================================
+     handleDelete()
+     Tujuan:
+     - Delete workspace dengan pendekatan optimistic UI:
+       1) Tutup popup + reset selection
+       2) Hapus row dari UI duluan biar terasa cepat
+       3) Baru panggil API DELETE
+     Catatan:
+     - Kalau API gagal, saat ini UI tidak rollback list (ini konsekuensi optimistic)
+       tapi menampilkan alert error.
+  ====================================================== */
   const handleDelete = async () => {
     if (!selWs) return;
 
@@ -374,6 +531,7 @@ function WsPage() {
     setConfirm(false);
     setSelWs(null);
 
+    // Optimistic: hilangkan dari UI segera
     setList((prev) => prev.filter((w) => w.id !== ws.id));
 
     try {
@@ -415,16 +573,36 @@ function WsPage() {
     }
   };
 
+  /* =====================================================
+     startCreate()
+     Tujuan:
+     - Masuk ke mode create (baris create menjadi input)
+  ====================================================== */
   const startCreate = () => {
     setCreateMode(true);
     setNewName("");
   };
 
+  /* =====================================================
+     cancelCreate()
+     Tujuan:
+     - Keluar dari mode create
+     - Reset input newName
+  ====================================================== */
   const cancelCreate = () => {
     setCreateMode(false);
     setNewName("");
   };
 
+  /* =====================================================
+     addWs()
+     Tujuan:
+     - Validasi nama workspace baru
+     - Pastikan uid tersedia
+     - Kirim POST /api/workspaces
+     - Tambahkan hasil ke list UI
+     - Tampilkan alert success/error
+  ====================================================== */
   const addWs = async () => {
     const name = newName.trim();
     if (!name) {
@@ -471,11 +649,13 @@ function WsPage() {
         throw new Error(msg);
       }
 
+      // Normalisasi response create
       const body = data && typeof data === "object" ? data : {};
       const created = Array.isArray(body.data)
         ? body.data[0]
         : body.data ?? {};
 
+      // Mapping row yang akan ditambahkan ke UI
       const mapped = {
         id: created.id_workspace ?? created.id ?? Math.random(),
         name: created.name ?? name,
@@ -509,6 +689,13 @@ function WsPage() {
     }
   };
 
+  /* =====================================================
+     Variabel render:
+     - totalRows: list workspace + 1 baris create
+     - scroll: jika row > 4 maka list jadi scrollable
+     - ROW_AREA_MAX_HEIGHT: tinggi maksimum area list
+     - LOAD_COUNT: jumlah placeholder saat loading
+  ====================================================== */
   const totalRows = list.length + 1;
   const scroll = totalRows > 4;
   const ROW_AREA_MAX_HEIGHT = 292;
@@ -519,7 +706,10 @@ function WsPage() {
       ref={pageRef}
       className="relative h-screen w-screen overflow-hidden bg-black text-white scrollbar-hide"
     >
-      {/* === style untuk loading box (dulu shimmer) === */}
+      {/* =====================================================
+         STYLE LOADING ROW
+         - Animasi gradia-loading untuk placeholder baris saat loading
+      ====================================================== */}
       <style>
         {`
           @keyframes gradia-loading {
@@ -543,7 +733,11 @@ function WsPage() {
         `}
       </style>
 
-      {/* === BACKGROUND === */}
+      {/* =====================================================
+         BACKGROUND (Dekorasi)
+         - 3 gambar SVG diposisikan absolute
+         - pointer-events-none → tidak mengganggu klik UI
+      ====================================================== */}
       <div className="pointer-events-none absolute inset-0 select-none">
         <img
           src="/Asset 1.svg"
@@ -584,24 +778,28 @@ function WsPage() {
         />
       </div>
 
-      {/* === CONTENT === */}
+      {/* =====================================================
+         CONTENT
+         Layout:
+         - Kiri: branding "GRADIA"
+         - Kanan: drawer list workspaces
+      ====================================================== */}
       <div className="relative z-20 flex h-full w-full">
-        {/* LEFT SIDE */}
+        {/* LEFT SIDE: Logo/Brand */}
         <div className="flex h-full grow flex-col pt-[50px] pl-[52px]">
           <div
             className="inline-flex items-baseline gap-1 leading-none"
             style={{ fontFamily: "'Genos', sans-serif", fontWeight: 700 }}
           >
+            {/* "GRA" warna ungu, "DIA" putih */}
             <span className="text-[128px] tracking-tight text-[#9457FF]">
               GRA
             </span>
-            <span className="text-[128px] tracking-tight text-white">
-              DIA
-            </span>
+            <span className="text-[128px] tracking-tight text-white">DIA</span>
           </div>
         </div>
 
-        {/* RIGHT DRAWER */}
+        {/* RIGHT DRAWER: Panel utama list workspace */}
         <aside
           className="flex h-full flex-col font-[Inter] text-[#A3A3A3] bg-white/10 rounded-[18px] border border-transparent backdrop-blur-[10px]"
           style={{
@@ -616,7 +814,7 @@ function WsPage() {
             minHeight: "100%",
           }}
         >
-          {/* HEADER */}
+          {/* HEADER: Title + subtitle */}
           <header className="mb-[48px] text-center">
             <h1
               className="mb-2 text-[48px] font-extrabold leading-tight"
@@ -629,7 +827,7 @@ function WsPage() {
             </p>
           </header>
 
-          {/* WORKSPACE LIST */}
+          {/* WORKSPACE LIST AREA */}
           <div
             className="scrollbar-hide px-[16px]"
             style={{
@@ -639,6 +837,7 @@ function WsPage() {
             }}
           >
             <div className="space-y-[12px]">
+              {/* Jika loading → tampilkan placeholder LoadingRow */}
               {loading ? (
                 <>
                   {Array.from({ length: LOAD_COUNT }).map((_, idx) => (
@@ -647,6 +846,7 @@ function WsPage() {
                 </>
               ) : (
                 <>
+                  {/* Render semua workspace */}
                   {list.map((ws) => (
                     <Row
                       key={ws.id}
@@ -684,7 +884,7 @@ function WsPage() {
             </div>
           </div>
 
-          {/* Footer (tetap dikomentari agar tampilan sama) */}
+          {/* Footer masih dikomentari agar UI tetap sama persis */}
           {/*
           <p
             className="text-[#B9B9B9] text-[16px] w-full text-center"
@@ -702,7 +902,12 @@ function WsPage() {
         </aside>
       </div>
 
-      {/* Delete Popup */}
+      {/* =====================================================
+         Delete Popup
+         - Tampil jika confirm true dan selWs ada
+         - onCancel menutup popup
+         - onDelete menjalankan handleDelete()
+      ====================================================== */}
       {confirm && selWs && (
         <DeletePopup
           title="Delete Workspace"
@@ -718,7 +923,14 @@ function WsPage() {
   );
 }
 
-/* ====================== Item Row ====================== */
+/* =========================================================
+   Row()
+   Komponen 1 baris workspace:
+   - Klik row → enter workspace (kecuali sedang edit)
+   - Tombol 3 titik → buka dropdown (Edit/Delete)
+   - Mode editing → ganti text jadi input + tombol Save
+   - Hover/pressed → ganti background
+========================================================= */
 function Row({
   ws,
   menuOpen,
@@ -732,20 +944,32 @@ function Row({
   save,
   enter,
 }) {
+  /* -------------------------------------------------------
+     initials:
+     - Membuat inisial dari nama workspace
+     - Jika 1 kata → ambil 2 huruf
+     - Jika >=2 kata → huruf pertama dari 2 kata pertama
+  -------------------------------------------------------- */
   const initials = useMemo(() => {
     const parts = ws.name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }, [ws.name]);
 
+  /* -------------------------------------------------------
+     inputRef:
+     - Dipakai untuk autofocus ketika editing aktif
+  -------------------------------------------------------- */
   const inputRef = useRef(null);
   useEffect(() => {
     if (editing && inputRef.current) inputRef.current.focus();
   }, [editing]);
 
-  const [pressed, setPressed] = useState(false);
-  const [hover, setHover] = useState(false);
+  /* state lokal untuk interaksi UI */
+  const [pressed, setPressed] = useState(false); // efek klik tahan
+  const [hover, setHover] = useState(false); // efek hover
 
+  /* background berubah jika hover/pressed/editing */
   const bg =
     editing || pressed || hover ? "bg-[#333131]" : "bg-[#141414]";
 
@@ -760,15 +984,17 @@ function Row({
       }}
       onMouseEnter={() => setHover(true)}
       onClick={() => {
+        // Klik baris akan enter, kecuali sedang edit
         if (!editing) enter();
       }}
     >
       <div className="flex w-full items-center px-[21px]">
+        {/* Trigger dropdown (3 titik) hanya muncul jika tidak editing */}
         {!editing && (
           <button
             type="button"
             onClick={(e) => {
-              e.stopPropagation();
+              e.stopPropagation(); // mencegah enter saat klik tombol
               toggleMenu();
             }}
             className="workspace-more-trigger inline-flex h-[35px] w-[35px] cursor-pointer items-center justify-center"
@@ -778,6 +1004,7 @@ function Row({
           </button>
         )}
 
+        {/* Badge inisial workspace */}
         {!editing && (
           <span
             className="ml-[18.5px] inline-flex h-[35px] w-[42px] items-center justify-center rounded-md"
@@ -794,6 +1021,7 @@ function Row({
           </span>
         )}
 
+        {/* Nama workspace / input edit */}
         <div className={`${editing ? "ml-0" : "ml-[16px]"} flex-1 text-[18px]`}>
           {editing ? (
             <input
@@ -801,19 +1029,21 @@ function Row({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
+                // Enter = save, Escape = cancel
                 if (e.key === "Enter") save();
                 if (e.key === "Escape") cancelEdit();
               }}
               className="w-full border-0 bg-transparent text-[#FAFAFA] outline-none ring-0 placeholder-[#A3A3A3]"
               placeholder="New workspace name"
               style={{ fontSize: 18 }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()} // biar klik input ga enter
             />
           ) : (
             <span className="text-foreground">{ws.name}</span>
           )}
         </div>
 
+        {/* Tombol kanan: Save saat edit, Enter saat normal */}
         <div className="ml-auto flex items-center gap-2">
           {editing ? (
             <button
@@ -837,7 +1067,7 @@ function Row({
             <button
               type="button"
               onClick={(e) => {
-                e.stopPropagation();
+                e.stopPropagation(); // klik tombol tidak trigger klik row
                 enter();
               }}
               className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 text-white"
@@ -855,6 +1085,7 @@ function Row({
         </div>
       </div>
 
+      {/* Dropdown menu: Edit / Delete */}
       {!editing && menuOpen && (
         <div
           className="workspace-dropdown absolute left-[8px] top-[8px] z-30 w-[160px] overflow-hidden rounded-[10px]"
@@ -863,8 +1094,9 @@ function Row({
             border: "1px solid rgba(255,255,255,0.12)",
             boxShadow: "0 8px 30px rgba(0,0,0,0.45)",
           }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()} // biar klik dropdown ga enter
         >
+          {/* Action: start edit */}
           <button
             className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[#FAFAFA] hover:bg-[#2a2a2a]"
             onClick={startEdit}
@@ -872,6 +1104,8 @@ function Row({
             <i className="ri-edit-line" />
             Edit
           </button>
+
+          {/* Action: buka confirm delete */}
           <button
             className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[#FF8686] hover:bg-[#2a2a2a]"
             onClick={askDelete}
@@ -885,7 +1119,11 @@ function Row({
   );
 }
 
-/* ====================== Loading Row (dulu Skeleton / shimmer) ====================== */
+/* =========================================================
+   LoadingRow()
+   Placeholder baris workspace saat loading:
+   - Menggunakan class gradia-loading (animasi gradient)
+========================================================= */
 function LoadingRow() {
   return (
     <div className="relative flex h-[64px] w-full items-center overflow-hidden rounded-[12px] bg-[#141414]">
@@ -894,7 +1132,17 @@ function LoadingRow() {
   );
 }
 
-/* ====================== Create Row ====================== */
+/* =========================================================
+   CreateRow()
+   Baris untuk membuat workspace baru:
+   - Jika active=false → tampil "Create new workspace"
+   - Jika active=true → tampil input + tombol Add
+   Interaksi:
+   - Klik baris saat inactive → start()
+   - Enter di input → add()
+   - Escape di input → cancel()
+   - submitting=true → disable dan tampil "Adding..."
+========================================================= */
 function CreateRow({
   refEl,
   active,
@@ -925,11 +1173,13 @@ function CreateRow({
       }}
       onMouseEnter={() => setHover(true)}
       onClick={() => {
+        // kalau belum active, klik baris akan masuk mode create
         if (!active && !disabled) start();
       }}
       title={active ? undefined : "Create new workspace"}
     >
       <div className="flex w-full items-center px-[21px]">
+        {/* Ikon + hanya saat belum active */}
         {!active && (
           <span
             className="inline-flex items-center justify-center"
@@ -948,6 +1198,7 @@ function CreateRow({
           </span>
         )}
 
+        {/* Text atau input create */}
         <div
           className={`${active ? "ml-0" : "ml-[16px]"} flex-1 text-[18px]`}
           style={{ color: "#A3A3A3" }}
@@ -957,6 +1208,7 @@ function CreateRow({
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
+                // Enter = add, Escape = cancel
                 if (e.key === "Enter" && !disabled) add();
                 if (e.key === "Escape" && !disabled) cancel();
               }}
@@ -965,13 +1217,14 @@ function CreateRow({
               style={{ fontSize: 18 }}
               autoFocus
               disabled={disabled}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()} // biar klik input ga start lagi
             />
           ) : (
             <span>Create new workspace</span>
           )}
         </div>
 
+        {/* Tombol Add muncul hanya saat active */}
         {active && (
           <div className="ml-auto flex items-center">
             <button
@@ -1001,7 +1254,12 @@ function CreateRow({
   );
 }
 
-/* ========== PropTypes (untuk hilangkan warning react/prop-types) ========== */
+/* =========================================================
+   PropTypes
+   Tujuan:
+   - Menghilangkan warning react/prop-types
+   - Dokumentasi bentuk props yang diharapkan komponen
+========================================================= */
 Row.propTypes = {
   ws: PropTypes.shape({
     id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),

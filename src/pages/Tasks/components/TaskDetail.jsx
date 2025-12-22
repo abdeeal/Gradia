@@ -1,9 +1,8 @@
-// src/pages/Tasks/components/TaskDetail.jsx
 import React, {
   useEffect,
   useRef,
   useState,
-  useCallback, // ⬅️ tambahan
+  useCallback,
 } from "react";
 import PropTypes from "prop-types";
 import gsap from "gsap";
@@ -14,6 +13,13 @@ import DeletePopup from "@/components/Delete";
 import { getWorkspaceId } from "@/components/GetWorkspace";
 
 /* ---------- Helpers: date/time ---------- */
+/**
+ * toDateInput
+ * Fungsi untuk mengubah nilai tanggal (Date/ISO/string) menjadi format yang cocok untuk input type="date" (YYYY-MM-DD).
+ * Dipakai untuk:
+ * - mengisi default value field deadline pada form saat buka TaskDetail
+ * - memastikan data dari API/task bisa langsung masuk ke input date
+ */
 const toDateInput = (d) => {
   if (!d) return "";
   if (typeof d === "string" && d.includes("-")) return d.slice(0, 10);
@@ -22,6 +28,15 @@ const toDateInput = (d) => {
   return dt.toISOString().slice(0, 10);
 };
 
+/**
+ * toTimeInput
+ * Fungsi untuk mengubah nilai waktu dari deadline (Date/ISO) menjadi format input type="time" (HH:mm).
+ * Aturan:
+ * - kalau fallbackTime ada (misalnya task.time), itu dipakai langsung
+ * - kalau tidak ada, coba ambil jam & menit dari deadline
+ * Dipakai untuk:
+ * - mengisi default value field time pada form
+ */
 const toTimeInput = (d, fallbackTime) => {
   if (fallbackTime) return fallbackTime;
   if (!d) return "";
@@ -32,7 +47,11 @@ const toTimeInput = (d, fallbackTime) => {
   return `${hh}:${mm}`;
 };
 
-/* dd/mm/yyyy (untuk view) */
+/**
+ * formatDateDDMMYYYY
+ * Fungsi untuk mengubah format ISO date (YYYY-MM-DD) menjadi tampilan dd/mm/yyyy untuk mode "view" (bukan edit).
+ * Dipakai ketika field deadline tidak sedang diedit (editingKey !== "deadline_time").
+ */
 const formatDateDDMMYYYY = (iso) => {
   if (!iso) return "";
   const [y, m, d] = iso.split("-");
@@ -40,10 +59,26 @@ const formatDateDDMMYYYY = (iso) => {
   return `${d}/${m}/${y}`;
 };
 
-/* small timing helper */
+/**
+ * wait
+ * Fungsi helper untuk delay berbasis Promise.
+ * Dipakai untuk:
+ * - menahan minimal durasi loading (misalnya minimal 1 detik) agar UX tidak "kedip" terlalu cepat
+ * - sinkronisasi UI saat fetch/save/delete
+ */
 const wait = (ms) => new Promise((res) => setTimeout(res, ms));
 
 /* ---------- Title (2 baris) ---------- */
+/**
+ * Title
+ * Komponen judul task (maks 2 baris).
+ * Mode:
+ * - editable = false: tampil sebagai text (read mode) dengan placeholder jika kosong
+ * - editable = true : tampil sebagai textarea untuk edit judul
+ * Perilaku penting:
+ * - onBlur memanggil onFocusOut untuk keluar dari mode edit
+ * - Enter tanpa Shift akan mengakhiri edit (submit/close edit), sedangkan Shift+Enter membuat baris baru
+ */
 const Title = ({ value, onChange, className, editable, onFocusOut }) => {
   if (!editable) {
     return (
@@ -108,9 +143,21 @@ Title.defaultProps = {
 };
 
 /* ---------- Badge Styles ---------- */
+/**
+ * BADGE_BASE
+ * Class dasar untuk badge (priority/status) agar ukuran & typography konsisten di UI.
+ */
 const BADGE_BASE =
   "inline-flex items-center justify-center h-[30px] rounded-[4px] text-[16px] font-[Montserrat] leading-none w-fit px-2";
 
+/**
+ * priorityValueClass
+ * Fungsi untuk menentukan className badge berdasarkan nilai priority:
+ * - High   => merah
+ * - Medium => kuning
+ * - Low    => abu
+ * Dipakai pada BadgeSelect khusus priority.
+ */
 const priorityValueClass = (val) => {
   if (val === "High") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
   if (val === "Medium") return `${BADGE_BASE} bg-[#EAB308]/20 text-[#FDE047]`;
@@ -119,6 +166,17 @@ const priorityValueClass = (val) => {
 };
 
 /* ---------- Status normalizer ---------- */
+/**
+ * normalizeStatus
+ * Fungsi untuk menormalkan teks status agar konsisten meskipun input dari API/user beda penulisan.
+ * Contoh:
+ * - "inprogress" -> "In progress"
+ * - default jika kosong -> "Not started"
+ * Dipakai:
+ * - set initial state form.status
+ * - saat user mengubah status via select
+ * - saat build payload save
+ */
 const normalizeStatus = (s) => {
   const m = String(s || "").trim().toLowerCase();
   if (m === "in progress" || m === "inprogress") return "In progress";
@@ -128,6 +186,11 @@ const normalizeStatus = (s) => {
   return s || "Not started";
 };
 
+/**
+ * statusValueClass
+ * Fungsi untuk menentukan className badge berdasarkan status (yang sudah dinormalisasi).
+ * Dipakai pada BadgeSelect khusus status.
+ */
 const statusValueClass = (val) => {
   const v = normalizeStatus(val);
   if (v === "In progress") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
@@ -138,6 +201,11 @@ const statusValueClass = (val) => {
 };
 
 /* ---------- Row & Inputs ---------- */
+/**
+ * Row
+ * Komponen layout satu baris field (icon + label + slot isi).
+ * Dipakai untuk merapikan tampilan form, sekaligus bisa dibuat clickable (onClick) untuk masuk mode edit per-field.
+ */
 const Row = ({ icon, label, children, onClick, className }) => (
   <div
     className={`flex items-center gap-3 group h-[30px] ${
@@ -169,6 +237,15 @@ Row.defaultProps = {
   className: "",
 };
 
+/**
+ * InputBase
+ * Komponen input reusable yang menerima "as" untuk menentukan element (input, textarea, dll).
+ * Dipakai untuk:
+ * - input text (description/link)
+ * - input date/time
+ * - input number (score)
+ * onBlur dipakai untuk keluar dari mode edit per-field.
+ */
 const InputBase = ({ as: Comp, className, onBlur, ...rest }) => (
   <Comp
     {...rest}
@@ -189,6 +266,16 @@ InputBase.defaultProps = {
   onBlur: undefined,
 };
 
+/**
+ * BadgeSelect
+ * Komponen wrapper select yang menampilkan value sebagai badge berwarna.
+ * Dipakai untuk:
+ * - Priority select
+ * - Status select
+ * Props penting:
+ * - valueClassFn menentukan class badge per item/value
+ * - placeholder menggunakan value (kalau ada) agar label terlihat sebagai badge
+ */
 const BadgeSelect = ({ value, onChange, options, valueClassFn, label }) => (
   <div className="flex items-center h-[30px] w-full">
     <SelectUi
@@ -229,6 +316,12 @@ BadgeSelect.defaultProps = {
 };
 
 /* ---------- Courses helpers ---------- */
+/**
+ * normalizeCourses
+ * Fungsi untuk menyeragamkan struktur data courses dari berbagai sumber response.
+ * Output: array of { id_courses, name }
+ * Dipakai saat merge course dari props/task/API.
+ */
 const normalizeCourses = (list = []) =>
   list
     .map((c) => ({
@@ -244,13 +337,24 @@ const normalizeCourses = (list = []) =>
     }))
     .filter((c) => c.id_courses && c.name);
 
+/**
+ * uniqBy
+ * Fungsi untuk menghapus duplikat array berdasarkan key tertentu.
+ * Dipakai untuk memastikan daftar courses tidak double ketika digabung dari beberapa sumber.
+ */
 const uniqBy = (arr, keyFn) => {
   const m = new Map();
   arr.forEach((x) => m.set(keyFn(x), x));
   return Array.from(m.values());
 };
 
-/* Seed dari task agar label trigger langsung muncul */
+/**
+ * seedCoursesFromTask
+ * Fungsi untuk membuat "seed" course dari data task yang sedang dibuka.
+ * Tujuan UX:
+ * - agar label/select trigger langsung bisa menampilkan course dari task
+ *   walaupun fetch courses dari API belum selesai.
+ */
 const seedCoursesFromTask = (task) => {
   const id =
     task?.id_course ?? task?.course_id ?? task?.relatedCourse ?? task?.course?.id;
@@ -260,6 +364,17 @@ const seedCoursesFromTask = (task) => {
 };
 
 /* ---------- Main component ---------- */
+/**
+ * TaskDetail
+ * Drawer panel untuk melihat dan mengedit detail task yang sudah ada.
+ * Fitur utama:
+ * - Edit inline per-field (title/description/deadline/score/link) dengan editingKey
+ * - Select priority & status dengan badge
+ * - Related course select yang fetch datanya sekali (lazy) dan terkunci sampai siap
+ * - Save perubahan via onSave (dari parent)
+ * - Delete task via onDelete + popup konfirmasi
+ * - Animasi drawer masuk/keluar pakai GSAP
+ */
 const TaskDetail = ({
   task,
   setDrawer,
@@ -277,8 +392,10 @@ const TaskDetail = ({
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  // ambil workspace id untuk parameter request API (courses) dan payload save
   const idWorkspace = getWorkspaceId();
 
+  // state form untuk menampung field yang ditampilkan & diedit di UI
   const [form, setForm] = useState({
     id_task: task?.id_task,
     title: task?.title || "",
@@ -296,18 +413,27 @@ const TaskDetail = ({
     score: task?.score ?? "",
     link: task?.link || "",
   });
+
+  // editingKey menentukan field mana yang sedang mode edit (inline edit)
   const [editingKey, setEditingKey] = useState(null);
 
+  // state courses untuk dropdown course (seed dari task + dari props)
   const [courses, setCourses] = useState(() => {
     const fromTask = seedCoursesFromTask(task);
     const fromProp = normalizeCourses(coursesProp || []);
     return uniqBy([...fromTask, ...fromProp], (c) => String(c.id_courses));
   });
 
+  // flags kontrol fetch course (agar hanya fetch sekali + bisa tampil loading yang smooth)
   const [coursesFetching, setCoursesFetching] = useState(false);
   const [coursesFetched, setCoursesFetched] = useState(false);
   const [isCourseOpen, setIsCourseOpen] = useState(false);
 
+  /**
+   * setVal
+   * Helper update field form supaya penulisan setForm lebih ringkas & konsisten.
+   * Dipakai di semua onChange field.
+   */
   const setVal = (k, v) =>
     setForm((p) => ({
       ...p,
@@ -315,6 +441,19 @@ const TaskDetail = ({
     }));
 
   /* fetchCoursesOnce dibungkus useCallback agar stable untuk useEffect */
+  /**
+   * fetchCoursesOnce
+   * Fungsi untuk fetch list course dari API sekali saja.
+   * Guard:
+   * - kalau sudah fetched atau sedang fetching -> return
+   * Tujuan:
+   * - isi dropdown Related Course
+   * - merge hasil API dengan course yang sudah ada (seed/props)
+   * - memastikan minimal loading 1 detik (pakai wait) agar UI loading tidak kedip
+   * Dipanggil:
+   * - saat component mount (useEffect)
+   * - saat dropdown dibuka (onOpenChange)
+   */
   const fetchCoursesOnce = useCallback(async () => {
     if (coursesFetched || coursesFetching) return;
     setCoursesFetching(true);
@@ -334,6 +473,7 @@ const TaskDetail = ({
         )
       );
 
+      // jika form.id_course berisi sesuatu yang tidak ada di list id, coba cocokkan by name
       const hasId = list.some(
         (c) => String(c.id_courses) === String(form.id_course)
       );
@@ -361,10 +501,22 @@ const TaskDetail = ({
     form.id_course, // dipakai di dalam function
   ]);
 
+  /**
+   * useEffect (mount)
+   * Memastikan fetchCoursesOnce dipanggil saat awal component tampil,
+   * supaya list course tersedia tanpa harus menunggu user membuka dropdown.
+   */
   useEffect(() => {
     fetchCoursesOnce();
   }, [fetchCoursesOnce]);
 
+  /**
+   * useEffect (task berubah)
+   * Ketika user memilih task berbeda:
+   * - reset isi form sesuai task baru
+   * - reset editingKey (keluar dari mode edit)
+   * - seed course dari task baru agar trigger select tetap punya label
+   */
   useEffect(() => {
     if (!task) return;
     setForm({
@@ -393,6 +545,13 @@ const TaskDetail = ({
   }, [task]);
 
   /* ---------- GSAP drawer animation ---------- */
+  /**
+   * useEffect (animasi drawer)
+   * Saat drawer muncul:
+   * - animasi slide dari kanan (x: 100% -> 0)
+   * Saat drawer unmount:
+   * - animasi keluar ke kanan (x: 0 -> 100%)
+   */
   useEffect(() => {
     const el = drawerRef.current;
     if (!el) return;
@@ -413,11 +572,32 @@ const TaskDetail = ({
     };
   }, []);
 
+  /**
+   * closeDrawer
+   * Fungsi untuk menutup drawer:
+   * - prioritas panggil onClose (kalau disediakan parent)
+   * - kalau tidak ada, pakai setDrawer(false)
+   */
   const closeDrawer = () => {
     if (onClose) onClose();
     else setDrawer?.(false);
   };
 
+  /**
+   * handleSave
+   * Fungsi untuk menyimpan perubahan task (update).
+   * Flow:
+   * 1) validasi title tidak boleh kosong
+   * 2) pastikan task.id_task ada (TaskDetail bukan tempat create)
+   * 3) gabungkan deadline + time jadi ISO
+   * 4) build payload sesuai API
+   * 5) panggil onSave(payload) (dari parent)
+   * 6) jika sukses:
+   *    - callback onTaskUpdated(payload) untuk update state parent/optimistic
+   *    - tampilkan alert success
+   *    - keluar dari mode edit + tutup drawer
+   * 7) jika gagal: tampilkan alert error
+   */
   const handleSave = async () => {
     if (!form.title.trim()) {
       showAlert({
@@ -507,6 +687,17 @@ const TaskDetail = ({
     }
   };
 
+  /**
+   * handleDelete
+   * Fungsi untuk menghapus task.
+   * Flow:
+   * 1) validasi ada task.id_task dan onDelete tersedia
+   * 2) optional: onTaskDeleted dipanggil dulu untuk optimistic update parent
+   * 3) panggil onDelete(id) untuk request delete ke server
+   * 4) jika sukses: alert success + tutup drawer
+   * 5) jika gagal: alert error + refreshTasks untuk sinkron ulang list
+   * 6) menjaga minimal loading 1 detik (UX)
+   */
   const handleDelete = async () => {
     if (!task?.id_task) return;
     if (typeof onDelete !== "function") return;
@@ -562,6 +753,14 @@ const TaskDetail = ({
   if (!task) return null;
 
   // onBlur khusus deadline
+  /**
+   * handleDeadlineBlur
+   * Fungsi blur handler khusus untuk field deadline+time.
+   * Tujuan:
+   * - ketika user klik keluar dari area date/time, maka editingKey ditutup
+   * - setTimeout(0) dipakai supaya pengecekan document.activeElement terjadi setelah fokus benar-benar pindah
+   * - deadlineEditRef memastikan: kalau fokus masih di dalam wrapper date/time, jangan tutup edit
+   */
   const handleDeadlineBlur = () => {
     setTimeout(() => {
       if (!deadlineEditRef.current) return;
