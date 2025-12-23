@@ -1,4 +1,3 @@
-// src/pages/Loginpage/Login.jsx // Lokasi file komponen Login (path project)
 import React, { useState, useEffect } from "react"; // Import React + hooks state & effect
 import { useMediaQuery } from "react-responsive"; // Hook untuk cek ukuran layar (responsive)
 import Mobile from "./Layout/Mobile"; // Import tampilan khusus mobile/tablet
@@ -16,7 +15,7 @@ const Login = () => { // Komponen utama Login (wrapper responsive)
 
 function DesktopLoginPage() { // Komponen login khusus desktop
   const navigate = useNavigate(); // Fungsi untuk redirect ke route lain
-  const { showAlert } = useAlert(); // ✅ init alert: ambil fungsi showAlert dari hook
+  const { showAlert } = useAlert(); // init alert: ambil fungsi showAlert dari hook
 
   // normal login (email & password) // Penjelasan: login biasa pakai email+password
   const [email, setEmail] = useState(""); // State input email
@@ -25,7 +24,7 @@ function DesktopLoginPage() { // Komponen login khusus desktop
   // state untuk error & loading // Penjelasan: state untuk pesan error dan indikator loading
   const [errorMsg, setErrorMsg] = useState(""); // Menyimpan pesan error yang ditampilkan di form
   const [googleLoading, setGoogleLoading] = useState(false); // Loading khusus proses login Google
-  const [loading, setLoading] = useState(false); // ✅ loading login: loading khusus login manual
+  const [loading, setLoading] = useState(false); // loading login: loading khusus login manual
 
   const vw = (px) => `calc(${(px / 1440) * 100}vw)`; // Helper konversi px -> vw berdasar desain 1440px
   const vh = (px) => `calc(${(px / 768) * 100}vh)`; // Helper konversi px -> vh berdasar desain 768px
@@ -78,10 +77,10 @@ function DesktopLoginPage() { // Komponen login khusus desktop
   const handleLogin = async (e) => { // Handler submit form login
     e.preventDefault(); // Cegah reload halaman saat submit
     setErrorMsg(""); // Reset pesan error lama
-    setLoading(true); // ✅ mulai loading: tampilkan state loading pada tombol login
+    setLoading(true); // mulai loading: tampilkan state loading pada tombol login
 
     try { // Mulai blok try untuk menangkap error network/exception
-      // ⬅️ SEKARANG pakai POST + JSON body, sesuai backend // Penjelasan: backend expect POST JSON
+      //backend expect POST JSON
       const res = await fetch("/api/auth/index", { // Request ke endpoint login backend
         method: "POST", // Metode POST
         headers: { // Header request
@@ -90,7 +89,7 @@ function DesktopLoginPage() { // Komponen login khusus desktop
         },
         body: JSON.stringify({ // Body request di-stringify
           action: "login", // Instruksi aksi untuk backend (login)
-          text: email, // ⬅️ backend expect "text" (bisa email / username)
+          text: email, //backend expect "text" (bisa email / username)
           password: password, // Password yang diinput user
         }),
       });
@@ -112,7 +111,7 @@ function DesktopLoginPage() { // Komponen login khusus desktop
         return; // Stop eksekusi handleLogin
       }
 
-      // ✅ kalau backend kirim otp_required = true (akun belum verifikasi) // Kondisi akun perlu OTP
+      // Kondisi akun perlu OTP
       if (data.otp_required) { // Jika backend menyatakan perlu verifikasi OTP
         // simpan data user sementara kalau perlu dipakai di halaman OTP // Menyimpan data user pending
         if (data.user) { // Jika ada object user yang dikirim
@@ -156,15 +155,15 @@ function DesktopLoginPage() { // Komponen login khusus desktop
         email: emailFromApi, // Isi email
       };
 
-      // ✅ simpan objek user (JSON) // Simpan user lengkap ke localStorage
+      // simpan objek user (JSON) // Simpan user lengkap ke localStorage
       localStorage.setItem("user", JSON.stringify(user)); // Simpan objek user sebagai JSON string
 
-      // ✅ simpan id_user sebagai angka (INT8, tidak di-JSON.stringify) // Simpan id_user raw (string/angka)
+      // simpan id_user sebagai angka (INT8, tidak di-JSON.stringify) // Simpan id_user raw (string/angka)
       if (idUser != null) { // Pastikan idUser ada
         localStorage.setItem("id_user", idUser); // Simpan id_user
       }
 
-      // ✅ username & email sebagai TEXT // Simpan username/email sebagai string biasa
+      // username & email sebagai TEXT // Simpan username/email sebagai string biasa
       if (username) { // Jika username ada
         localStorage.setItem("username", username); // Simpan username
       }
@@ -186,12 +185,12 @@ function DesktopLoginPage() { // Komponen login khusus desktop
         height: 380, // Tinggi alert
       });
     } finally { // Selalu dieksekusi setelah try/catch
-      setLoading(false); // ✅ berhenti loading: matikan loading tombol login manual
+      setLoading(false); // berhenti loading: matikan loading tombol login manual
     }
   };
 
 
-  // === Google Login: sama endpoint dengan Mobile === // Handler login dengan Google, endpoint sama seperti Mobile
+  // Handler login dengan Google, endpoint sama seperti Mobile
   const handleGoogleLogin = async () => { // Fungsi saat user klik tombol Google
     try { // Try agar error bisa ditangkap dan di-alert
       setErrorMsg(""); // Reset error message
@@ -202,7 +201,7 @@ function DesktopLoginPage() { // Komponen login khusus desktop
 
       if (!res.ok) { // Jika HTTP status tidak OK
         const message = data.error || "Google login failed"; // Ambil pesan error dari server atau default
-        // ✅ alert error dari server // Tampilkan alert error dari server
+        // Tampilkan alert error dari server
         showAlert({
           icon: "ri-error-warning-fill", // Icon error
           title: "Google Login Failed", // Judul alert
@@ -232,7 +231,7 @@ function DesktopLoginPage() { // Komponen login khusus desktop
       console.error("Google login error (desktop):", err); // Log error ke console
       const message = err?.message || "Google login failed. Please try again."; // Tentukan pesan error
       setErrorMsg(message); // Set error message di UI
-      // ✅ alert error catch // Alert untuk error yang tertangkap
+      //Alert untuk error yang tertangkap
       showAlert({
         icon: "ri-error-warning-fill", // Icon error
         title: "Google Login Error", // Judul
@@ -245,7 +244,7 @@ function DesktopLoginPage() { // Komponen login khusus desktop
     }
   };
 
-  // === Callback Google: simpan user & redirect ke /workspace === // Handle callback setelah Google OAuth (ambil token dari hash)
+  // Handle callback setelah Google OAuth (ambil token dari hash)
   useEffect(() => { // Effect dijalankan saat komponen mount dan saat navigate/showAlert berubah
     const hash = window.location.hash; // Ambil bagian hash URL (setelah #)
     if (!hash.includes("access_token")) return; // Jika tidak ada access_token, skip (bukan callback)

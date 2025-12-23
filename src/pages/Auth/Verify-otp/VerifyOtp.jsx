@@ -346,7 +346,6 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => { // Komponen u
   const ss = String(secondsLeft % 60).padStart(2, "0"); // Hitung detik sisa (2 digit)
   const timerLabel = `${mm}:${ss}`; // Gabungkan jadi format mm:ss
 
-  /* ===== Handler perubahan OTP (stabil) ===== */
   const handleOtpChange = useCallback((code) => { // Buat handler stabil dengan useCallback
     setOtp(code); // Simpan OTP terbaru ke state
   }, []); // Dependency kosong karena hanya setState
@@ -461,7 +460,6 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => { // Komponen u
     } // Tutup try-catch-finally
   }; // Tutup handleResend
 
-  /* ===== Mobile/Tablet: tetap pakai layout Mobile apa adanya ===== */
   if (isMobile || isTablet) { // Jika mobile atau tablet
     return ( // Return layout Mobile
       <Mobile // Render komponen Mobile (existing)
@@ -474,7 +472,6 @@ const VerifyOtp = ({ email, expiredAt, from, user, purpose }) => { // Komponen u
     ); // Tutup return
   } // Tutup if mobile/tablet
 
-  /* ===== Desktop: pakai CommonUIDesktop ===== */
   return ( // Return UI desktop
     <CommonUIDesktop // Render layout desktop
       mode={mode} // Mode halaman

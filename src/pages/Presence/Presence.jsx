@@ -713,7 +713,7 @@ function Presence() {
               onOpenAddPresence={setSelectedCourse}
               // Override totals agar card menampilkan total terbaru
               totalsTodayOverride={totals}
-              /* 🔥 loading dioper ke PresenceCard */
+              /* loading dioper ke PresenceCard */
               // Kirim state loading awal supaya card bisa tampil skeleton/loader
               isLoading={initialLoading}
             />

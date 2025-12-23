@@ -1,4 +1,3 @@
-// src/pages/Courses/components/AddCourse.jsx
 import React, { useState } from "react";
 import PropTypes from "prop-types";
 import SelectUi from "@/components/Select";

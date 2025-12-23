@@ -49,7 +49,6 @@ const ShimmerStyles = () => (
 );
 
 /* ===== Helper: ambil id_workspace dari storage ===== */
-/* 🔥 PRIORITAS LOCAL STORAGE → BARU SESSION → FALLBACK 1 */
 /**
  * getWorkspaceId
  * - Mengambil id_workspace dari browser storage
@@ -122,7 +121,6 @@ const toApiCourse = (ui) => {
     room: ui.room || "",
     sks: Number(ui.sks) || 0,
     link: ui.link || "",
-    // 🔥 selalu kirim id_workspace ke backend
     id_workspace: workspaceId,
   };
 };
@@ -200,7 +198,6 @@ export const Courses = () => {
   const isMobile = useMediaQuery({ maxWidth: 767 });
   const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1024 });
 
-  // 🔥 workspaceId diambil sekali dari helper
   /**
    * workspace
    * - id_workspace yang dipakai untuk filter data course
@@ -225,7 +222,7 @@ export const Courses = () => {
     let mounted = true;
     setLoading(true);
 
-    // 🔥 kirim idWorkspace ke API supaya filter di backend
+    // kirim idWorkspace ke API supaya filter di backend
     fetch(`/api/courses?idWorkspace=${workspace}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch courses");
@@ -235,7 +232,7 @@ export const Courses = () => {
         if (!mounted) return;
         const uiAll = Array.isArray(data) ? data.map(toUiCourse) : [];
 
-        // 🔥 tambahan filter di frontend jaga-jaga
+        // tambahan filter di frontend jaga-jaga
         const ui = uiAll.filter(
           (c) => Number(c.id_workspace) === Number(workspace)
         );
@@ -355,7 +352,7 @@ export const Courses = () => {
       const created = Array.isArray(json?.data) ? json.data[0] : json;
       const createdUi = toUiCourse(created);
 
-      // 🔥 hanya masukkan course yg workspace-nya sama
+      // hanya masukkan course yg workspace-nya sama
       if (Number(createdUi.id_workspace) !== Number(workspace)) return;
 
       setCourses((prev) => [createdUi, ...prev]);
@@ -403,7 +400,7 @@ export const Courses = () => {
       prev.map((c) => (c.id === id ? { ...c, ...merged } : c))
     );
 
-    // 🔥 pastikan body ke backend SELALU punya id_courses
+    // pastikan body ke backend SELALU punya id_courses
     const basePayload = toApiCourse(merged);
     const payload = {
       ...basePayload,
@@ -428,8 +425,7 @@ export const Courses = () => {
       throw e;
     }
   };
-
-  /* ===== DELETE: sinkron UI setelah API delete ===== */
+  
   /**
    * handleDeleteCourse
    * Sambungan API:

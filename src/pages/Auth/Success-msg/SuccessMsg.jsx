@@ -205,7 +205,7 @@ function ForgotSuccess() { // Fungsi komponen React untuk halaman sukses reset p
         /> {/* Akhir img Asset 4 */}
       </div> {/* Akhir container BACKGROUND */}
 
-      {/* OVERLAY */} {/* Komentar: layer overlay gradient */}
+      {/* OVERLAY */} 
       <div // Div overlay gradient
         className="absolute inset-0 z-5" // Full layar, z-index di atas background
         style={{ // Style inline untuk gradient overlay
@@ -214,7 +214,7 @@ function ForgotSuccess() { // Fungsi komponen React untuk halaman sukses reset p
         }} // Akhir objek style
       /> {/* Akhir overlay */}
 
-      {/* CONTENT */} {/* Komentar: konten utama */}
+      {/* CONTENT */} 
       <div className="relative z-20 flex h-full flex-col items-center justify-center text-center"> {/* Layer konten utama di atas overlay */}
         <div // Container untuk judul dan icon checklist
           className="flex items-center justify-center gap-[0.5vw]" // Flex, center, gap
