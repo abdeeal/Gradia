@@ -12,6 +12,7 @@ import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
 import DeletePopup from "@/components/Delete";
 import { getWorkspaceId } from "@/components/GetWorkspace";
+import { DateTime } from "./DateTime";
 
 /* ---------- Helpers: date/time ---------- */
 const toDateInput = (d) => {
@@ -120,7 +121,9 @@ const priorityValueClass = (val) => {
 
 /* ---------- Status normalizer ---------- */
 const normalizeStatus = (s) => {
-  const m = String(s || "").trim().toLowerCase();
+  const m = String(s || "")
+    .trim()
+    .toLowerCase();
   if (m === "in progress" || m === "inprogress") return "In progress";
   if (m === "not started" || m === "notstarted") return "Not started";
   if (m === "completed") return "Completed";
@@ -130,10 +133,12 @@ const normalizeStatus = (s) => {
 
 const statusValueClass = (val) => {
   const v = normalizeStatus(val);
-  if (v === "In progress") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
+  if (v === "In progress")
+    return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
   if (v === "Completed") return `${BADGE_BASE} bg-[#14532D]/60 text-[#4ADE80]`;
   if (v === "Overdue") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
-  if (v === "Not started") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
+  if (v === "Not started")
+    return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
   return BADGE_BASE;
 };
 
@@ -169,7 +174,7 @@ Row.defaultProps = {
   className: "",
 };
 
-const InputBase = ({ as: Comp, className, onBlur, ...rest }) => (
+const InputBase = ({ as: Comp = "input", className, onBlur, ...rest }) => (
   <Comp
     {...rest}
     onBlur={onBlur}
@@ -253,7 +258,10 @@ const uniqBy = (arr, keyFn) => {
 /* Seed dari task agar label trigger langsung muncul */
 const seedCoursesFromTask = (task) => {
   const id =
-    task?.id_course ?? task?.course_id ?? task?.relatedCourse ?? task?.course?.id;
+    task?.id_course ??
+    task?.course_id ??
+    task?.relatedCourse ??
+    task?.course?.id;
   const name = task?.course?.name ?? task?.relatedCourse ?? task?.course_name;
   if (!id || !name) return [];
   return [{ id_courses: String(id), name }];
@@ -283,14 +291,13 @@ const TaskDetail = ({
     id_task: task?.id_task,
     title: task?.title || "",
     description: task?.description || "",
-    deadline: toDateInput(task?.deadline) || "",
-    time: toTimeInput(task?.deadline, task?.time) || "",
+    deadline: task?.deadline || "",
     id_course:
       task?.id_course != null
         ? String(task.id_course)
         : task?.relatedCourse != null
-        ? String(task.relatedCourse)
-        : null,
+          ? String(task.relatedCourse)
+          : null,
     priority: task?.priority || "High",
     status: normalizeStatus(task?.status) || "Not started",
     score: task?.score ?? "",
@@ -371,14 +378,13 @@ const TaskDetail = ({
       id_task: task.id_task,
       title: task.title || "",
       description: task.description || "",
-      deadline: toDateInput(task.deadline) || "",
-      time: toTimeInput(task.deadline, task.time) || "",
+      deadline: task.deadline || "",
       id_course:
         task?.id_course != null
           ? String(task.id_course)
           : task?.relatedCourse != null
-          ? String(task.relatedCourse)
-          : null,
+            ? String(task.relatedCourse)
+            : null,
       priority: task.priority || "High",
       status: normalizeStatus(task.status) || "Not started",
       score: task.score ?? "",
@@ -397,11 +403,7 @@ const TaskDetail = ({
     const el = drawerRef.current;
     if (!el) return;
 
-    gsap.fromTo(
-      el,
-      { x: "100%" },
-      { x: 0, duration: 0.5, ease: "power3.out" }
-    );
+    gsap.fromTo(el, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
 
     return () => {
       if (!el) return;
@@ -442,9 +444,7 @@ const TaskDetail = ({
       return;
     }
 
-    const combinedDeadline =
-      form.deadline &&
-      new Date(`${form.deadline}T${form.time || "00:00"}`);
+    const combinedDeadline = form.deadline ? new Date(form.deadline) : null;
 
     const payload = {
       id_task: task.id_task,
@@ -469,10 +469,7 @@ const TaskDetail = ({
     try {
       setLoading(true);
       const savePromise = onSave(payload);
-      const [saveResult] = await Promise.allSettled([
-        savePromise,
-        wait(1000),
-      ]);
+      const [saveResult] = await Promise.allSettled([savePromise, wait(1000)]);
 
       if (saveResult.status === "rejected") {
         throw saveResult.reason;
@@ -551,7 +548,8 @@ const TaskDetail = ({
 
   // nama course yang tampil di trigger
   const selectedCourseName =
-    courses.find((c) => String(c.id_courses) === String(form.id_course))?.name ||
+    courses.find((c) => String(c.id_courses) === String(form.id_course))
+      ?.name ||
     task?.course?.name ||
     task?.course_name ||
     task?.relatedCourse ||
@@ -642,60 +640,17 @@ const TaskDetail = ({
               )}
             </Row>
 
-            <Row
-              icon="ri-calendar-2-line"
-              label="Deadline"
-              onClick={() => setEditingKey("deadline_time")}
-            >
-              {editingKey === "deadline_time" ? (
-                <div
-                  ref={deadlineEditRef}
-                  className="flex items-center gap-2 w-full h-[30px]"
-                >
-                  <div className="w-[65%]">
-                    <InputBase
-                      as="input"
-                      type="date"
-                      value={form.deadline}
-                      onChange={(e) => setVal("deadline", e.target.value)}
-                      onBlur={handleDeadlineBlur}
-                      placeholder="dd/mm/yyyy"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="w-[35%]">
-                    <InputBase
-                      as="input"
-                      type="time"
-                      value={form.time}
-                      onChange={(e) => setVal("time", e.target.value)}
-                      onBlur={handleDeadlineBlur}
-                      placeholder="--:--"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="w-full flex items-center gap-2 h-[30px]">
-                  <div className="w-[65%] truncate">
-                    {form.deadline ? (
-                      <span className="text-gray-200">
-                        {formatDateDDMMYYYY(form.deadline)}
-                      </span>
-                    ) : (
-                      <span className="text-gray-500">dd/mm/yyyy</span>
-                    )}
-                  </div>
-                  <div className="w-[35%] truncate">
-                    {form.time ? (
-                      <span className="text-gray-200">{form.time}</span>
-                    ) : (
-                      <span className="text-gray-500">--:--</span>
-                    )}
-                  </div>
-                </div>
-              )}
+            <Row icon="ri-calendar-2-line" label="Deadline">
+              <DateTime
+                value={form.deadline}
+                onChange={(val) => {
+                  setForm((prev) => {
+                    if (prev.deadline === val) return prev;
+                    return { ...prev, deadline: val };
+                  });
+                }}
+              />
             </Row>
-
             <Row icon="ri-links-line" label="Related Course">
               <div
                 className={`flex items-center h-[30px] w-full ${
@@ -716,12 +671,6 @@ const TaskDetail = ({
                   strategy="fixed"
                   sideOffset={6}
                   alignOffset={8}
-                  open={isCourseOpen && !isCourseLocked}
-                  onOpenChange={(o) => {
-                    if (isCourseLocked) return;
-                    setIsCourseOpen(o);
-                    if (o) fetchCoursesOnce();
-                  }}
                 >
                   <SelectLabel className="text-[14px] font-inter text-gray-400 px-2 py-1">
                     Related Course

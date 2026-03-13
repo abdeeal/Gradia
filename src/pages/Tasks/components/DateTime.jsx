@@ -46,7 +46,7 @@ export function DateTime({ defaultValue, value, onChange }) {
             <Button
               variant="outline"
               id="date-picker"
-              className="w-fit justify-between font-normal text-[16px] border-none px-0 focus:px-2 hover:px-2 flex gap-2 !py-0 focus:py-1 h-fit hover:h-9 focus:h-9"
+              className="w-fit justify-between font-normal text-[16px] border-none px-0 focus:px-2 hover:px-2 flex gap-2 !py-0 lg:px-2 lg:h-8 focus:py-1 h-fit hover:h-9 focus:h-9"
             >
               {date ? date.toLocaleDateString() : "Select date"}
             </Button>
@@ -74,7 +74,7 @@ export function DateTime({ defaultValue, value, onChange }) {
           step="60"
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          className="bg-background border-none appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none focus-visible:ring-[2px] !py-0 focus:py-0 h-fit focus:h-9"
+          className="bg-background border-none appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none focus-visible:ring-[2px] !py-0 focus:py-0 h-fit focus:h-9 lg:h-8"
         />
       </div>
     </div>

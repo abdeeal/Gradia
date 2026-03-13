@@ -6,6 +6,7 @@ import axios from "axios";
 import { useAlert } from "@/hooks/useAlert";
 import SelectUi from "@/components/Select";
 import { SelectItem, SelectLabel } from "@/components/ui/select";
+import { DateTime } from "./DateTime";
 
 /* ---------- Const ---------- */
 const BADGE_BASE =
@@ -23,7 +24,9 @@ const prioCls = (val) => {
 };
 
 const normStatus = (s) => {
-  const m = String(s || "").trim().toLowerCase();
+  const m = String(s || "")
+    .trim()
+    .toLowerCase();
   if (m === "in progress" || m === "inprogress") return "In progress";
   if (m === "not started" || m === "notstarted") return "Not started";
   if (m === "completed") return "Completed";
@@ -33,10 +36,12 @@ const normStatus = (s) => {
 
 const statusCls = (val) => {
   const v = normStatus(val);
-  if (v === "In progress") return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
+  if (v === "In progress")
+    return `${BADGE_BASE} bg-[#083344]/60 text-[#22D3EE]`;
   if (v === "Completed") return `${BADGE_BASE} bg-[#14532D]/60 text-[#4ADE80]`;
   if (v === "Overdue") return `${BADGE_BASE} bg-[#7F1D1D]/60 text-[#F87171]`;
-  if (v === "Not started") return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
+  if (v === "Not started")
+    return `${BADGE_BASE} bg-[#27272A]/60 text-[#D4D4D8]`;
   return BADGE_BASE;
 };
 
@@ -106,9 +111,7 @@ const Row = ({ icon, label, children }) => (
   <div className="flex items-center gap-3 group h-[30px]">
     {icon && <i className={`${icon} text-gray-400 text-[16px]`} />}
     <span className="w-32 text-gray-400 whitespace-nowrap">{label}</span>
-    <div className="flex-1 min-w-0 flex items-center h-[30px]">
-      {children}
-    </div>
+    <div className="flex-1 min-w-0 flex items-center h-[30px]">{children}</div>
   </div>
 );
 
@@ -132,7 +135,6 @@ const InputBase = ({ as: Comp = "input", className = "", ...rest }) => {
     />
   );
 };
-
 
 InputBase.propTypes = {
   as: PropTypes.oneOfType([PropTypes.string, PropTypes.elementType]),
@@ -184,19 +186,35 @@ BadgeSelect.defaultProps = {
 };
 
 /* ---------- Main Component ---------- */
-const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => {
+const AddTask = ({
+  onClose,
+  refreshTasks,
+  setDrawer,
+  courses: coursesProp,
+}) => {
   const { showAlert } = useAlert();
   const drawerRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const todayISO = React.useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 59, 0, 0);
+    return d.toISOString().slice(0, 10);
+  }, []);
+
+  const todayISODateTime = React.useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 59, 0, 0);
+    return d.toISOString();
+  }, []);
+
   const [form, setForm] = useState({
     title: "",
     description: "",
-    deadline: "",
-    time: "",
+    deadline: todayISODateTime,
     id_course: null,
-    priority: "",
-    status: "",
+    priority: "High",
+    status: "Not started",
     score: "",
     link: "",
   });
@@ -213,11 +231,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
     if (!drawerRef.current) return;
     const el = drawerRef.current;
 
-    gsap.fromTo(
-      el,
-      { x: "100%" },
-      { x: 0, duration: 0.5, ease: "power3.out" }
-    );
+    gsap.fromTo(el, { x: "100%" }, { x: 0, duration: 0.5, ease: "power3.out" });
 
     return () => {
       if (!el) return;
@@ -288,9 +302,8 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
 
       if (abort) return;
 
-      const merged = uniq(
-        [...fromProp, ...fromApiCourses, ...fromTasks],
-        (c) => String(c.id_courses)
+      const merged = uniq([...fromProp, ...fromApiCourses, ...fromTasks], (c) =>
+        String(c.id_courses)
       ).sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
       setCourses(merged);
@@ -309,6 +322,13 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
       [key]: val,
     }));
 
+  const handleDeadlineChange = React.useCallback((val) => {
+    setForm((prev) => {
+      if (prev.deadline === val) return prev; // cegah rerender loop
+      return { ...prev, deadline: val };
+    });
+  }, []);
+
   const handleSave = async () => {
     if (!form.title.trim()) {
       showAlert({
@@ -326,9 +346,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
     const payload = {
       title: form.title,
       description: form.description || null,
-      deadline: form.deadline
-        ? new Date(`${form.deadline}T${form.time || "00:00"}`).toISOString()
-        : null,
+      deadline: form.deadline || null,
       priority: form.priority || null,
       status: normStatus(form.status) || null,
       score: form.score === "" ? null : Number(form.score),
@@ -488,22 +506,11 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
 
             <Row icon="ri-calendar-2-line" label="Deadline">
               <div className="flex items-center gap-2 w-full h-[30px]">
-                <div className="w-[65%]">
-                  <InputBase
-                    as="input"
-                    type="date"
+                <div className="w-full ml-2 h-fit">
+                  <DateTime
+                    defaultValue={todayISO}
                     value={form.deadline}
-                    onChange={(e) => setField("deadline", e.target.value)}
-                    placeholder="dd/mm/yyyy"
-                  />
-                </div>
-                <div className="w/[35%] w-[35%]">
-                  <InputBase
-                    as="input"
-                    type="time"
-                    value={form.time}
-                    onChange={(e) => setField("time", e.target.value)}
-                    placeholder="--:--"
+                    onChange={handleDeadlineChange}
                   />
                 </div>
               </div>
@@ -521,7 +528,7 @@ const AddTask = ({ onClose, refreshTasks, setDrawer, courses: coursesProp }) => 
                     setField("id_course", val ? String(val) : null)
                   }
                   placeholder={selectedCourseName || "Select Course"}
-                  className="course-select !w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0"
+                  className="course-select !w-fit !min-w-[100px] !inline-flex !items-center !justify-start !gap-0 "
                   valueClassFn={() => ""}
                   align="start"
                   strategy="fixed"

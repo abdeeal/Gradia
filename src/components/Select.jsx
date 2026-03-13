@@ -39,7 +39,7 @@ const SelectUi = ({
   return (
     <Select value={currentValue} onValueChange={handleChange}>
       <SelectTrigger
-        className={`w-full border-none focus:ring-0 text-[16px] focus:outline-none text-foreground px-0 [&>svg]:hidden ${triggerClassName} py-0 !h-fit whitespace-normal break-words text-left`}
+        className={`w-full border-none focus:ring-0 text-[16px] focus:outline-none text-foreground px-0 [&>svg]:hidden ${triggerClassName} py-0 !h-fit whitespace-normal break-words text-left lg:px-2`}
         {...triggerProps} // sideOffset/align/strategy TIDAK ikut ke sini lagi
       >
         <SelectValue placeholder={placeholder} />
